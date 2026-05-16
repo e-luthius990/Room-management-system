@@ -22,15 +22,19 @@ const USERS_ROUTE = "/admin/users";
 
 /**
  * -----------------------------
- * ROLE DEFINITIONS (SINGLE SOURCE OF TRUTH)
+ * ROLE DOMAIN MODEL (NO ARRAYS, NO CAST DRIFT)
  * -----------------------------
  */
 
-const SYSTEM_ROLE_KEYS = ["super_admin", "system_admin"] as const;
-type SystemRoleKey = (typeof SYSTEM_ROLE_KEYS)[number];
+const SYSTEM_ROLE_MAP = {
+  super_admin: true,
+  system_admin: true,
+} as const;
+
+type SystemRoleKey = keyof typeof SYSTEM_ROLE_MAP;
 
 function isSystemActor(user: CurrentUserContext): boolean {
-  return SYSTEM_ROLE_KEYS.includes(user.role.key as SystemRoleKey);
+  return SYSTEM_ROLE_MAP[user.role.key as SystemRoleKey] === true;
 }
 
 /**
