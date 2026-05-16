@@ -4,16 +4,13 @@ import {
   Building2,
   CalendarDays,
   ClipboardCheck,
-  ConciergeBell,
   FileUp,
   LayoutDashboard,
   ScrollText,
   Settings,
   ShieldCheck,
-  Sparkles,
   UserCog,
   Users,
-  Wrench,
 } from "lucide-react";
 import type { AppNavIcon } from "@/lib/navigation/app-nav";
 
@@ -41,15 +38,6 @@ export function NavIcon({
 
     case "clipboard-check":
       return <ClipboardCheck className={className} />;
-
-    case "concierge-bell":
-      return <ConciergeBell className={className} />;
-
-    case "sparkles":
-      return <Sparkles className={className} />;
-
-    case "wrench":
-      return <Wrench className={className} />;
 
     case "bar-chart-3":
       return <BarChart3 className={className} />;
