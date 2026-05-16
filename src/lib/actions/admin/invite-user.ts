@@ -15,49 +15,87 @@ import type {
 import {
   inviteUserSchema,
   superAdminInviteUserSchema,
+  INVITABLE_ROLE_KEYS,
+  SUPER_ADMIN_INVITABLE_ROLE_KEYS,
 } from "@/lib/validation/admin-users";
 
 const INVITE_USER_ROUTE = "/admin/users/invite";
 const USERS_ROUTE = "/admin/users";
 
-/**
- * -----------------------------
- * ROLE DOMAIN MODEL (NO ARRAYS, NO CAST DRIFT)
- * -----------------------------
- */
+const ACCESS_LEVEL_RANK: Record<CampAccessLevel, number> = {
+  viewer: 1,
+  operator: 2,
+  supervisor: 3,
+  manager: 4,
+  admin: 5,
+};
 
-const SYSTEM_ROLE_MAP = {
-  super_admin: true,
-  system_admin: true,
-} as const;
+const SYSTEM_ADMIN_INVITABLE_ROLE_KEYS = INVITABLE_ROLE_KEYS.filter(
+  (roleKey) => roleKey !== "system_admin",
+);
 
-type SystemRoleKey = keyof typeof SYSTEM_ROLE_MAP;
+type RoleIdRow = {
+  id: string;
+};
 
-function isSystemActor(user: CurrentUserContext): boolean {
-  return SYSTEM_ROLE_MAP[user.role.key as SystemRoleKey] === true;
+type CampCheckRow = {
+  id: string;
+};
+
+type ProfileCheckRow = {
+  id: string;
+};
+
+type InviteCreatedUser = {
+  id: string;
+};
+
+function getAppUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
+    /\/+$/,
+    "",
+  );
 }
 
-/**
- * Role assignment rules (explicit RBAC)
- */
+function getFormString(formData: FormData, key: string): string | null {
+  const value = formData.get(key);
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function redirectWithError(error: string): never {
+  redirect(`${INVITE_USER_ROUTE}?error=${encodeURIComponent(error)}`);
+}
+
+function isSystemActor(user: CurrentUserContext): boolean {
+  return user.role.key === "super_admin" || user.role.key === "system_admin";
+}
+
 function canAssignRole(
   currentUser: CurrentUserContext,
-  roleKey: RoleKey,
-): boolean {
-  const actorRole = currentUser.role.key;
+  roleKey: string,
+): roleKey is RoleKey {
+  if (currentUser.role.key === "super_admin") {
+    return (SUPER_ADMIN_INVITABLE_ROLE_KEYS as readonly string[]).includes(
+      roleKey,
+    );
+  }
 
-  if (actorRole === "super_admin") return true;
-
-  if (actorRole === "system_admin") {
-    return roleKey !== "super_admin";
+  if (currentUser.role.key === "system_admin") {
+    return (SYSTEM_ADMIN_INVITABLE_ROLE_KEYS as readonly string[]).includes(
+      roleKey,
+    );
   }
 
   return false;
 }
 
-/**
- * Camp-level logic
- */
 function requiredCampLevelForRole(roleKey: RoleKey): CampAccessLevel | null {
   switch (roleKey) {
     case "super_admin":
@@ -81,49 +119,52 @@ function normalizeAccessLevel(
   roleKey: RoleKey,
   submittedLevel: CampAccessLevel | null | undefined,
 ): CampAccessLevel | null {
-  const ACCESS_LEVEL_RANK: Record<CampAccessLevel, number> = {
-    viewer: 1,
-    operator: 2,
-    supervisor: 3,
-    manager: 4,
-    admin: 5,
-  };
-
   const minimumLevel = requiredCampLevelForRole(roleKey);
 
-  if (!minimumLevel) return null;
+  if (!minimumLevel) {
+    return null;
+  }
 
-  if (!submittedLevel) return minimumLevel;
+  if (!submittedLevel) {
+    return minimumLevel;
+  }
 
   return ACCESS_LEVEL_RANK[submittedLevel] >= ACCESS_LEVEL_RANK[minimumLevel]
     ? submittedLevel
     : minimumLevel;
 }
 
-/**
- * Utilities
- */
-function getAppUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
-    /\/+$/,
-    "",
-  );
+function mapInviteError(message: string): string {
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("already") ||
+    normalized.includes("duplicate") ||
+    normalized.includes("unique") ||
+    normalized.includes("email")
+  ) {
+    return "user_exists";
+  }
+
+  if (normalized.includes("role")) {
+    return "role_not_found";
+  }
+
+  if (normalized.includes("camp")) {
+    return "camp_not_found";
+  }
+
+  if (
+    normalized.includes("permission") ||
+    normalized.includes("access") ||
+    normalized.includes("not authorized")
+  ) {
+    return "access_denied";
+  }
+
+  return "invite_failed";
 }
 
-function getFormString(formData: FormData, key: string): string | null {
-  const value = formData.get(key);
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function redirectWithError(error: string): never {
-  redirect(`${INVITE_USER_ROUTE}?error=${encodeURIComponent(error)}`);
-}
-
-/**
- * DB helpers
- */
 async function getRoleId(roleKey: RoleKey): Promise<string> {
   const admin = createSupabaseAdminClient();
 
@@ -131,10 +172,16 @@ async function getRoleId(roleKey: RoleKey): Promise<string> {
     .from("roles")
     .select("id")
     .eq("key", roleKey)
+    .returns<RoleIdRow[]>()
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
-  if (!data) redirectWithError("role_not_found");
+  if (error) {
+    throw new Error(`Failed to load role: ${error.message}`);
+  }
+
+  if (!data) {
+    redirectWithError("role_not_found");
+  }
 
   return data.id;
 }
@@ -148,10 +195,16 @@ async function ensureCampExists(campId: string): Promise<void> {
     .eq("id", campId)
     .eq("status", "active")
     .is("deleted_at", null)
+    .returns<CampCheckRow[]>()
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
-  if (!data) redirectWithError("camp_not_found");
+  if (error) {
+    throw new Error(`Failed to check camp: ${error.message}`);
+  }
+
+  if (!data) {
+    redirectWithError("camp_not_found");
+  }
 }
 
 async function findExistingProfileByEmail(email: string): Promise<string | null> {
@@ -161,15 +214,59 @@ async function findExistingProfileByEmail(email: string): Promise<string | null>
     .from("profiles")
     .select("id")
     .eq("email", email)
+    .returns<ProfileCheckRow[]>()
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(`Failed to check existing profile: ${error.message}`);
+  }
+
   return data?.id ?? null;
 }
 
-/**
- * MAIN ACTION
- */
+async function cleanupAuthOnlyUser(userId: string): Promise<void> {
+  const admin = createSupabaseAdminClient();
+
+  await admin.auth.admin.deleteUser(userId);
+}
+
+async function disablePartiallyCreatedUser(
+  userId: string,
+  actorId: string,
+): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  const now = new Date().toISOString();
+
+  await admin
+    .from("user_camp_access")
+    .update({
+      revoked_at: now,
+      revoked_by: actorId,
+    })
+    .eq("user_id", userId)
+    .is("revoked_at", null);
+
+  await admin
+    .from("user_roles")
+    .update({
+      revoked_at: now,
+      revoked_by: actorId,
+    })
+    .eq("user_id", userId)
+    .is("revoked_at", null);
+
+  await admin
+    .from("profiles")
+    .update({
+      account_status: "disabled",
+      force_password_change: true,
+      disabled_by: actorId,
+      disabled_at: now,
+      updated_at: now,
+    })
+    .eq("id", userId);
+}
+
 export async function inviteUserAction(formData: FormData): Promise<never> {
   const currentUser = await requirePermission("users.invite");
 
@@ -197,12 +294,11 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
     redirectWithError("invalid_input");
   }
 
-  const roleKey = parsed.data.roleKey as RoleKey;
-
-  if (!canAssignRole(currentUser, roleKey)) {
+  if (!canAssignRole(currentUser, parsed.data.roleKey)) {
     redirectWithError("role_not_allowed");
   }
 
+  const roleKey = parsed.data.roleKey;
   const roleId = await getRoleId(roleKey);
   const accessLevel = normalizeAccessLevel(roleKey, parsed.data.accessLevel);
 
@@ -213,25 +309,26 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
   if (parsed.data.campId) {
     await ensureCampExists(parsed.data.campId);
 
-    if (!isSystemActor(currentUser)) {
-      const allowed = hasCampAccess(
-        currentUser,
-        parsed.data.campId,
-        "admin",
-      );
-
-      if (!allowed) redirectWithError("camp_not_allowed");
+    if (
+      !isSystemActor(currentUser) &&
+      !hasCampAccess(currentUser, parsed.data.campId, "admin")
+    ) {
+      redirectWithError("camp_not_allowed");
     }
   }
 
   const existingProfileId = await findExistingProfileByEmail(parsed.data.email);
-  if (existingProfileId) redirectWithError("user_exists");
+
+  if (existingProfileId) {
+    redirectWithError("user_exists");
+  }
 
   const admin = createSupabaseAdminClient();
+  const redirectTo = `${getAppUrl()}/auth/accept-invite`;
 
   const { data: inviteData, error: inviteError } =
     await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
-      redirectTo: `${getAppUrl()}/auth/accept-invite`,
+      redirectTo,
       data: {
         full_name: parsed.data.fullName,
         phone: parsed.data.phone,
@@ -244,13 +341,13 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
     });
 
   if (inviteError || !inviteData.user) {
-    redirectWithError("invite_failed");
+    redirectWithError(mapInviteError(inviteError?.message ?? "invite_failed"));
   }
 
-  const userId = inviteData.user.id;
+  const invitedUser = inviteData.user as InviteCreatedUser;
 
   const { error: profileError } = await admin.from("profiles").insert({
-    id: userId,
+    id: invitedUser.id,
     full_name: parsed.data.fullName,
     email: parsed.data.email,
     phone: parsed.data.phone,
@@ -263,38 +360,41 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
   });
 
   if (profileError) {
-    await admin.auth.admin.deleteUser(userId);
-    redirectWithError("profile_create_failed");
+    await cleanupAuthOnlyUser(invitedUser.id);
+    redirectWithError(mapInviteError(profileError.message));
   }
 
   const { error: roleError } = await admin.from("user_roles").insert({
-    user_id: userId,
+    user_id: invitedUser.id,
     role_id: roleId,
     assigned_by: currentUser.authUser.id,
   });
 
   if (roleError) {
-    redirectWithError("role_assign_failed");
+    await disablePartiallyCreatedUser(invitedUser.id, currentUser.authUser.id);
+    redirectWithError(mapInviteError(roleError.message));
   }
 
   if (parsed.data.campId && accessLevel) {
     const { error: campAccessError } = await admin
       .from("user_camp_access")
       .insert({
-        user_id: userId,
+        user_id: invitedUser.id,
         camp_id: parsed.data.campId,
         access_level: accessLevel,
         granted_by: currentUser.authUser.id,
       });
 
     if (campAccessError) {
-      redirectWithError("camp_access_failed");
+      await disablePartiallyCreatedUser(invitedUser.id, currentUser.authUser.id);
+      redirectWithError(mapInviteError(campAccessError.message));
     }
   }
 
   revalidatePath(USERS_ROUTE);
   revalidatePath(INVITE_USER_ROUTE);
   revalidatePath("/admin");
+  revalidatePath("/admin/users");
 
   redirect(`${USERS_ROUTE}?success=user_invited`);
 }
