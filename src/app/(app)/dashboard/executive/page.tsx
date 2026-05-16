@@ -8,8 +8,6 @@ export default async function ExecutiveDashboardPage() {
     "reports.view_occupancy",
     "reports.view_guests",
     "reports.view_rooms",
-    "reports.view_maintenance",
-    "reports.view_housekeeping",
   ]);
 
   return (
@@ -35,16 +33,6 @@ export default async function ExecutiveDashboardPage() {
           title="Rooms"
           description="View room status, readiness, and operational health."
           href={APP_ROUTES.rooms.board}
-        />
-        <DashboardLink
-          title="Maintenance"
-          description="Review maintenance load and unresolved operational blockers."
-          href={APP_ROUTES.reports.maintenance}
-        />
-        <DashboardLink
-          title="Housekeeping"
-          description="Review housekeeping readiness, inspection progress, and cleaning activity."
-          href={APP_ROUTES.reports.housekeeping}
         />
       </section>
     </div>
