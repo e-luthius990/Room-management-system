@@ -4,11 +4,13 @@ import { unstable_noStore as noStore } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+type NumericDbValue = number | string | null;
+
 export type ManagerRoomSummaryRow = {
   camp_id: string | null;
-  total_rooms: number | null;
-  available_rooms: number | null;
-  occupied_rooms: number | null;
+  total_rooms: NumericDbValue;
+  available_rooms: NumericDbValue;
+  occupied_rooms: NumericDbValue;
 };
 
 export type ManagerCurrentGuestRow = {
@@ -87,8 +89,17 @@ function getTypedClient(
   return client as unknown as SupabaseClient<ManagerDashboardDatabase>;
 }
 
-function toNumber(value: number | null | undefined): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function toNumber(value: NumericDbValue | undefined): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
 }
 
 function requireData<T>(
@@ -116,7 +127,8 @@ export async function getManagerDashboardData(): Promise<ManagerDashboardData> {
     await Promise.all([
       supabase
         .from("manager_room_summary_view")
-        .select("camp_id,total_rooms,available_rooms,occupied_rooms"),
+        .select("camp_id,total_rooms,available_rooms,occupied_rooms")
+        .returns<ManagerRoomSummaryRow[]>(),
 
       supabase
         .from("manager_current_guests_view")
@@ -143,7 +155,8 @@ export async function getManagerDashboardData(): Promise<ManagerDashboardData> {
           ].join(","),
         )
         .order("arrival_time", { ascending: false, nullsFirst: false })
-        .limit(10),
+        .limit(10)
+        .returns<ManagerCurrentGuestRow[]>(),
 
       supabase
         .from("manager_exited_guests_view")
@@ -169,22 +182,23 @@ export async function getManagerDashboardData(): Promise<ManagerDashboardData> {
           ascending: false,
           nullsFirst: false,
         })
-        .limit(10),
+        .limit(10)
+        .returns<ManagerExitedGuestRow[]>(),
     ]);
 
-  const roomRows = requireData(
+  const roomRows: ManagerRoomSummaryRow[] = requireData(
     roomSummaryResult.data,
     roomSummaryResult.error,
     "manager room summary",
   );
 
-  const currentGuests = requireData(
+  const currentGuests: ManagerCurrentGuestRow[] = requireData(
     currentGuestsResult.data,
     currentGuestsResult.error,
     "current guests",
   );
 
-  const exitedGuests = requireData(
+  const exitedGuests: ManagerExitedGuestRow[] = requireData(
     exitedGuestsResult.data,
     exitedGuestsResult.error,
     "exited guests",
@@ -195,6 +209,7 @@ export async function getManagerDashboardData(): Promise<ManagerDashboardData> {
       summary.total += toNumber(row.total_rooms);
       summary.available += toNumber(row.available_rooms);
       summary.occupied += toNumber(row.occupied_rooms);
+
       return summary;
     },
     {
@@ -244,7 +259,8 @@ export async function getManagerCurrentGuests(
       ].join(","),
     )
     .order("arrival_time", { ascending: false, nullsFirst: false })
-    .limit(limit);
+    .limit(limit)
+    .returns<ManagerCurrentGuestRow[]>();
 
   return requireData(data, error, "current guests");
 }
@@ -280,7 +296,8 @@ export async function getManagerExitedGuests(
       ascending: false,
       nullsFirst: false,
     })
-    .limit(limit);
+    .limit(limit)
+    .returns<ManagerExitedGuestRow[]>();
 
   return requireData(data, error, "exited guests");
 }
