@@ -60,11 +60,6 @@ function getAppUrl(): string {
 }
 
 function getInviteRedirectUrl(): string {
-  /**
-   * Use your auth callback if it exists.
-   * This is the safest pattern for Supabase invite links because the callback
-   * can exchange/confirm the auth session and then send the user to accept-invite.
-   */
   return `${getAppUrl()}/auth/callback?next=/auth/accept-invite`;
 }
 
@@ -122,18 +117,10 @@ function resolveCampAccessLevel(params: {
 
   const minimumLevel = getMinimumCampAccessLevel(roleKey);
 
-  /**
-   * System Admins should not manually escalate access levels.
-   * They get the production default for the selected role.
-   */
   if (currentUser.role.key !== "super_admin") {
     return minimumLevel;
   }
 
-  /**
-   * Super Admin can optionally submit a higher access level.
-   * Lower submitted levels are automatically raised to the role minimum.
-   */
   if (!submittedLevel) {
     return minimumLevel;
   }
@@ -150,8 +137,7 @@ function mapInviteError(message: string): string {
     normalized.includes("already") ||
     normalized.includes("duplicate") ||
     normalized.includes("unique") ||
-    normalized.includes("registered") ||
-    normalized.includes("email")
+    normalized.includes("registered")
   ) {
     return "user_exists";
   }
@@ -242,10 +228,7 @@ async function cleanupAuthOnlyUser(userId: string): Promise<void> {
   try {
     await admin.auth.admin.deleteUser(userId);
   } catch {
-    /**
-     * Nothing else to do here.
-     * If Auth cleanup fails, the invite action will still return an error.
-     */
+    // Best-effort cleanup only.
   }
 }
 
@@ -313,18 +296,19 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
 
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0];
-
     redirectWithError(firstIssue?.message ?? "invalid_input");
   }
 
-  const roleKey = parsed.data.roleKey;
+  const requestedRoleKey = parsed.data.roleKey;
 
-  if (!canAssignRole(currentUser, roleKey)) {
+  if (!canAssignRole(currentUser, requestedRoleKey)) {
     redirectWithError("role_not_allowed");
   }
 
+  const roleKey: InvitableRoleKey = requestedRoleKey;
   const campScopedRole = isCampScopedRoleKey(roleKey);
   const campId = parsed.data.campId;
+
   const accessLevel = resolveCampAccessLevel({
     currentUser,
     roleKey,
@@ -370,11 +354,12 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
       },
     });
 
-  if (inviteError || !inviteData.user?.id) {
+  const invitedUserId = inviteData.user?.id;
+
+  if (inviteError || !invitedUserId) {
     redirectWithError(mapInviteError(inviteError?.message ?? "invite_failed"));
   }
 
-  const invitedUserId = inviteData.user.id;
   const actorId = currentUser.profile.id;
   const invitedAt = new Date().toISOString();
 
