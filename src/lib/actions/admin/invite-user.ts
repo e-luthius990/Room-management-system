@@ -6,17 +6,21 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requirePermission } from "@/lib/auth/require-permission";
-import { hasCampAccess } from "@/lib/auth/permissions";
 import type {
   CampAccessLevel,
+  CampScopedRoleKey,
   CurrentUserContext,
-  RoleKey,
+  InvitableRoleKey,
+} from "@/lib/auth/types";
+import {
+  DEFAULT_ROLE_CAMP_ACCESS_LEVEL,
+  INVITABLE_ROLE_KEYS,
+  SYSTEM_ADMIN_INVITABLE_ROLE_KEYS,
+  isCampScopedRoleKey,
 } from "@/lib/auth/types";
 import {
   inviteUserSchema,
   superAdminInviteUserSchema,
-  INVITABLE_ROLE_KEYS,
-  SUPER_ADMIN_INVITABLE_ROLE_KEYS,
 } from "@/lib/validation/admin-users";
 
 const INVITE_USER_ROUTE = "/admin/users/invite";
@@ -30,10 +34,6 @@ const ACCESS_LEVEL_RANK: Record<CampAccessLevel, number> = {
   admin: 5,
 };
 
-const SYSTEM_ADMIN_INVITABLE_ROLE_KEYS = INVITABLE_ROLE_KEYS.filter(
-  (roleKey) => roleKey !== "system_admin",
-);
-
 type RoleIdRow = {
   id: string;
 };
@@ -46,15 +46,26 @@ type ProfileCheckRow = {
   id: string;
 };
 
-type InviteCreatedUser = {
-  id: string;
-};
-
 function getAppUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
-    /\/+$/,
-    "",
-  );
+  const rawUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+    process.env.VERCEL_URL ??
+    "http://localhost:3000";
+
+  const normalized = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
+
+  return normalized.replace(/\/+$/, "");
+}
+
+function getInviteRedirectUrl(): string {
+  /**
+   * Use your auth callback if it exists.
+   * This is the safest pattern for Supabase invite links because the callback
+   * can exchange/confirm the auth session and then send the user to accept-invite.
+   */
+  return `${getAppUrl()}/auth/callback?next=/auth/accept-invite`;
 }
 
 function getFormString(formData: FormData, key: string): string | null {
@@ -80,51 +91,49 @@ function isSystemActor(user: CurrentUserContext): boolean {
 function canAssignRole(
   currentUser: CurrentUserContext,
   roleKey: string,
-): roleKey is RoleKey {
+): roleKey is InvitableRoleKey {
   if (currentUser.role.key === "super_admin") {
-    return (SUPER_ADMIN_INVITABLE_ROLE_KEYS as readonly string[]).includes(
-      roleKey,
-    );
+    return INVITABLE_ROLE_KEYS.includes(roleKey as InvitableRoleKey);
   }
 
   if (currentUser.role.key === "system_admin") {
-    return (SYSTEM_ADMIN_INVITABLE_ROLE_KEYS as readonly string[]).includes(
-      roleKey,
+    return SYSTEM_ADMIN_INVITABLE_ROLE_KEYS.includes(
+      roleKey as CampScopedRoleKey,
     );
   }
 
   return false;
 }
 
-function requiredCampLevelForRole(roleKey: RoleKey): CampAccessLevel | null {
-  switch (roleKey) {
-    case "super_admin":
-    case "system_admin":
-      return null;
-
-    case "camp_manager":
-    case "executive_viewer":
-      return "manager";
-
-    case "receptionist":
-    case "security":
-      return "operator";
-
-    default:
-      return "viewer";
-  }
+function getMinimumCampAccessLevel(roleKey: CampScopedRoleKey): CampAccessLevel {
+  return DEFAULT_ROLE_CAMP_ACCESS_LEVEL[roleKey];
 }
 
-function normalizeAccessLevel(
-  roleKey: RoleKey,
-  submittedLevel: CampAccessLevel | null | undefined,
-): CampAccessLevel | null {
-  const minimumLevel = requiredCampLevelForRole(roleKey);
+function resolveCampAccessLevel(params: {
+  currentUser: CurrentUserContext;
+  roleKey: InvitableRoleKey;
+  submittedLevel: CampAccessLevel | null | undefined;
+}): CampAccessLevel | null {
+  const { currentUser, roleKey, submittedLevel } = params;
 
-  if (!minimumLevel) {
+  if (!isCampScopedRoleKey(roleKey)) {
     return null;
   }
 
+  const minimumLevel = getMinimumCampAccessLevel(roleKey);
+
+  /**
+   * System Admins should not manually escalate access levels.
+   * They get the production default for the selected role.
+   */
+  if (currentUser.role.key !== "super_admin") {
+    return minimumLevel;
+  }
+
+  /**
+   * Super Admin can optionally submit a higher access level.
+   * Lower submitted levels are automatically raised to the role minimum.
+   */
   if (!submittedLevel) {
     return minimumLevel;
   }
@@ -141,6 +150,7 @@ function mapInviteError(message: string): string {
     normalized.includes("already") ||
     normalized.includes("duplicate") ||
     normalized.includes("unique") ||
+    normalized.includes("registered") ||
     normalized.includes("email")
   ) {
     return "user_exists";
@@ -157,7 +167,8 @@ function mapInviteError(message: string): string {
   if (
     normalized.includes("permission") ||
     normalized.includes("access") ||
-    normalized.includes("not authorized")
+    normalized.includes("not authorized") ||
+    normalized.includes("forbidden")
   ) {
     return "access_denied";
   }
@@ -165,13 +176,14 @@ function mapInviteError(message: string): string {
   return "invite_failed";
 }
 
-async function getRoleId(roleKey: RoleKey): Promise<string> {
+async function getRoleId(roleKey: InvitableRoleKey): Promise<string> {
   const admin = createSupabaseAdminClient();
 
   const { data, error } = await admin
     .from("roles")
     .select("id")
     .eq("key", roleKey)
+    .eq("can_access_system", true)
     .returns<RoleIdRow[]>()
     .maybeSingle();
 
@@ -227,13 +239,22 @@ async function findExistingProfileByEmail(email: string): Promise<string | null>
 async function cleanupAuthOnlyUser(userId: string): Promise<void> {
   const admin = createSupabaseAdminClient();
 
-  await admin.auth.admin.deleteUser(userId);
+  try {
+    await admin.auth.admin.deleteUser(userId);
+  } catch {
+    /**
+     * Nothing else to do here.
+     * If Auth cleanup fails, the invite action will still return an error.
+     */
+  }
 }
 
-async function disablePartiallyCreatedUser(
-  userId: string,
-  actorId: string,
-): Promise<void> {
+async function disablePartiallyCreatedUser(params: {
+  userId: string;
+  actorId: string;
+}): Promise<void> {
+  const { userId, actorId } = params;
+
   const admin = createSupabaseAdminClient();
   const now = new Date().toISOString();
 
@@ -291,30 +312,39 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
   });
 
   if (!parsed.success) {
-    redirectWithError("invalid_input");
-  }
+    const firstIssue = parsed.error.issues[0];
 
-  if (!canAssignRole(currentUser, parsed.data.roleKey)) {
-    redirectWithError("role_not_allowed");
+    redirectWithError(firstIssue?.message ?? "invalid_input");
   }
 
   const roleKey = parsed.data.roleKey;
-  const roleId = await getRoleId(roleKey);
-  const accessLevel = normalizeAccessLevel(roleKey, parsed.data.accessLevel);
 
-  if (accessLevel && !parsed.data.campId) {
+  if (!canAssignRole(currentUser, roleKey)) {
+    redirectWithError("role_not_allowed");
+  }
+
+  const campScopedRole = isCampScopedRoleKey(roleKey);
+  const campId = parsed.data.campId;
+  const accessLevel = resolveCampAccessLevel({
+    currentUser,
+    roleKey,
+    submittedLevel: parsed.data.accessLevel,
+  });
+
+  if (campScopedRole && !campId) {
     redirectWithError("camp_required");
   }
 
-  if (parsed.data.campId) {
-    await ensureCampExists(parsed.data.campId);
+  if (!campScopedRole && campId) {
+    redirectWithError("system_role_cannot_have_camp");
+  }
 
-    if (
-      !isSystemActor(currentUser) &&
-      !hasCampAccess(currentUser, parsed.data.campId, "admin")
-    ) {
-      redirectWithError("camp_not_allowed");
-    }
+  if (!campScopedRole && accessLevel) {
+    redirectWithError("system_role_cannot_have_access_level");
+  }
+
+  if (campId) {
+    await ensureCampExists(campId);
   }
 
   const existingProfileId = await findExistingProfileByEmail(parsed.data.email);
@@ -323,31 +353,33 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
     redirectWithError("user_exists");
   }
 
+  const roleId = await getRoleId(roleKey);
   const admin = createSupabaseAdminClient();
-  const redirectTo = `${getAppUrl()}/auth/accept-invite`;
 
   const { data: inviteData, error: inviteError } =
     await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
-      redirectTo,
+      redirectTo: getInviteRedirectUrl(),
       data: {
         full_name: parsed.data.fullName,
         phone: parsed.data.phone,
         department: parsed.data.department,
         job_title: parsed.data.jobTitle,
         role_key: roleKey,
-        camp_id: parsed.data.campId,
+        camp_id: campId,
         access_level: accessLevel,
       },
     });
 
-  if (inviteError || !inviteData.user) {
+  if (inviteError || !inviteData.user?.id) {
     redirectWithError(mapInviteError(inviteError?.message ?? "invite_failed"));
   }
 
-  const invitedUser = inviteData.user as InviteCreatedUser;
+  const invitedUserId = inviteData.user.id;
+  const actorId = currentUser.profile.id;
+  const invitedAt = new Date().toISOString();
 
   const { error: profileError } = await admin.from("profiles").insert({
-    id: invitedUser.id,
+    id: invitedUserId,
     full_name: parsed.data.fullName,
     email: parsed.data.email,
     phone: parsed.data.phone,
@@ -355,38 +387,46 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
     job_title: parsed.data.jobTitle,
     account_status: "invited",
     force_password_change: true,
-    invited_by: currentUser.authUser.id,
-    invited_at: new Date().toISOString(),
+    invited_by: actorId,
+    invited_at: invitedAt,
   });
 
   if (profileError) {
-    await cleanupAuthOnlyUser(invitedUser.id);
+    await cleanupAuthOnlyUser(invitedUserId);
     redirectWithError(mapInviteError(profileError.message));
   }
 
   const { error: roleError } = await admin.from("user_roles").insert({
-    user_id: invitedUser.id,
+    user_id: invitedUserId,
     role_id: roleId,
-    assigned_by: currentUser.authUser.id,
+    assigned_by: actorId,
   });
 
   if (roleError) {
-    await disablePartiallyCreatedUser(invitedUser.id, currentUser.authUser.id);
+    await disablePartiallyCreatedUser({
+      userId: invitedUserId,
+      actorId,
+    });
+
     redirectWithError(mapInviteError(roleError.message));
   }
 
-  if (parsed.data.campId && accessLevel) {
+  if (campId && accessLevel) {
     const { error: campAccessError } = await admin
       .from("user_camp_access")
       .insert({
-        user_id: invitedUser.id,
-        camp_id: parsed.data.campId,
+        user_id: invitedUserId,
+        camp_id: campId,
         access_level: accessLevel,
-        granted_by: currentUser.authUser.id,
+        granted_by: actorId,
       });
 
     if (campAccessError) {
-      await disablePartiallyCreatedUser(invitedUser.id, currentUser.authUser.id);
+      await disablePartiallyCreatedUser({
+        userId: invitedUserId,
+        actorId,
+      });
+
       redirectWithError(mapInviteError(campAccessError.message));
     }
   }
@@ -394,7 +434,6 @@ export async function inviteUserAction(formData: FormData): Promise<never> {
   revalidatePath(USERS_ROUTE);
   revalidatePath(INVITE_USER_ROUTE);
   revalidatePath("/admin");
-  revalidatePath("/admin/users");
 
   redirect(`${USERS_ROUTE}?success=user_invited`);
 }

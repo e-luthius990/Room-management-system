@@ -1,33 +1,17 @@
 import { z } from "zod";
-
-export const INVITABLE_ROLE_KEYS = [
-  "camp_manager",
-  "receptionist",
-  "security",
-  "executive_viewer",
-] as const;
-
-export const SUPER_ADMIN_INVITABLE_ROLE_KEYS = [
-  "system_admin",
-  ...INVITABLE_ROLE_KEYS,
-] as const;
-
-export const CAMP_ACCESS_LEVELS = [
-  "viewer",
-  "operator",
-  "supervisor",
-  "manager",
-  "admin",
-] as const;
-
-export type InvitableRoleKey = (typeof INVITABLE_ROLE_KEYS)[number];
-
-export type SuperAdminInvitableRoleKey =
-  (typeof SUPER_ADMIN_INVITABLE_ROLE_KEYS)[number];
-
-export type CampAccessLevel = (typeof CAMP_ACCESS_LEVELS)[number];
-
-const SYSTEM_ROLE_KEYS = new Set<string>(["super_admin", "system_admin"]);
+import {
+  CAMP_ACCESS_LEVEL_LABELS,
+  CAMP_ACCESS_LEVELS,
+  CAMP_SCOPED_ROLE_KEYS,
+  DEFAULT_ROLE_CAMP_ACCESS_LEVEL,
+  INVITABLE_ROLE_KEYS,
+  SYSTEM_ADMIN_INVITABLE_ROLE_KEYS,
+  SYSTEM_ROLE_LABELS,
+  type CampAccessLevel,
+  type CampScopedRoleKey,
+  type InvitableRoleKey,
+  type SystemAdminInvitableRoleKey,
+} from "@/lib/auth/types";
 
 function normalizeOptionalText(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -35,6 +19,16 @@ function normalizeOptionalText(value: unknown): string | null {
   }
 
   const normalized = value.trim();
+
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeOptionalLowerText(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
 
   return normalized.length > 0 ? normalized : null;
 }
@@ -47,7 +41,7 @@ function normalizeRequiredText(value: unknown): string {
   return value.trim();
 }
 
-function normalizeLowerText(value: unknown): string {
+function normalizeRequiredLowerText(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }
@@ -60,6 +54,15 @@ const optionalText = z.preprocess(
   z.string().max(120, "This field is too long.").nullable(),
 );
 
+const optionalPhone = z.preprocess(
+  normalizeOptionalText,
+  z
+    .string()
+    .min(7, "Phone number is too short.")
+    .max(32, "Phone number is too long.")
+    .nullable(),
+);
+
 const requiredFullName = z.preprocess(
   normalizeRequiredText,
   z
@@ -69,7 +72,7 @@ const requiredFullName = z.preprocess(
 );
 
 const requiredEmail = z.preprocess(
-  normalizeLowerText,
+  normalizeRequiredLowerText,
   z
     .string()
     .email("Enter a valid email address.")
@@ -82,29 +85,39 @@ const optionalCampId = z.preprocess(
 );
 
 const optionalCampAccessLevel = z.preprocess(
-  normalizeOptionalText,
+  normalizeOptionalLowerText,
   z.enum(CAMP_ACCESS_LEVELS).nullable(),
 );
 
-const inviteRoleKeySchema = z.preprocess(
-  normalizeLowerText,
-  z.enum(INVITABLE_ROLE_KEYS),
+const systemAdminInviteRoleKeySchema = z.preprocess(
+  normalizeRequiredLowerText,
+  z.enum(SYSTEM_ADMIN_INVITABLE_ROLE_KEYS),
 );
 
 const superAdminInviteRoleKeySchema = z.preprocess(
-  normalizeLowerText,
-  z.enum(SUPER_ADMIN_INVITABLE_ROLE_KEYS),
+  normalizeRequiredLowerText,
+  z.enum(INVITABLE_ROLE_KEYS),
 );
 
 const baseInviteUserSchema = z.object({
   fullName: requiredFullName,
   email: requiredEmail,
-  phone: optionalText,
+  phone: optionalPhone,
   department: optionalText,
   jobTitle: optionalText,
   campId: optionalCampId,
+
+  /**
+   * Optional by design.
+   * Normal invite flow should derive this from role on the server.
+   * Super Admin can override only if your server action allows it.
+   */
   accessLevel: optionalCampAccessLevel,
 });
+
+function isCampRole(value: string): value is CampScopedRoleKey {
+  return CAMP_SCOPED_ROLE_KEYS.includes(value as CampScopedRoleKey);
+}
 
 function validateCampAccessForRole(
   value: {
@@ -114,9 +127,9 @@ function validateCampAccessForRole(
   },
   ctx: z.RefinementCtx,
 ): void {
-  const isSystemRole = SYSTEM_ROLE_KEYS.has(value.roleKey);
+  const campScoped = isCampRole(value.roleKey);
 
-  if (!isSystemRole && !value.campId) {
+  if (campScoped && !value.campId) {
     ctx.addIssue({
       code: "custom",
       path: ["campId"],
@@ -124,49 +137,52 @@ function validateCampAccessForRole(
     });
   }
 
-  if (!isSystemRole && !value.accessLevel) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["accessLevel"],
-      message: "Select a camp access level.",
-    });
-  }
-
-  if (isSystemRole && value.accessLevel && !value.campId) {
+  if (!campScoped && value.campId) {
     ctx.addIssue({
       code: "custom",
       path: ["campId"],
-      message: "Select a camp or remove the camp access level.",
+      message: "System roles must not be assigned to a camp.",
+    });
+  }
+
+  if (!campScoped && value.accessLevel) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["accessLevel"],
+      message: "System roles must not have camp access level.",
     });
   }
 }
 
+/**
+ * System Admin invite schema.
+ * System Admins can invite only camp-scoped roles.
+ */
 export const inviteUserSchema = baseInviteUserSchema
   .extend({
-    roleKey: inviteRoleKeySchema,
+    roleKey: systemAdminInviteRoleKeySchema,
   })
   .superRefine(validateCampAccessForRole);
 
+/**
+ * Super Admin invite schema.
+ * Super Admins can invite System Admins and camp-scoped roles.
+ */
 export const superAdminInviteUserSchema = baseInviteUserSchema
   .extend({
     roleKey: superAdminInviteRoleKeySchema,
   })
   .superRefine(validateCampAccessForRole);
 
-export const campAccessLevelLabels: Record<CampAccessLevel, string> = {
-  viewer: "Viewer",
-  operator: "Operator",
-  supervisor: "Supervisor",
-  manager: "Manager",
-  admin: "Admin",
-};
+export const campAccessLevelLabels: Record<CampAccessLevel, string> =
+  CAMP_ACCESS_LEVEL_LABELS;
 
-export const roleKeyLabels: Record<SuperAdminInvitableRoleKey, string> = {
-  system_admin: "System Admin",
-  camp_manager: "Camp Manager",
-  receptionist: "Receptionist",
-  security: "Security",
-  executive_viewer: "Executive Viewer",
+export const roleKeyLabels: Record<InvitableRoleKey, string> = {
+  system_admin: SYSTEM_ROLE_LABELS.system_admin,
+  camp_manager: SYSTEM_ROLE_LABELS.camp_manager,
+  receptionist: SYSTEM_ROLE_LABELS.receptionist,
+  security: SYSTEM_ROLE_LABELS.security,
+  executive_viewer: SYSTEM_ROLE_LABELS.executive_viewer,
 };
 
 export const campAccessLevelOptions: ReadonlyArray<{
@@ -178,6 +194,14 @@ export const campAccessLevelOptions: ReadonlyArray<{
 }));
 
 export const invitableRoleOptions: ReadonlyArray<{
+  value: SystemAdminInvitableRoleKey;
+  label: string;
+}> = SYSTEM_ADMIN_INVITABLE_ROLE_KEYS.map((value) => ({
+  value,
+  label: roleKeyLabels[value],
+}));
+
+export const superAdminInvitableRoleOptions: ReadonlyArray<{
   value: InvitableRoleKey;
   label: string;
 }> = INVITABLE_ROLE_KEYS.map((value) => ({
@@ -185,13 +209,19 @@ export const invitableRoleOptions: ReadonlyArray<{
   label: roleKeyLabels[value],
 }));
 
-export const superAdminInvitableRoleOptions: ReadonlyArray<{
-  value: SuperAdminInvitableRoleKey;
+export const defaultRoleCampAccessLevelOptions: ReadonlyArray<{
+  roleKey: CampScopedRoleKey;
+  accessLevel: CampAccessLevel;
   label: string;
-}> = SUPER_ADMIN_INVITABLE_ROLE_KEYS.map((value) => ({
-  value,
-  label: roleKeyLabels[value],
-}));
+}> = CAMP_SCOPED_ROLE_KEYS.map((roleKey) => {
+  const accessLevel = DEFAULT_ROLE_CAMP_ACCESS_LEVEL[roleKey];
+
+  return {
+    roleKey,
+    accessLevel,
+    label: campAccessLevelLabels[accessLevel],
+  };
+});
 
 export type InviteUserInput = z.infer<typeof inviteUserSchema>;
 

@@ -1,18 +1,20 @@
 import "server-only";
 
-import type { Enums } from "@/lib/db/types";
+import type { Database } from "@/lib/db/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { RoleKey } from "@/lib/auth/types";
 import {
   INVITABLE_ROLE_KEYS,
-  SUPER_ADMIN_INVITABLE_ROLE_KEYS,
-  type SuperAdminInvitableRoleKey,
-} from "@/lib/validation/admin-users";
+  SYSTEM_ADMIN_INVITABLE_ROLE_KEYS,
+  isInvitableRoleKey,
+  isSystemAccessRoleKey,
+  type InvitableRoleKey,
+  type RoleKey,
+} from "@/lib/auth/types";
 
-type AccountStatus = Enums<"account_status">;
+type AccountStatus = Database["public"]["Enums"]["account_status"];
 
 export type InviteRoleOption = {
-  key: RoleKey;
+  key: InvitableRoleKey;
   name: string;
 };
 
@@ -31,7 +33,7 @@ export type AdminUserListItem = {
   job_title: string | null;
   account_status: AccountStatus;
   role_name: string | null;
-  role_key: string | null;
+  role_key: RoleKey | null;
   camp_count: number;
   created_at: string;
 };
@@ -74,51 +76,59 @@ type UserCampAccessRow = {
   camp_id: string;
 };
 
-function toRequiredText(value: string | null, fallback: string): string {
+function toRequiredText(value: string | null | undefined, fallback: string): string {
   const normalized = value?.trim();
 
   return normalized && normalized.length > 0 ? normalized : fallback;
 }
 
-function uniqueStrings(values: ReadonlyArray<string | null>): string[] {
+function uniqueStrings(
+  values: ReadonlyArray<string | null | undefined>,
+): string[] {
   return Array.from(
     new Set(values.filter((value): value is string => Boolean(value))),
   );
 }
 
-function isInvitableRoleKey(value: string | null): value is RoleKey {
-  if (!value) {
-    return false;
+function getAllowedInviteRoleKeys(
+  currentRoleKey: RoleKey,
+): readonly InvitableRoleKey[] {
+  if (currentRoleKey === "super_admin") {
+    return INVITABLE_ROLE_KEYS;
   }
 
-  return SUPER_ADMIN_INVITABLE_ROLE_KEYS.includes(
-    value as SuperAdminInvitableRoleKey,
-  );
+  if (currentRoleKey === "system_admin") {
+    return SYSTEM_ADMIN_INVITABLE_ROLE_KEYS;
+  }
+
+  return [];
 }
 
 export async function getInviteRoleOptions(
   currentRoleKey: RoleKey,
 ): Promise<InviteRoleOption[]> {
-  const admin = createSupabaseAdminClient();
+  const allowedRoleKeys = getAllowedInviteRoleKeys(currentRoleKey);
 
-  const allowedRoleKeys =
-    currentRoleKey === "super_admin"
-      ? SUPER_ADMIN_INVITABLE_ROLE_KEYS
-      : INVITABLE_ROLE_KEYS;
+  if (allowedRoleKeys.length === 0) {
+    return [];
+  }
+
+  const admin = createSupabaseAdminClient();
 
   const { data, error } = await admin
     .from("roles")
     .select("key,name")
     .in("key", [...allowedRoleKeys])
+    .eq("can_access_system", true)
     .order("name", { ascending: true })
     .returns<RoleOptionRow[]>();
 
   if (error) {
-    throw new Error(`Failed to load roles: ${error.message}`);
+    throw new Error(`Failed to load invite roles: ${error.message}`);
   }
 
   return (data ?? [])
-    .filter((role): role is RoleOptionRow & { key: RoleKey } =>
+    .filter((role): role is RoleOptionRow & { key: InvitableRoleKey } =>
       isInvitableRoleKey(role.key),
     )
     .map((role) => ({
@@ -212,13 +222,14 @@ export async function getAdminUsers(): Promise<AdminUserListItem[]> {
   const campAccessRows = campAccessResult.data ?? [];
 
   const roleIds = uniqueStrings(userRoleRows.map((row) => row.role_id));
-  const rolesById = new Map<string, { key: string; name: string }>();
+  const rolesById = new Map<string, { key: RoleKey; name: string }>();
 
   if (roleIds.length > 0) {
     const { data: roles, error: rolesError } = await admin
       .from("roles")
       .select("id,key,name")
       .in("id", roleIds)
+      .eq("can_access_system", true)
       .returns<RoleLookupRow[]>();
 
     if (rolesError) {
@@ -226,14 +237,18 @@ export async function getAdminUsers(): Promise<AdminUserListItem[]> {
     }
 
     for (const role of roles ?? []) {
+      if (!isSystemAccessRoleKey(role.key)) {
+        continue;
+      }
+
       rolesById.set(role.id, {
-        key: toRequiredText(role.key, "unknown"),
-        name: toRequiredText(role.name, "Unknown role"),
+        key: role.key,
+        name: toRequiredText(role.name, role.key),
       });
     }
   }
 
-  const roleByUserId = new Map<string, { key: string; name: string }>();
+  const roleByUserId = new Map<string, { key: RoleKey; name: string }>();
 
   for (const row of userRoleRows) {
     const role = rolesById.get(row.role_id);
@@ -247,6 +262,7 @@ export async function getAdminUsers(): Promise<AdminUserListItem[]> {
 
   for (const row of campAccessRows) {
     const campIds = campIdsByUserId.get(row.user_id) ?? new Set<string>();
+
     campIds.add(row.camp_id);
     campIdsByUserId.set(row.user_id, campIds);
   }
