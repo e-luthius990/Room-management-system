@@ -1,5 +1,5 @@
 import { markSecurityGateExitAction } from "@/lib/actions/security/create-clearance-event";
-import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Textarea } from "@/components/ui/Textarea";
 
 type GateExitFormProps = {
@@ -60,13 +60,13 @@ export function GateExitForm({
         className="resize-y"
       />
 
-      <Button
-        type="submit"
-        size={compact ? "sm" : "md"}
-        className={compact ? undefined : "w-full"}
+      <PendingSubmitButton
+        pendingLabel="Marking as left..."
+        fullWidth={!compact}
+        className={compact ? "btn-warning btn-sm" : "btn-warning"}
       >
         Mark as left
-      </Button>
+      </PendingSubmitButton>
     </form>
   );
 }

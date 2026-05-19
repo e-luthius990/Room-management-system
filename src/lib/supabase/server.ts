@@ -1,3 +1,5 @@
+import "server-only";
+
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -43,8 +45,10 @@ export async function createServerSupabaseClient(): Promise<
               cookieStore.set(name, value, options);
             });
           } catch {
-            // Server Components cannot set cookies.
-            // Route Handlers, Server Actions, and proxy can.
+            /**
+             * Server Components cannot set cookies.
+             * Route handlers, server actions, and proxy/middleware can.
+             */
           }
         },
       },

@@ -11,8 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 
@@ -98,9 +98,12 @@ export function ClearanceEventForm({
             className="resize-y"
           />
 
-          <Button type="submit" className="w-full">
+          <PendingSubmitButton
+            pendingLabel="Saving clearance event..."
+            fullWidth
+          >
             {submitLabel}
-          </Button>
+          </PendingSubmitButton>
         </CardContent>
       </Card>
     </form>

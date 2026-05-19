@@ -8,6 +8,7 @@ import { AUTH_ROUTES } from "@/lib/auth/routes";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 
 type ResetPasswordPageProps = {
   searchParams?: Promise<{
@@ -21,12 +22,29 @@ export default async function ResetPasswordPage({
 }: ResetPasswordPageProps): Promise<React.JSX.Element> {
   const params = await searchParams;
 
+  if (params?.success) {
+    return (
+      <AuthShell
+        title="Password updated"
+        description="Your password has been updated successfully. You can now sign in with your new password."
+      >
+        <AuthMessage success={params.success} />
+
+        <Link href={AUTH_ROUTES.login}>
+          <Button type="button" className="h-11 w-full rounded-2xl">
+            Back to sign in
+          </Button>
+        </Link>
+      </AuthShell>
+    );
+  }
+
   return (
     <AuthShell
       title="Create a new password"
       description="Use a secure password to protect access to camp and room operations."
     >
-      <AuthMessage error={params?.error} success={params?.success} />
+      <AuthMessage error={params?.error} />
 
       <form action={resetPasswordAction} className="space-y-5">
         <Input
@@ -49,21 +67,23 @@ export default async function ResetPasswordPage({
           placeholder="Confirm your password"
         />
 
-        <Button type="submit" className="h-11 w-full rounded-2xl">
+        <PendingSubmitButton
+          pendingLabel="Updating password..."
+          fullWidth
+          className="h-11 rounded-2xl"
+        >
           Update password
-        </Button>
+        </PendingSubmitButton>
       </form>
 
-      {params?.success ? (
-        <div className="mt-6 border-t border-border pt-5">
-          <Link
-            href={AUTH_ROUTES.login}
-            className="text-sm font-medium text-muted transition hover:text-foreground"
-          >
-            Back to sign in
-          </Link>
-        </div>
-      ) : null}
+      <div className="mt-6 border-t border-border pt-5">
+        <Link
+          href={AUTH_ROUTES.login}
+          className="text-sm font-medium text-muted transition hover:text-foreground"
+        >
+          Back to sign in
+        </Link>
+      </div>
     </AuthShell>
   );
 }

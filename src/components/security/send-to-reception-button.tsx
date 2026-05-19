@@ -1,5 +1,5 @@
 import { sendGuestToReceptionAction } from "@/lib/actions/security/create-clearance-event";
-import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 
 type SendToReceptionButtonProps = {
   securityEventId: string;
@@ -16,14 +16,14 @@ export function SendToReceptionButton({
     <form action={sendGuestToReceptionAction}>
       <input type="hidden" name="securityEventId" value={securityEventId} />
 
-      <Button
-        type="submit"
+      <PendingSubmitButton
         disabled={disabled}
-        size={compact ? "sm" : "md"}
-        className={compact ? undefined : "w-full"}
+        pendingLabel="Sending to reception..."
+        fullWidth={!compact}
+        className={compact ? "btn-sm" : undefined}
       >
         Send to reception
-      </Button>
+      </PendingSubmitButton>
     </form>
   );
 }

@@ -13,6 +13,14 @@ export const SYSTEM_ROUTES = {
   accountSuspended: "/account-suspended",
 } as const;
 
+function routeSegment(value: string): string {
+  return encodeURIComponent(value);
+}
+
+function queryValue(value: string): string {
+  return encodeURIComponent(value);
+}
+
 export const APP_ROUTES = {
   dashboard: "/dashboard",
 
@@ -24,82 +32,87 @@ export const APP_ROUTES = {
   },
 
   manager: {
-  home: "/dashboard/camp-manager",
+    home: "/dashboard/camp-manager",
 
-  rooms: {
-    board: "/room-board",
-    available: "/room-board?status=vacant_ready",
-    occupied: "/room-board?status=occupied",
-  },
+    rooms: {
+      board: "/room-board",
+      available: "/room-board?status=vacant_ready",
+      occupied: "/room-board?status=occupied",
+    },
 
-  guests: {
-    current: "/stays?view=current",
-    exited: "/stays?view=exited",
+    guests: {
+      current: "/stays?view=current",
+      exited: "/stays?view=exited",
+    },
   },
-},
 
   reception: {
     home: "/dashboard/reception",
     securityHandoffs: "/reception/security-handoffs",
     securityHandoffDetail: (securityEventId: string) =>
-      `/reception/security-handoffs/${securityEventId}`,
+      `/reception/security-handoffs/${routeSegment(securityEventId)}`,
   },
 
   rooms: {
     board: "/room-board",
     list: "/rooms",
     new: "/rooms/new",
-    detail: (roomId: string) => `/rooms/${roomId}`,
-    edit: (roomId: string) => `/rooms/${roomId}/edit`,
+    detail: (roomId: string) => `/rooms/${routeSegment(roomId)}`,
+    edit: (roomId: string) => `/rooms/${routeSegment(roomId)}/edit`,
     qrCodes: "/rooms/qr-codes",
   },
 
   buildings: {
     list: "/buildings",
     new: "/buildings/new",
-    detail: (buildingId: string) => `/buildings/${buildingId}`,
-    edit: (buildingId: string) => `/buildings/${buildingId}/edit`,
+    detail: (buildingId: string) => `/buildings/${routeSegment(buildingId)}`,
+    edit: (buildingId: string) =>
+      `/buildings/${routeSegment(buildingId)}/edit`,
   },
 
   reservations: {
     list: "/reservations",
     new: "/reservations/new",
-    detail: (reservationId: string) => `/reservations/${reservationId}`,
-    edit: (reservationId: string) => `/reservations/${reservationId}/edit`,
+    detail: (reservationId: string) =>
+      `/reservations/${routeSegment(reservationId)}`,
+    edit: (reservationId: string) =>
+      `/reservations/${routeSegment(reservationId)}/edit`,
     newFromSecurityHandoff: (securityEventId: string) =>
-      `/reservations/new?securityEventId=${securityEventId}`,
+      `/reservations/new?securityEventId=${queryValue(securityEventId)}`,
   },
 
   allocations: {
     list: "/allocations",
     new: "/allocations/new",
-    detail: (allocationId: string) => `/allocations/${allocationId}`,
+    detail: (allocationId: string) =>
+      `/allocations/${routeSegment(allocationId)}`,
     newFromSecurityHandoff: (securityEventId: string) =>
-      `/allocations/new?securityEventId=${securityEventId}`,
+      `/allocations/new?securityEventId=${queryValue(securityEventId)}`,
   },
 
   stays: {
     list: "/stays",
-    detail: (stayId: string) => `/stays/${stayId}`,
+    detail: (stayId: string) => `/stays/${routeSegment(stayId)}`,
     checkIn: "/stays/check-in",
     checkInFromSecurityHandoff: (securityEventId: string) =>
-      `/stays/check-in?securityEventId=${securityEventId}`,
-    checkOut: (stayId: string) => `/stays/${stayId}/check-out`,
+      `/stays/check-in?securityEventId=${queryValue(securityEventId)}`,
+    checkOut: (stayId: string) => `/stays/${routeSegment(stayId)}/check-out`,
   },
 
   guests: {
     list: "/guests",
     new: "/guests/new",
-    detail: (guestId: string) => `/guests/${guestId}`,
-    edit: (guestId: string) => `/guests/${guestId}/edit`,
-    documents: (guestId: string) => `/guests/${guestId}/documents`,
+    detail: (guestId: string) => `/guests/${routeSegment(guestId)}`,
+    edit: (guestId: string) => `/guests/${routeSegment(guestId)}/edit`,
+    documents: (guestId: string) =>
+      `/guests/${routeSegment(guestId)}/documents`,
   },
 
   groups: {
     list: "/groups",
     new: "/groups/new",
-    detail: (groupId: string) => `/groups/${groupId}`,
-    edit: (groupId: string) => `/groups/${groupId}/edit`,
+    detail: (groupId: string) => `/groups/${routeSegment(groupId)}`,
+    edit: (groupId: string) => `/groups/${routeSegment(groupId)}/edit`,
   },
 
   security: {
@@ -108,10 +121,11 @@ export const APP_ROUTES = {
     gate: "/security/gate",
     pendingReception: "/security/pending-reception",
     newGuest: "/security/guests/new",
-    guestProfile: (guestId: string) => `/security/guests/${guestId}`,
+    guestProfile: (guestId: string) =>
+      `/security/guests/${routeSegment(guestId)}`,
 
     /**
-     * Kept only for backward compatibility with older imports.
+     * Backward-compatible alias.
      * Prefer APP_ROUTES.security.review for the main security register.
      */
     clearances: "/security",

@@ -1,81 +1,68 @@
 import type { CampOption } from "@/lib/queries/setup/options";
 import { createImportBatchAction } from "@/lib/actions/imports/create-import";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 
 type CreateImportFormProps = {
   camps: CampOption[];
 };
 
+const importTypeOptions = [
+  { value: "rooms_csv", label: "Rooms CSV" },
+  { value: "guests_csv", label: "Guests CSV" },
+] as const;
+
 export function CreateImportForm({
   camps,
 }: CreateImportFormProps): React.JSX.Element {
+  const campOptions = camps.map((camp) => ({
+    value: camp.id,
+    label: `${camp.name} (${camp.code})`,
+  }));
+
   return (
     <form
       action={createImportBatchAction}
-      className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"
+      encType="multipart/form-data"
+      className="surface-card p-5 sm:p-6"
     >
       <div>
-        <h2 className="text-base font-semibold text-neutral-950">
+        <div className="page-kicker">Bulk import</div>
+
+        <h2 className="mt-2 text-base font-semibold tracking-[-0.025em] text-foreground">
           Upload import file
         </h2>
-        <p className="mt-1 text-sm leading-6 text-neutral-500">
+
+        <p className="mt-1 text-sm leading-6 text-muted">
           Upload a CSV file to validate rows before applying them into rooms or
           guests.
         </p>
       </div>
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
-        <div>
-          <label
-            htmlFor="campId"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Camp
-          </label>
+        <Select
+          label="Camp"
+          id="campId"
+          name="campId"
+          required
+          defaultValue=""
+          placeholder="Select camp"
+          disabled={campOptions.length === 0}
+          options={campOptions}
+        />
 
-          <select
-            id="campId"
-            required
-            name="campId"
-            defaultValue=""
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-          >
-            <option value="" disabled>
-              Select camp
-            </option>
+        <Select
+          label="Import type"
+          id="importType"
+          name="importType"
+          required
+          defaultValue="rooms_csv"
+          options={importTypeOptions}
+        />
 
-            {camps.map((camp) => (
-              <option key={camp.id} value={camp.id}>
-                {camp.name} ({camp.code})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="importType"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Import type
-          </label>
-
-          <select
-            id="importType"
-            required
-            name="importType"
-            defaultValue="rooms_csv"
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-          >
-            <option value="rooms_csv">Rooms CSV</option>
-            <option value="guests_csv">Guests CSV</option>
-          </select>
-        </div>
-
-        <div className="md:col-span-2">
-          <label
-            htmlFor="file"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
+        <div className="field-group md:col-span-2">
+          <label htmlFor="file" className="field-label">
             CSV file
           </label>
 
@@ -85,55 +72,52 @@ export function CreateImportForm({
             name="file"
             type="file"
             accept=".csv,text/csv,application/vnd.ms-excel"
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm"
+            className="input file:mr-4 file:rounded-xl file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground"
           />
 
-          <p className="mt-2 text-xs leading-5 text-neutral-500">
+          <p className="field-hint">
             CSV only. Maximum 20MB and 5,000 data rows per upload.
           </p>
         </div>
 
-        <div className="md:col-span-2">
-          <label
-            htmlFor="notes"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Notes
-          </label>
-
-          <textarea
-            id="notes"
-            name="notes"
-            rows={3}
-            maxLength={500}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Optional internal note about this import"
-          />
-        </div>
+        <Textarea
+          wrapperClassName="md:col-span-2"
+          id="notes"
+          name="notes"
+          label="Notes"
+          rows={3}
+          maxLength={500}
+          placeholder="Optional internal note about this import"
+          className="resize-y"
+        />
       </div>
 
       <section className="mt-6 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-          <div className="text-sm font-semibold text-neutral-950">
+        <div className="muted-panel">
+          <div className="text-sm font-semibold text-foreground">
             Rooms CSV required columns
           </div>
-          <p className="mt-2 text-xs leading-5 text-neutral-600">
+
+          <p className="mt-2 text-xs leading-5 text-foreground-soft">
             building_name, room_number, room_type, capacity
           </p>
-          <p className="mt-2 text-xs leading-5 text-neutral-500">
+
+          <p className="mt-2 text-xs leading-5 text-muted">
             Optional: floor_label, section_label, bed_type, gender_restriction,
             is_vip, is_delegate_suitable, notes.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-          <div className="text-sm font-semibold text-neutral-950">
+        <div className="muted-panel">
+          <div className="text-sm font-semibold text-foreground">
             Guests CSV required columns
           </div>
-          <p className="mt-2 text-xs leading-5 text-neutral-600">
+
+          <p className="mt-2 text-xs leading-5 text-foreground-soft">
             full_name, guest_category
           </p>
-          <p className="mt-2 text-xs leading-5 text-neutral-500">
+
+          <p className="mt-2 text-xs leading-5 text-muted">
             At least one contact field is required per row: phone or email.
             Optional: gender, organization, department_or_project, nationality,
             is_vip, security_clearance_status, notes, manager_notes.
@@ -141,13 +125,13 @@ export function CreateImportForm({
         </div>
       </section>
 
-      <div className="mt-6 flex justify-end">
-        <button
-          type="submit"
-          className="rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+      <div className="form-actions mt-6">
+        <PendingSubmitButton
+          pendingLabel="Uploading import..."
+          disabled={campOptions.length === 0}
         >
           Upload and validate import
-        </button>
+        </PendingSubmitButton>
       </div>
     </form>
   );

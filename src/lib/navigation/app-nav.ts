@@ -1,4 +1,6 @@
-import type { CurrentUserContext } from "@/lib/auth/types";
+// src/lib/navigation/app-nav.ts
+
+import type { CurrentUserContext, RoleKey } from "@/lib/auth/types";
 import { hasAnyPermission, SYSTEM_ROLES } from "@/lib/auth/permissions";
 import { APP_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
 
@@ -24,52 +26,36 @@ export type AppNavItem = {
   exact?: boolean;
 };
 
-const DASHBOARD_NAV_ITEM: AppNavItem = {
-  label: "Dashboard",
-  href: SYSTEM_ROUTES.dashboard,
-  icon: "layout-dashboard",
-  permissions: [
-    "dashboard.view",
-    "rooms.view",
-    "reservations.view",
-    "allocations.view",
-    "stays.view",
-    "stays.view_current",
-    "security.view_gate_dashboard",
-    "reception.handle_security_handoffs",
-    "reports.view_occupancy",
-    "reports.view_guests",
-    "reports.view_rooms",
-  ],
-  exact: true,
-};
+const DASHBOARD_PERMISSIONS = [
+  "dashboard.view",
+  "rooms.view",
+  "reservations.view",
+  "allocations.view",
+  "stays.view",
+  "stays.view_current",
+  "security.view_gate_dashboard",
+  "reception.handle_security_handoffs",
+  "reports.view_occupancy",
+  "reports.view_guests",
+  "reports.view_rooms",
+] as const;
 
-const CAMP_MANAGER_DASHBOARD_NAV_ITEM: AppNavItem = {
-  label: "Dashboard",
-  href: APP_ROUTES.manager.home,
-  icon: "layout-dashboard",
-  permissions: ["dashboard.view"],
-  exact: true,
-};
-
-function isSystemUser(currentUser: CurrentUserContext): boolean {
-  return currentUser.isSystemActor || SYSTEM_ROLES.has(currentUser.role.key);
+function createDashboardNavItem(
+  href: string = SYSTEM_ROUTES.dashboard,
+): AppNavItem {
+  return {
+    label: "Dashboard",
+    href,
+    icon: "layout-dashboard",
+    permissions: DASHBOARD_PERMISSIONS,
+    exact: true,
+  };
 }
 
-function isReceptionist(currentUser: CurrentUserContext): boolean {
-  return currentUser.role.key === "receptionist";
-}
+const DASHBOARD_NAV_ITEM = createDashboardNavItem();
 
-function isSecurityUser(currentUser: CurrentUserContext): boolean {
-  return currentUser.role.key === "security";
-}
-
-function isCampManager(currentUser: CurrentUserContext): boolean {
-  return currentUser.role.key === "camp_manager";
-}
-
-const CAMP_MANAGER_NAV_ITEMS: AppNavItem[] = [
-  CAMP_MANAGER_DASHBOARD_NAV_ITEM,
+const CAMP_MANAGER_NAV_ITEMS = [
+  createDashboardNavItem(APP_ROUTES.manager.home),
   {
     label: "Room Board",
     href: APP_ROUTES.manager.rooms.board,
@@ -100,9 +86,10 @@ const CAMP_MANAGER_NAV_ITEMS: AppNavItem[] = [
     icon: "clipboard-check",
     permissions: ["stays.view_history"],
   },
-];
+] as const satisfies readonly AppNavItem[];
 
-const RECEPTIONIST_NAV_ITEMS: AppNavItem[] = [
+const RECEPTIONIST_NAV_ITEMS = [
+  DASHBOARD_NAV_ITEM,
   {
     label: "Security Handoffs",
     href: APP_ROUTES.reception.securityHandoffs,
@@ -139,9 +126,10 @@ const RECEPTIONIST_NAV_ITEMS: AppNavItem[] = [
     icon: "clipboard-check",
     permissions: ["stays.check_out"],
   },
-];
+] as const satisfies readonly AppNavItem[];
 
-const SECURITY_NAV_ITEMS: AppNavItem[] = [
+const SECURITY_NAV_ITEMS = [
+  DASHBOARD_NAV_ITEM,
   {
     label: "Security Review",
     href: APP_ROUTES.security.review,
@@ -161,9 +149,9 @@ const SECURITY_NAV_ITEMS: AppNavItem[] = [
     icon: "clipboard-check",
     permissions: ["security.view_clearance"],
   },
-];
+] as const satisfies readonly AppNavItem[];
 
-export const APP_NAV_ITEMS: AppNavItem[] = [
+export const APP_NAV_ITEMS = [
   DASHBOARD_NAV_ITEM,
   {
     label: "Room Board",
@@ -235,9 +223,9 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
       "reports.view_rooms",
     ],
   },
-];
+] as const satisfies readonly AppNavItem[];
 
-export const ADMIN_NAV_ITEMS: AppNavItem[] = [
+export const ADMIN_NAV_ITEMS = [
   {
     label: "Users",
     href: APP_ROUTES.admin.users,
@@ -285,30 +273,43 @@ export const ADMIN_NAV_ITEMS: AppNavItem[] = [
     icon: "settings",
     permissions: ["settings.view", "system_settings.update"],
   },
-];
+] as const satisfies readonly AppNavItem[];
 
-function getPrimaryNavItems(currentUser: CurrentUserContext): AppNavItem[] {
-  if (isCampManager(currentUser)) {
-    return CAMP_MANAGER_NAV_ITEMS;
-  }
+/**
+ * Important:
+ * Do not use only `as const satisfies Partial<Record<RoleKey, ...>>` here.
+ * That validates the object but keeps the object indexed only by existing literal keys,
+ * causing TS errors when indexing with all RoleKey values.
+ */
+const ROLE_NAV_ITEMS: Partial<Record<RoleKey, readonly AppNavItem[]>> = {
+  camp_manager: CAMP_MANAGER_NAV_ITEMS,
+  receptionist: RECEPTIONIST_NAV_ITEMS,
+  security: SECURITY_NAV_ITEMS,
+};
 
-  if (isReceptionist(currentUser)) {
-    return [DASHBOARD_NAV_ITEM, ...RECEPTIONIST_NAV_ITEMS];
-  }
+function isSystemUser(currentUser: CurrentUserContext): boolean {
+  return currentUser.isSystemActor || SYSTEM_ROLES.has(currentUser.role.key);
+}
 
-  if (isSecurityUser(currentUser)) {
-    return [DASHBOARD_NAV_ITEM, ...SECURITY_NAV_ITEMS];
-  }
+function getPrimaryNavItems(
+  currentUser: CurrentUserContext,
+): readonly AppNavItem[] {
+  return ROLE_NAV_ITEMS[currentUser.role.key] ?? APP_NAV_ITEMS;
+}
 
-  return APP_NAV_ITEMS;
+function canSeeNavItem(
+  currentUser: CurrentUserContext,
+  item: AppNavItem,
+): boolean {
+  return hasAnyPermission(currentUser, item.permissions);
 }
 
 export function getVisibleNavItems(
   currentUser: CurrentUserContext,
 ): AppNavItem[] {
-  return getPrimaryNavItems(currentUser).filter((item) => {
-    return hasAnyPermission(currentUser, item.permissions);
-  });
+  return getPrimaryNavItems(currentUser).filter((item) =>
+    canSeeNavItem(currentUser, item),
+  );
 }
 
 export function getVisibleAdminNavItems(
@@ -318,7 +319,5 @@ export function getVisibleAdminNavItems(
     return [];
   }
 
-  return ADMIN_NAV_ITEMS.filter((item) => {
-    return hasAnyPermission(currentUser, item.permissions);
-  });
+  return ADMIN_NAV_ITEMS.filter((item) => canSeeNavItem(currentUser, item));
 }

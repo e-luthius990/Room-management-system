@@ -8,47 +8,78 @@ export type SelectOption = {
 };
 
 export type SelectProps = Omit<
-  React.SelectHTMLAttributes<HTMLSelectElement>,
-  "children"
+  React.ComponentPropsWithoutRef<"select">,
+  "children" | "aria-describedby"
 > & {
-  label?: string;
-  hint?: string;
-  error?: string;
+  label?: React.ReactNode;
+  hint?: React.ReactNode;
+  error?: React.ReactNode;
+  invalid?: boolean;
   placeholder?: string;
   options: readonly SelectOption[];
   wrapperClassName?: string;
+  labelClassName?: string;
+  "aria-describedby"?: string;
 };
+
+function buildDescribedBy(ids: Array<string | undefined>): string | undefined {
+  const value = ids
+    .map((id) => id?.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  return value.length > 0 ? value : undefined;
+}
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   function Select(
     {
       className,
       wrapperClassName,
+      labelClassName,
       label,
       hint,
       error,
+      invalid = false,
       placeholder,
       options,
       id,
       name,
-      disabled,
+      disabled = false,
+      required,
+      "aria-describedby": ariaDescribedBy,
       ...props
     },
     ref,
-  ) {
+  ): React.JSX.Element {
     const reactId = React.useId();
-    const selectId = id ?? name ?? reactId;
+    const selectId = id ?? reactId;
 
     const hasError = Boolean(error);
+    const isInvalid = invalid || hasError;
+
     const hintId = hint ? `${selectId}-hint` : undefined;
     const errorId = error ? `${selectId}-error` : undefined;
-    const describedBy = errorId ?? hintId;
+
+    const describedBy = buildDescribedBy([ariaDescribedBy, hintId, errorId]);
 
     return (
-      <div className={cn("field-group", wrapperClassName)}>
+      <div
+        className={cn("field-group", wrapperClassName)}
+        data-disabled={disabled ? "true" : undefined}
+        data-invalid={isInvalid ? "true" : undefined}
+      >
         {label ? (
-          <label htmlFor={selectId} className="field-label">
+          <label
+            htmlFor={selectId}
+            className={cn("field-label", labelClassName)}
+          >
             {label}
+            {required ? (
+              <span aria-hidden="true" className="ml-1 text-danger-700">
+                *
+              </span>
+            ) : null}
           </label>
         ) : null}
 
@@ -57,15 +88,12 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           id={selectId}
           name={name}
           disabled={disabled}
-          aria-invalid={hasError ? true : undefined}
+          required={required}
+          aria-invalid={isInvalid || undefined}
+          aria-errormessage={hasError ? errorId : undefined}
           aria-describedby={describedBy}
-          className={cn(
-            "select",
-            hasError
-              ? "border-danger-600 focus:border-danger-600 focus:ring-danger-600/20"
-              : undefined,
-            className,
-          )}
+          data-invalid={isInvalid ? "true" : undefined}
+          className={cn("select", isInvalid && "field-invalid", className)}
           {...props}
         >
           {placeholder ? (
@@ -76,7 +104,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 
           {options.map((option) => (
             <option
-              key={option.value}
+              key={`${option.value}-${option.label}`}
               value={option.value}
               disabled={option.disabled}
             >
@@ -85,13 +113,15 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           ))}
         </select>
 
-        {error ? (
-          <p id={errorId} className="field-error">
-            {error}
-          </p>
-        ) : hint ? (
+        {hint ? (
           <p id={hintId} className="field-hint">
             {hint}
+          </p>
+        ) : null}
+
+        {error ? (
+          <p id={errorId} className="field-error" role="alert">
+            {error}
           </p>
         ) : null}
       </div>

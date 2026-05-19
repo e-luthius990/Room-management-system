@@ -2,6 +2,10 @@ import type { CampOption } from "@/lib/queries/setup/options";
 import type { GuestProfile } from "@/lib/queries/guests/get-guest-profile";
 import { createGuestAction } from "@/lib/actions/guests/create-guest";
 import { updateGuestAction } from "@/lib/actions/guests/update-guest";
+import { Input } from "@/components/ui/Input";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 
 type GuestFormProps = {
   camps: CampOption[];
@@ -41,327 +45,197 @@ const clearanceOptions = [
 export function GuestForm({ camps, guest }: GuestFormProps): React.JSX.Element {
   const isEditing = Boolean(guest);
 
+  const campOptions = camps.map((camp) => ({
+    value: camp.id,
+    label: `${camp.name} (${camp.code})`,
+  }));
+
   return (
     <form
       action={isEditing ? updateGuestAction : createGuestAction}
-      className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"
+      className="surface-card p-5 sm:p-6"
     >
       {guest ? <input type="hidden" name="guestId" value={guest.id} /> : null}
 
       <div>
-        <h2 className="text-base font-semibold text-neutral-950">
+        <div className="page-kicker">Guest profile</div>
+
+        <h2 className="mt-2 text-base font-semibold tracking-[-0.025em] text-foreground">
           {isEditing ? "Edit guest" : "Create guest"}
         </h2>
-        <p className="mt-1 text-sm leading-6 text-neutral-500">
-          Keep guest identity, camp assignment, and operational notes accurate.
+
+        <p className="mt-1 text-sm leading-6 text-muted">
+          Keep guest identity, camp assignment, contact details, and operational
+          notes accurate.
         </p>
       </div>
 
-      <div className="mt-6 grid gap-5 md:grid-cols-2">
-        <div className="md:col-span-2">
-          <label
-            htmlFor="fullName"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Full name
-          </label>
+      <div className="mt-6 form-grid">
+        <Input
+          wrapperClassName="md:col-span-2"
+          id="fullName"
+          name="fullName"
+          label="Full name"
+          required
+          defaultValue={guest?.full_name ?? ""}
+          placeholder="Guest full name"
+          autoComplete="name"
+        />
+
+        <Select
+          id="primaryCampId"
+          name="primaryCampId"
+          label="Primary camp"
+          required
+          defaultValue={guest?.primary_camp_id ?? ""}
+          placeholder="Select camp"
+          disabled={campOptions.length === 0}
+          options={campOptions}
+        />
+
+        <Select
+          id="guestCategory"
+          name="guestCategory"
+          label="Guest category"
+          required
+          defaultValue={guest?.guest_category ?? "visitor"}
+          options={guestCategoryOptions}
+        />
+
+        <Select
+          id="gender"
+          name="gender"
+          label="Gender"
+          defaultValue={guest?.gender ?? ""}
+          options={genderOptions}
+        />
+
+        <Input
+          id="nationality"
+          name="nationality"
+          label="Nationality"
+          defaultValue={guest?.nationality ?? ""}
+          placeholder="Nationality"
+        />
+
+        <Input
+          id="organizationName"
+          name="organizationName"
+          label="Organization"
+          defaultValue={guest?.organization_name ?? ""}
+          placeholder="Company, agency, delegation..."
+        />
+
+        <Input
+          id="departmentOrProject"
+          name="departmentOrProject"
+          label="Department or project"
+          defaultValue={guest?.department_or_project ?? ""}
+          placeholder="Department, mission, or project"
+        />
+
+        <Input
+          id="phone"
+          name="phone"
+          label="Phone"
+          defaultValue={guest?.phone ?? ""}
+          placeholder="+256..."
+          autoComplete="tel"
+        />
+
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          label="Email"
+          defaultValue={guest?.email ?? ""}
+          placeholder="guest@example.com"
+          autoComplete="email"
+        />
+
+        <Input
+          id="idOrPassportNumber"
+          name="idOrPassportNumber"
+          label="ID / passport number"
+          defaultValue={guest?.id_or_passport_number ?? ""}
+          placeholder="Stored privately"
+        />
+
+        <Select
+          id="securityClearanceStatus"
+          name="securityClearanceStatus"
+          label="Security clearance"
+          defaultValue={guest?.security_clearance_status ?? ""}
+          options={clearanceOptions}
+        />
+
+        <Input
+          id="emergencyContactName"
+          name="emergencyContactName"
+          label="Emergency contact name"
+          defaultValue={guest?.emergency_contact_name ?? ""}
+          autoComplete="off"
+        />
+
+        <Input
+          id="emergencyContactPhone"
+          name="emergencyContactPhone"
+          label="Emergency contact phone"
+          defaultValue={guest?.emergency_contact_phone ?? ""}
+          autoComplete="off"
+        />
+
+        <label className="flex items-start gap-3 rounded-2xl border border-border bg-surface-2 px-4 py-3 md:col-span-2">
           <input
-            id="fullName"
-            required
-            name="fullName"
-            defaultValue={guest?.full_name ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Guest full name"
-            autoComplete="name"
+            name="isVip"
+            type="checkbox"
+            defaultChecked={guest?.is_vip ?? false}
+            className="checkbox mt-1"
           />
-        </div>
 
-        <div>
-          <label
-            htmlFor="primaryCampId"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Primary camp
-          </label>
-          <select
-            id="primaryCampId"
-            required
-            name="primaryCampId"
-            defaultValue={guest?.primary_camp_id ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-          >
-            <option value="" disabled>
-              Select camp
-            </option>
-
-            {camps.map((camp) => (
-              <option key={camp.id} value={camp.id}>
-                {camp.name} ({camp.code})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="guestCategory"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Guest category
-          </label>
-          <select
-            id="guestCategory"
-            required
-            name="guestCategory"
-            defaultValue={guest?.guest_category ?? "visitor"}
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-          >
-            {guestCategoryOptions.map((category) => (
-              <option key={category.value} value={category.value}>
-                {category.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="gender"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Gender
-          </label>
-          <select
-            id="gender"
-            name="gender"
-            defaultValue={guest?.gender ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-          >
-            {genderOptions.map((option) => (
-              <option key={option.value || "empty"} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="nationality"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Nationality
-          </label>
-          <input
-            id="nationality"
-            name="nationality"
-            defaultValue={guest?.nationality ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Nationality"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="organizationName"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Organization
-          </label>
-          <input
-            id="organizationName"
-            name="organizationName"
-            defaultValue={guest?.organization_name ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Company, agency, delegation..."
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="departmentOrProject"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Department or project
-          </label>
-          <input
-            id="departmentOrProject"
-            name="departmentOrProject"
-            defaultValue={guest?.department_or_project ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Department, mission, or project"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="phone"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Phone
-          </label>
-          <input
-            id="phone"
-            name="phone"
-            defaultValue={guest?.phone ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="+256..."
-            autoComplete="tel"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="email"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            defaultValue={guest?.email ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="guest@example.com"
-            autoComplete="email"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="idOrPassportNumber"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            ID / passport number
-          </label>
-          <input
-            id="idOrPassportNumber"
-            name="idOrPassportNumber"
-            defaultValue={guest?.id_or_passport_number ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Stored privately"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="securityClearanceStatus"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Security clearance
-          </label>
-          <select
-            id="securityClearanceStatus"
-            name="securityClearanceStatus"
-            defaultValue={guest?.security_clearance_status ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-          >
-            {clearanceOptions.map((option) => (
-              <option key={option.value || "empty"} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="emergencyContactName"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Emergency contact name
-          </label>
-          <input
-            id="emergencyContactName"
-            name="emergencyContactName"
-            defaultValue={guest?.emergency_contact_name ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            autoComplete="off"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="emergencyContactPhone"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Emergency contact phone
-          </label>
-          <input
-            id="emergencyContactPhone"
-            name="emergencyContactPhone"
-            defaultValue={guest?.emergency_contact_phone ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            autoComplete="off"
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-            <input
-              name="isVip"
-              type="checkbox"
-              defaultChecked={guest?.is_vip ?? false}
-              className="mt-1 h-4 w-4 rounded border-neutral-300"
-            />
-
-            <span>
-              <span className="block text-sm font-medium text-neutral-900">
-                VIP guest
-              </span>
-              <span className="mt-1 block text-xs leading-5 text-neutral-500">
-                Mark this guest for priority handling and operational
-                visibility.
-              </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-foreground">
+              VIP guest
             </span>
-          </label>
-        </div>
 
-        <div className="md:col-span-2">
-          <label
-            htmlFor="notes"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Notes
-          </label>
-          <textarea
-            id="notes"
-            name="notes"
-            rows={4}
-            maxLength={1000}
-            defaultValue={guest?.notes ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Operational notes only"
-          />
-        </div>
+            <span className="mt-1 block text-xs leading-5 text-muted">
+              Mark this guest for priority handling and operational visibility.
+            </span>
+          </span>
+        </label>
 
-        <div className="md:col-span-2">
-          <label
-            htmlFor="managerNotes"
-            className="mb-2 block text-sm font-medium text-neutral-800"
-          >
-            Manager notes
-          </label>
-          <textarea
-            id="managerNotes"
-            name="managerNotes"
-            rows={4}
-            maxLength={1000}
-            defaultValue={guest?.manager_notes ?? ""}
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Internal notes for managers"
-          />
-        </div>
+        <Textarea
+          wrapperClassName="md:col-span-2"
+          id="notes"
+          name="notes"
+          label="Notes"
+          rows={4}
+          maxLength={1000}
+          defaultValue={guest?.notes ?? ""}
+          placeholder="Operational notes only"
+          className="resize-y"
+        />
+
+        <Textarea
+          wrapperClassName="md:col-span-2"
+          id="managerNotes"
+          name="managerNotes"
+          label="Manager notes"
+          rows={4}
+          maxLength={1000}
+          defaultValue={guest?.manager_notes ?? ""}
+          placeholder="Internal notes for managers"
+          className="resize-y"
+        />
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <button
-          type="submit"
-          className="rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+      <div className="form-actions mt-6">
+        <PendingSubmitButton
+          pendingLabel={isEditing ? "Saving guest..." : "Creating guest..."}
+          disabled={campOptions.length === 0}
         >
           {isEditing ? "Save guest" : "Create guest"}
-        </button>
+        </PendingSubmitButton>
       </div>
     </form>
   );

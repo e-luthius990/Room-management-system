@@ -1,8 +1,9 @@
 import "server-only";
 
-import { createClient } from "@supabase/supabase-js";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/types";
+
+let adminClient: SupabaseClient<Database> | null = null;
 
 function getSupabaseUrl(): string {
   const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -25,11 +26,22 @@ function getServiceRoleKey(): string {
 }
 
 export function createSupabaseAdminClient(): SupabaseClient<Database> {
-  return createClient<Database>(getSupabaseUrl(), getServiceRoleKey(), {
+  if (adminClient) {
+    return adminClient;
+  }
+
+  adminClient = createClient<Database>(getSupabaseUrl(), getServiceRoleKey(), {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
       detectSessionInUrl: false,
     },
+    global: {
+      headers: {
+        "X-Client-Info": "camp-room-ops-admin",
+      },
+    },
   });
+
+  return adminClient;
 }

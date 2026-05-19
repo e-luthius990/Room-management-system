@@ -1,6 +1,5 @@
 import type { CurrentUserContext, RoleKey } from "@/lib/auth/types";
 import { APP_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
-import { canAccessRoute } from "@/lib/auth/permissions";
 
 export function getDefaultRouteForRole(role: RoleKey): string {
   switch (role) {
@@ -30,15 +29,5 @@ export function getDefaultRouteForUser(user: CurrentUserContext): string {
     return SYSTEM_ROUTES.accessDenied;
   }
 
-  const roleDefault = getDefaultRouteForRole(user.role.key);
-
-  if (roleDefault !== SYSTEM_ROUTES.accessDenied) {
-    return roleDefault;
-  }
-
-  if (canAccessRoute(user, "dashboard")) {
-    return SYSTEM_ROUTES.dashboard;
-  }
-
-  return SYSTEM_ROUTES.accessDenied;
+  return getDefaultRouteForRole(user.role.key);
 }

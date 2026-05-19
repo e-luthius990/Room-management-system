@@ -7,17 +7,24 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-type StatTone = "default" | "success" | "warning" | "danger" | "info" | "brand";
+export type StatTone =
+  | "default"
+  | "success"
+  | "warning"
+  | "danger"
+  | "info"
+  | "brand";
 
-type StatTrend = {
-  label: string;
+export type StatTrend = {
+  label: React.ReactNode;
   direction?: "up" | "down" | "flat";
+  tone?: "neutral" | "positive" | "negative" | "warning";
 };
 
-export type StatCardProps = React.HTMLAttributes<HTMLElement> & {
-  label: string;
-  value: string | number;
-  note?: string;
+export type StatCardProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  note?: React.ReactNode;
   icon?: React.ReactNode;
   tone?: StatTone;
   trend?: StatTrend;
@@ -26,17 +33,18 @@ export type StatCardProps = React.HTMLAttributes<HTMLElement> & {
 
 const toneClass: Record<StatTone, string> = {
   default: "",
-  success: "border-success-600/25 bg-success-50/45",
-  warning: "border-warning-700/25 bg-warning-50/55",
-  danger: "border-danger-600/25 bg-danger-50/50",
-  info: "border-info-600/25 bg-info-50/50",
-  brand: "border-brand-600/25 bg-brand-50/50",
+  success: "stat-card-success",
+  warning: "stat-card-warning",
+  danger: "stat-card-danger",
+  info: "stat-card-info",
+  brand: "stat-card-brand",
 };
 
-const trendClass: Record<NonNullable<StatTrend["direction"]>, string> = {
-  up: "stat-trend-up",
-  down: "stat-trend-down",
-  flat: "border-border bg-surface-2 text-muted",
+const trendToneClass: Record<NonNullable<StatTrend["tone"]>, string> = {
+  neutral: "border-border bg-surface-2 text-muted",
+  positive: "stat-trend-up",
+  negative: "stat-trend-down",
+  warning: "border-warning-700/25 bg-warning-50 text-warning-700",
 };
 
 const trendIcon: Record<NonNullable<StatTrend["direction"]>, LucideIcon> = {
@@ -47,10 +55,15 @@ const trendIcon: Record<NonNullable<StatTrend["direction"]>, LucideIcon> = {
 
 function TrendBadge({ trend }: { trend: StatTrend }): React.JSX.Element {
   const direction = trend.direction ?? "flat";
+  const tone = trend.tone ?? "neutral";
   const Icon = trendIcon[direction];
 
   return (
-    <span className={cn("stat-trend", trendClass[direction])}>
+    <span
+      className={cn("stat-trend shrink-0", trendToneClass[tone])}
+      data-trend-direction={direction}
+      data-trend-tone={tone}
+    >
       <Icon className="size-3.5" aria-hidden="true" />
       <span>{trend.label}</span>
     </span>
@@ -69,10 +82,12 @@ export function StatCard({
   ...props
 }: StatCardProps): React.JSX.Element {
   const Component = as;
+  const hasFooter = Boolean(note || trend);
 
   return (
     <Component
       className={cn("stat-card", toneClass[tone], className)}
+      data-stat-tone={tone}
       {...props}
     >
       <div className="flex items-start justify-between gap-4">
@@ -82,18 +97,15 @@ export function StatCard({
         </div>
 
         {icon ? (
-          <div
-            aria-hidden="true"
-            className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface/75 text-muted shadow-xs"
-          >
+          <div aria-hidden="true" className="stat-icon">
             {icon}
           </div>
         ) : null}
       </div>
 
-      {note || trend ? (
+      {hasFooter ? (
         <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-          {note ? <p className="stat-note">{note}</p> : <span />}
+          {note ? <p className="stat-note min-w-0">{note}</p> : <span />}
 
           {trend ? <TrendBadge trend={trend} /> : null}
         </div>

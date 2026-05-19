@@ -1,3 +1,4 @@
+// src/components/ui/DataTable.tsx
 import * as React from "react";
 import { cn } from "@/lib/utils/cn";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -19,11 +20,17 @@ export type DataTableProps<TData> = {
   getRowKey: (row: TData, index: number) => React.Key;
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyAction?: React.ReactNode;
   className?: string;
   tableClassName?: string;
   loading?: boolean;
   loadingRows?: number;
+  constrained?: boolean;
+  stickyHeader?: boolean;
+  density?: "comfortable" | "compact";
+  caption?: React.ReactNode;
   onRowClick?: (row: TData, index: number) => void;
+  getRowAriaLabel?: (row: TData, index: number) => string;
   rowClassName?: (row: TData, index: number) => string | undefined;
 };
 
@@ -33,41 +40,79 @@ const alignClass = {
   right: "text-right",
 } as const;
 
+const densityCellClass = {
+  comfortable: "",
+  compact: "[&_th]:py-2 [&_td]:py-2",
+} as const;
+
+const DEFAULT_LOADING_ROWS = 5;
+
 function getAccessorValue<TData>(
   row: TData,
   accessor: keyof TData | undefined,
 ): React.ReactNode {
-  if (!accessor) return null;
+  if (!accessor) {
+    return "—";
+  }
 
   const value = row[accessor];
+
+  if (value == null || value === "") {
+    return "—";
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "—" : value.toLocaleString();
+  }
 
   if (
     typeof value === "string" ||
     typeof value === "number" ||
-    typeof value === "boolean"
+    typeof value === "boolean" ||
+    typeof value === "bigint"
   ) {
     return String(value);
   }
 
-  if (value == null) {
-    return "—";
+  if (React.isValidElement(value)) {
+    return value;
   }
 
   return String(value);
 }
 
-function DataTableSkeleton({
+function getLoadingRows(count: number): readonly number[] {
+  const safeCount = Number.isFinite(count)
+    ? Math.max(1, Math.min(Math.trunc(count), 25))
+    : DEFAULT_LOADING_ROWS;
+
+  return Array.from({ length: safeCount }, (_, index) => index);
+}
+
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      'a, button, input, textarea, select, summary, [role="button"], [data-row-click-ignore="true"]',
+    ),
+  );
+}
+
+function DataTableSkeleton<TData>({
   columns,
   rows,
 }: {
-  columns: readonly DataTableColumn<unknown>[];
-  rows: number;
+  columns: readonly DataTableColumn<TData>[];
+  rows: readonly number[];
 }): React.JSX.Element {
   return (
     <>
-      {Array.from({ length: rows }).map((_, rowIndex) => (
+      {rows.map((rowIndex) => (
         <tr key={rowIndex} aria-hidden="true">
-          {columns.map((column) => (
+          {columns.map((column, columnIndex) => (
             <td
               key={column.id}
               className={cn(
@@ -76,7 +121,17 @@ function DataTableSkeleton({
                 column.className,
               )}
             >
-              <div className="h-4 w-full max-w-32 animate-pulse rounded-full bg-surface-3" />
+              <div
+                className={cn(
+                  "skeleton-block h-4",
+                  columnIndex === 0 && "w-36 max-w-full",
+                  columnIndex === 1 && "w-28 max-w-full",
+                  columnIndex === 2 && "w-24 max-w-full",
+                  columnIndex > 2 && "w-20 max-w-full",
+                  column.align === "right" && "ml-auto",
+                  column.align === "center" && "mx-auto",
+                )}
+              />
             </td>
           ))}
         </tr>
@@ -91,25 +146,60 @@ export function DataTable<TData>({
   getRowKey,
   emptyTitle = "No records found",
   emptyDescription = "There is no data to show here yet.",
+  emptyAction,
   className,
   tableClassName,
   loading = false,
-  loadingRows = 5,
+  loadingRows = DEFAULT_LOADING_ROWS,
+  constrained = false,
+  stickyHeader = true,
+  density = "comfortable",
+  caption,
   onRowClick,
+  getRowAriaLabel,
   rowClassName,
 }: DataTableProps<TData>): React.JSX.Element {
+  const skeletonRows = React.useMemo(
+    () => getLoadingRows(loadingRows),
+    [loadingRows],
+  );
+
+  const isClickable = typeof onRowClick === "function";
+
   if (!loading && data.length === 0) {
     return (
       <div className={className}>
-        <EmptyState title={emptyTitle} description={emptyDescription} />
+        <EmptyState
+          title={emptyTitle}
+          description={emptyDescription}
+          action={emptyAction}
+        />
       </div>
     );
   }
 
   return (
-    <div className={cn("table-shell", className)}>
-      <div className="table-scroll">
-        <table className={cn("data-table", tableClassName)}>
+    <div
+      className={cn("table-shell", className)}
+      aria-busy={loading || undefined}
+      data-loading={loading ? "true" : undefined}
+      data-density={density}
+    >
+      <div
+        className={cn(
+          constrained ? "table-scroll-constrained" : "table-scroll",
+        )}
+      >
+        <table
+          className={cn(
+            "data-table",
+            densityCellClass[density],
+            !stickyHeader && "[&_thead]:static",
+            tableClassName,
+          )}
+        >
+          {caption ? <caption className="sr-only">{caption}</caption> : null}
+
           <thead>
             <tr>
               {columns.map((column) => (
@@ -130,42 +220,54 @@ export function DataTable<TData>({
 
           <tbody>
             {loading ? (
-              <DataTableSkeleton
-                columns={columns as readonly DataTableColumn<unknown>[]}
-                rows={loadingRows}
-              />
+              <DataTableSkeleton columns={columns} rows={skeletonRows} />
             ) : (
               data.map((row, rowIndex) => {
-                const clickable = Boolean(onRowClick);
+                const rowKey = getRowKey(row, rowIndex);
+                const ariaLabel = getRowAriaLabel?.(row, rowIndex);
 
                 return (
                   <tr
-                    key={getRowKey(row, rowIndex)}
-                    tabIndex={clickable ? 0 : undefined}
-                    role={clickable ? "button" : undefined}
+                    key={rowKey}
+                    tabIndex={isClickable ? 0 : undefined}
+                    aria-label={isClickable ? ariaLabel : undefined}
+                    data-clickable={isClickable ? "true" : undefined}
                     onClick={
-                      onRowClick ? () => onRowClick(row, rowIndex) : undefined
+                      isClickable
+                        ? (event) => {
+                            if (isInteractiveTarget(event.target)) {
+                              return;
+                            }
+
+                            onRowClick(row, rowIndex);
+                          }
+                        : undefined
                     }
                     onKeyDown={
-                      onRowClick
+                      isClickable
                         ? (event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              onRowClick(row, rowIndex);
+                            if (
+                              isInteractiveTarget(event.target) ||
+                              (event.key !== "Enter" && event.key !== " ")
+                            ) {
+                              return;
                             }
+
+                            event.preventDefault();
+                            onRowClick(row, rowIndex);
                           }
                         : undefined
                     }
                     className={cn(
-                      clickable &&
+                      isClickable &&
                         "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset",
                       rowClassName?.(row, rowIndex),
                     )}
                   >
                     {columns.map((column) => {
-                      const value =
-                        column.cell?.(row, rowIndex) ??
-                        getAccessorValue(row, column.accessor);
+                      const value = column.cell
+                        ? column.cell(row, rowIndex)
+                        : getAccessorValue(row, column.accessor);
 
                       return (
                         <td
@@ -176,7 +278,7 @@ export function DataTable<TData>({
                             column.className,
                           )}
                         >
-                          {value}
+                          {value ?? "—"}
                         </td>
                       );
                     })}

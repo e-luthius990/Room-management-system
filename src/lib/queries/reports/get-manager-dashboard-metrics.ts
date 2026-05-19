@@ -6,10 +6,6 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 type RoomStatus = Enums<"room_status">;
 type StayStatus = Enums<"stay_status">;
 type ReservationStatus = Enums<"reservation_status">;
-type HousekeepingTaskStatus = Enums<"housekeeping_task_status">;
-type MaintenanceTicketStatus = Enums<"maintenance_ticket_status">;
-type InspectionStatus = Enums<"inspection_status">;
-type RoomServiceTaskStatus = Enums<"room_service_task_status">;
 
 export type ManagerDashboardMetrics = {
   totalRooms: number;
@@ -35,38 +31,13 @@ const EXPECTED_ARRIVAL_STATUSES = [
   "confirmed",
 ] as const satisfies readonly ReservationStatus[];
 
-const ACTIVE_HOUSEKEEPING_STATUSES = [
-  "pending",
-  "assigned",
-  "in_progress",
-] as const satisfies readonly HousekeepingTaskStatus[];
-
-const OPEN_MAINTENANCE_STATUSES = [
-  "reported",
-  "assigned",
-  "in_progress",
-  "waiting_for_parts",
-  "reopened",
-] as const satisfies readonly MaintenanceTicketStatus[];
-
-const ACTIONABLE_INSPECTION_STATUSES = [
-  "pending",
-  "failed",
-] as const satisfies readonly InspectionStatus[];
-
-const ACTIVE_ROOM_SERVICE_STATUSES = [
-  "pending",
-  "assigned",
-  "in_progress",
-] as const satisfies readonly RoomServiceTaskStatus[];
-
 const CLEANING_ROOM_STATUSES = new Set<RoomStatus>([
   "needs_cleaning",
   "cleaning_in_progress",
   "inspection_needed",
 ]);
 
-const MAINTENANCE_BLOCKED_ROOM_STATUSES = new Set<RoomStatus>([
+const UNAVAILABLE_ROOM_STATUSES = new Set<RoomStatus>([
   "under_maintenance",
   "out_of_service",
   "manager_hold",
@@ -75,7 +46,6 @@ const MAINTENANCE_BLOCKED_ROOM_STATUSES = new Set<RoomStatus>([
 type DashboardRoomRow = {
   room_id: string | null;
   current_status: RoomStatus | null;
-  open_maintenance_count: number | string | null;
 };
 
 function getEatDateParts(): {
@@ -109,20 +79,6 @@ function todayWindowEat(): { start: string; end: string } {
   };
 }
 
-function toNumber(value: number | string | null): number {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  return 0;
-}
-
 function countValue(value: number | null): number {
   return value ?? 0;
 }
@@ -140,61 +96,30 @@ export async function getManagerDashboardMetrics(): Promise<ManagerDashboardMetr
   const supabase = await createServerSupabaseClient();
   const { start, end } = todayWindowEat();
 
-  const [
-    roomsResult,
-    activeStaysResult,
-    expectedArrivalsResult,
-    housekeepingResult,
-    maintenanceResult,
-    inspectionsResult,
-    roomServiceResult,
-  ] = await Promise.all([
-    supabase
-      .from("room_board_view")
-      .select("room_id,current_status,open_maintenance_count")
-      .returns<DashboardRoomRow[]>(),
+  const [roomsResult, activeStaysResult, expectedArrivalsResult] =
+    await Promise.all([
+      supabase
+        .from("room_board_view")
+        .select("room_id,current_status")
+        .returns<DashboardRoomRow[]>(),
 
-    supabase
-      .from("stays")
-      .select("id", { count: "exact", head: true })
-      .in("status", [...ACTIVE_STAY_STATUSES]),
+      supabase
+        .from("stays")
+        .select("id", { count: "exact", head: true })
+        .in("status", [...ACTIVE_STAY_STATUSES]),
 
-    supabase
-      .from("reservations")
-      .select("id", { count: "exact", head: true })
-      .in("status", [...EXPECTED_ARRIVAL_STATUSES])
-      .gte("expected_arrival_at", start)
-      .lte("expected_arrival_at", end),
-
-    supabase
-      .from("housekeeping_tasks")
-      .select("id", { count: "exact", head: true })
-      .in("status", [...ACTIVE_HOUSEKEEPING_STATUSES]),
-
-    supabase
-      .from("maintenance_tickets")
-      .select("id", { count: "exact", head: true })
-      .in("status", [...OPEN_MAINTENANCE_STATUSES]),
-
-    supabase
-      .from("inspections")
-      .select("id", { count: "exact", head: true })
-      .in("status", [...ACTIONABLE_INSPECTION_STATUSES]),
-
-    supabase
-      .from("room_service_tasks")
-      .select("id", { count: "exact", head: true })
-      .in("status", [...ACTIVE_ROOM_SERVICE_STATUSES]),
-  ]);
+      supabase
+        .from("reservations")
+        .select("id", { count: "exact", head: true })
+        .in("status", [...EXPECTED_ARRIVAL_STATUSES])
+        .gte("expected_arrival_at", start)
+        .lte("expected_arrival_at", end),
+    ]);
 
   const firstError =
     roomsResult.error ??
     activeStaysResult.error ??
-    expectedArrivalsResult.error ??
-    housekeepingResult.error ??
-    maintenanceResult.error ??
-    inspectionsResult.error ??
-    roomServiceResult.error;
+    expectedArrivalsResult.error;
 
   if (firstError) {
     throw new Error(`Failed to load dashboard metrics: ${firstError.message}`);
@@ -217,17 +142,16 @@ export async function getManagerDashboardMetrics(): Promise<ManagerDashboardMetr
       CLEANING_ROOM_STATUSES.has(room.current_status),
     ).length,
 
-    maintenanceBlockedRooms: roomRows.filter(
-      (room) =>
-        MAINTENANCE_BLOCKED_ROOM_STATUSES.has(room.current_status) ||
-        toNumber(room.open_maintenance_count) > 0,
+    maintenanceBlockedRooms: roomRows.filter((room) =>
+      UNAVAILABLE_ROOM_STATUSES.has(room.current_status),
     ).length,
 
     activeStays: countValue(activeStaysResult.count),
     expectedArrivals: countValue(expectedArrivalsResult.count),
-    pendingHousekeepingTasks: countValue(housekeepingResult.count),
-    openMaintenanceTickets: countValue(maintenanceResult.count),
-    pendingInspections: countValue(inspectionsResult.count),
-    pendingRoomServiceTasks: countValue(roomServiceResult.count),
+
+    pendingHousekeepingTasks: 0,
+    openMaintenanceTickets: 0,
+    pendingInspections: 0,
+    pendingRoomServiceTasks: 0,
   };
 }

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const BLOCKED_NEXT_PREFIXES = ["/auth/", "/api/", "/_next/"] as const;
+
 const emailSchema = z
   .string()
   .trim()
@@ -15,25 +17,31 @@ const passwordSchema = z
   .regex(/[A-Z]/, "Password must include an uppercase letter.")
   .regex(/[0-9]/, "Password must include a number.");
 
-const safeNextPathSchema = z
-  .string()
-  .trim()
-  .optional()
-  .transform((value) => {
-    if (!value) {
-      return undefined;
-    }
+const safeNextPathSchema = z.preprocess((value) => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
 
-    if (!value.startsWith("/") || value.startsWith("//")) {
-      return undefined;
-    }
+  const nextPath = value.trim();
 
-    if (value.startsWith("/auth/")) {
-      return undefined;
-    }
+  if (!nextPath) {
+    return undefined;
+  }
 
-    return value;
-  });
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) {
+    return undefined;
+  }
+
+  if (nextPath.includes("\\")) {
+    return undefined;
+  }
+
+  if (BLOCKED_NEXT_PREFIXES.some((prefix) => nextPath.startsWith(prefix))) {
+    return undefined;
+  }
+
+  return nextPath;
+}, z.string().optional());
 
 export const loginSchema = z.object({
   email: emailSchema,

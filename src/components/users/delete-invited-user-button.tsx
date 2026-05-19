@@ -2,12 +2,13 @@
 
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   deleteInvitedUserAction,
   type DeleteInvitedUserActionResult,
 } from "@/lib/actions/users/delete-invited-user-action";
+import { cn } from "@/lib/utils/cn";
 
 type DeleteInvitedUserButtonProps = {
   userId: string;
@@ -21,12 +22,18 @@ export function DeleteInvitedUserButton({
   email,
 }: DeleteInvitedUserButtonProps): React.JSX.Element {
   const router = useRouter();
+  const titleId = useId();
+  const descriptionId = useId();
+
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [result, setResult] = useState<DeleteInvitedUserActionResult | null>(
     null,
   );
-  const [isPending, startTransition] = useTransition();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshing, startRefreshTransition] = useTransition();
+
+  const isBusy = isDeleting || isRefreshing;
 
   const reason = useMemo(() => {
     return `Super Admin permanently deleted invited user ${fullName}${
@@ -34,12 +41,25 @@ export function DeleteInvitedUserButton({
     } before account activation.`;
   }, [email, fullName]);
 
-  const canDelete = confirmText === "DELETE" && !isPending;
+  const canDelete = confirmText === "DELETE" && !isBusy;
 
-  function handleDelete(): void {
+  function closeDialog(): void {
+    if (isBusy) {
+      return;
+    }
+
+    setOpen(false);
+    setConfirmText("");
+    setResult(null);
+  }
+
+  async function handleDelete(): Promise<void> {
     if (!canDelete) return;
 
-    startTransition(async () => {
+    setIsDeleting(true);
+    setResult(null);
+
+    try {
       const response = await deleteInvitedUserAction({
         userId,
         reason,
@@ -50,9 +70,19 @@ export function DeleteInvitedUserButton({
       if (response.ok) {
         setOpen(false);
         setConfirmText("");
-        router.refresh();
+
+        startRefreshTransition(() => {
+          router.refresh();
+        });
       }
-    });
+    } catch {
+      setResult({
+        ok: false,
+        message: "Failed to delete invited user. Try again.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   return (
@@ -63,61 +93,68 @@ export function DeleteInvitedUserButton({
           setResult(null);
           setOpen(true);
         }}
-        className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+        className="btn-danger btn-sm"
       >
         Delete
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-600">
-              Permanent delete
-            </p>
+        <div
+          className="modal-backdrop flex items-center justify-center px-4"
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
+            className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-floating"
+          >
+            <div className="page-kicker text-danger-700">Permanent delete</div>
 
-            <h2 className="mt-2 text-xl font-bold text-neutral-950">
+            <h2
+              id={titleId}
+              className="mt-2 text-xl font-semibold tracking-[-0.04em] text-foreground"
+            >
               Delete invited user?
             </h2>
 
-            <p className="mt-2 text-sm leading-6 text-neutral-600">
+            <p id={descriptionId} className="mt-2 text-sm leading-6 text-muted">
               This removes the profile, role assignment, camp access, and
               Supabase Auth account. This cannot be undone.
             </p>
 
-            <div className="mt-5 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-              <p className="font-semibold text-neutral-950">{fullName}</p>
+            <div className="mt-5 rounded-2xl border border-border bg-surface-2 p-4">
+              <p className="font-semibold text-foreground">{fullName}</p>
+
               {email ? (
-                <p className="mt-1 text-sm text-neutral-600">{email}</p>
+                <p className="mt-1 text-sm text-muted">{email}</p>
               ) : null}
             </div>
 
-            <label className="mt-5 block">
-              <span className="text-sm font-medium text-neutral-800">
-                Type DELETE to confirm
-              </span>
+            <label className="field-group mt-5 block">
+              <span className="field-label">Type DELETE to confirm</span>
+
               <input
                 value={confirmText}
+                disabled={isBusy}
                 onChange={(event) => setConfirmText(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900"
+                className="input mt-2"
                 placeholder="DELETE"
+                autoComplete="off"
               />
             </label>
 
             {result && !result.ok ? (
-              <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {result.message}
-              </p>
+              <div className="alert alert-danger mt-4">{result.message}</div>
             ) : null}
 
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                disabled={isPending}
-                onClick={() => {
-                  setOpen(false);
-                  setConfirmText("");
-                }}
-                className="rounded-xl border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+                disabled={isBusy}
+                onClick={closeDialog}
+                className="btn-secondary"
               >
                 Cancel
               </button>
@@ -125,13 +162,23 @@ export function DeleteInvitedUserButton({
               <button
                 type="button"
                 disabled={!canDelete}
-                onClick={handleDelete}
-                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                onClick={() => {
+                  void handleDelete();
+                }}
+                aria-busy={isDeleting}
+                className={cn("btn-danger", !canDelete && "opacity-55")}
               >
-                {isPending ? "Deleting..." : "Delete permanently"}
+                {isDeleting ? (
+                  <>
+                    <span aria-hidden="true" className="inline-spinner" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete permanently"
+                )}
               </button>
             </div>
-          </div>
+          </section>
         </div>
       ) : null}
     </>

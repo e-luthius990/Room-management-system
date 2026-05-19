@@ -56,7 +56,6 @@ export type RoomInventoryItem = {
   condition_status: RoomConditionStatus;
   is_vip: boolean;
   is_delegate_suitable: boolean;
-  open_maintenance_count: number;
 };
 
 type CampRow = {
@@ -111,7 +110,6 @@ type RoomBoardRow = {
   condition_status: RoomConditionStatus | null;
   is_vip: boolean | null;
   is_delegate_suitable: boolean | null;
-  open_maintenance_count: number | string | null;
 };
 
 function uniqueStrings(values: ReadonlyArray<string | null>): string[] {
@@ -127,7 +125,6 @@ function toNumber(value: number | string | null): number {
 
   if (typeof value === "string") {
     const parsed = Number(value);
-
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
@@ -277,7 +274,6 @@ export async function getRoomInventory(): Promise<RoomInventoryItem[]> {
         "condition_status",
         "is_vip",
         "is_delegate_suitable",
-        "open_maintenance_count",
       ].join(","),
     )
     .order("camp_name", { ascending: true })
@@ -321,6 +317,5 @@ export async function getRoomInventory(): Promise<RoomInventoryItem[]> {
       condition_status: room.condition_status,
       is_vip: room.is_vip ?? false,
       is_delegate_suitable: room.is_delegate_suitable ?? false,
-      open_maintenance_count: toNumber(room.open_maintenance_count),
     }));
 }

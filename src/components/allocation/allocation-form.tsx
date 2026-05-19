@@ -11,7 +11,6 @@ import type {
   AllocationRoom,
 } from "@/lib/queries/allocations/allocations";
 import { APP_ROUTES } from "@/lib/auth/routes";
-import { Button } from "@/components/ui/Button";
 import {
   Card,
   CardContent,
@@ -21,6 +20,7 @@ import {
 } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/utils/cn";
@@ -82,7 +82,7 @@ export function AllocationForm({
   guests,
   rooms,
 }: AllocationFormProps): React.JSX.Element {
-  const [state, formAction] = useActionState(
+  const [state, formAction, isPending] = useActionState(
     createAllocationAction,
     initialState,
   );
@@ -106,8 +106,8 @@ export function AllocationForm({
       });
     }
 
-    return Array.from(map.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
+    return Array.from(map.values()).sort((first, second) =>
+      first.name.localeCompare(second.name),
     );
   }, [rooms]);
 
@@ -159,12 +159,14 @@ export function AllocationForm({
   const canSubmit = Boolean(selectedGuest && selectedRoom);
 
   function handleCampChange(value: string): void {
+    if (isPending) return;
+
     setCampId(value);
     setSelectedRoomId("");
   }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} className="space-y-5" aria-busy={isPending}>
       <input type="hidden" name="guest_id" value={selectedGuestId} />
       <input type="hidden" name="room_id" value={selectedRoomId} />
 
@@ -193,6 +195,7 @@ export function AllocationForm({
             <Input
               label="Search guest"
               value={guestSearch}
+              disabled={isPending}
               onChange={(event) => setGuestSearch(event.target.value)}
               placeholder="Name, organization, category..."
             />
@@ -206,9 +209,10 @@ export function AllocationForm({
                     <button
                       key={guest.id}
                       type="button"
+                      disabled={isPending}
                       onClick={() => setSelectedGuestId(guest.id)}
                       className={cn(
-                        "entity-row w-full text-left",
+                        "entity-row w-full text-left disabled:pointer-events-none disabled:opacity-60",
                         selected && "bg-brand-50",
                       )}
                     >
@@ -253,6 +257,7 @@ export function AllocationForm({
               name="expected_arrival_at"
               type="datetime-local"
               defaultValue={arrivalDefault}
+              disabled={isPending}
               required
             />
 
@@ -261,6 +266,7 @@ export function AllocationForm({
               name="expected_departure_at"
               type="datetime-local"
               defaultValue={departureDefault}
+              disabled={isPending}
               required
             />
 
@@ -269,6 +275,7 @@ export function AllocationForm({
               name="notes"
               rows={5}
               maxLength={700}
+              disabled={isPending}
               placeholder="Optional reception note..."
             />
           </CardContent>
@@ -289,6 +296,7 @@ export function AllocationForm({
               <Select
                 aria-label="Filter by camp"
                 value={campId}
+                disabled={isPending}
                 onChange={(event) => handleCampChange(event.target.value)}
                 options={[
                   { value: "all", label: "All camps" },
@@ -302,6 +310,7 @@ export function AllocationForm({
               <Input
                 aria-label="Search rooms"
                 value={roomSearch}
+                disabled={isPending}
                 onChange={(event) => setRoomSearch(event.target.value)}
                 placeholder="Search room, building, bed..."
               />
@@ -319,9 +328,10 @@ export function AllocationForm({
                   <button
                     key={room.id}
                     type="button"
+                    disabled={isPending}
                     onClick={() => setSelectedRoomId(room.id)}
                     className={cn(
-                      "rounded-2xl border bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-2 hover:shadow-soft",
+                      "rounded-2xl border bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-2 hover:shadow-soft disabled:pointer-events-none disabled:opacity-60",
                       selected && "border-brand-500/35 bg-brand-50 shadow-soft",
                     )}
                   >
@@ -388,13 +398,23 @@ export function AllocationForm({
           </div>
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-            <Link href={APP_ROUTES.allocations.list} className="btn-secondary">
+            <Link
+              href={APP_ROUTES.allocations.list}
+              aria-disabled={isPending}
+              className={cn(
+                "btn-secondary",
+                isPending && "pointer-events-none opacity-55",
+              )}
+            >
               Cancel
             </Link>
 
-            <Button type="submit" disabled={!canSubmit}>
+            <PendingSubmitButton
+              pendingLabel="Allocating room..."
+              disabled={!canSubmit || isPending}
+            >
               Allocate room
-            </Button>
+            </PendingSubmitButton>
           </div>
         </div>
       </section>

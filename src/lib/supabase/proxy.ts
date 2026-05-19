@@ -17,6 +17,8 @@ const PUBLIC_PATHS = new Set<string>([
 const PUBLIC_FILE_PATTERN =
   /\.(?:avif|bmp|css|csv|gif|ico|jpg|jpeg|js|json|map|png|svg|txt|webp|woff|woff2|xml)$/i;
 
+const API_PREFIX = "/api/";
+
 function getPublicSupabaseUrl(): string {
   const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -37,11 +39,7 @@ function getPublicSupabaseKey(): string {
   return value;
 }
 
-function isPublicPath(pathname: string): boolean {
-  if (PUBLIC_PATHS.has(pathname)) {
-    return true;
-  }
-
+function isStaticAsset(pathname: string): boolean {
   return (
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico" ||
@@ -49,6 +47,14 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/sitemap.xml" ||
     PUBLIC_FILE_PATTERN.test(pathname)
   );
+}
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.has(pathname) || isStaticAsset(pathname);
+}
+
+function isApiPath(pathname: string): boolean {
+  return pathname.startsWith(API_PREFIX);
 }
 
 function isAuthPath(pathname: string): boolean {
@@ -78,7 +84,10 @@ function redirectToDashboard(request: NextRequest): NextResponse {
 
 function unauthorizedJson(): NextResponse {
   return NextResponse.json(
-    { error: "UNAUTHORIZED", message: "Authentication is required." },
+    {
+      error: "UNAUTHORIZED",
+      message: "Authentication is required.",
+    },
     { status: 401 },
   );
 }
@@ -86,6 +95,18 @@ function unauthorizedJson(): NextResponse {
 export async function updateSession(
   request: NextRequest,
 ): Promise<NextResponse> {
+  const pathname = request.nextUrl.pathname;
+
+  /**
+   * Important performance guard:
+   * Do not even create the Supabase middleware client for static/public paths.
+   */
+  if (isPublicPath(pathname)) {
+    return NextResponse.next({
+      request,
+    });
+  }
+
   let response = NextResponse.next({
     request,
   });
@@ -116,12 +137,6 @@ export async function updateSession(
     },
   );
 
-  const pathname = request.nextUrl.pathname;
-
-  if (isPublicPath(pathname)) {
-    return response;
-  }
-
   const {
     data: { user },
     error,
@@ -130,18 +145,18 @@ export async function updateSession(
   const hasValidSession = !error && Boolean(user);
 
   if (!hasValidSession) {
-    if (pathname.startsWith("/api/")) {
+    if (isApiPath(pathname)) {
       return unauthorizedJson();
     }
 
     return redirectToLogin(request);
   }
 
-  if (pathname === "/auth/login") {
-    return redirectToDashboard(request);
-  }
-
-  if (hasValidSession && isAuthPath(pathname)) {
+  /**
+   * This normally only applies if your matcher allows protected auth paths.
+   * Public auth pages already returned above.
+   */
+  if (isAuthPath(pathname)) {
     return redirectToDashboard(request);
   }
 

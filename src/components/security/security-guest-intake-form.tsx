@@ -6,8 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 
@@ -186,7 +186,9 @@ export function SecurityGuestIntakeForm({
               the profile next to approve, deny, or record gate entry.
             </p>
 
-            <Button type="submit">Register and review</Button>
+            <PendingSubmitButton pendingLabel="Registering guest...">
+              Register and review
+            </PendingSubmitButton>
           </div>
         </CardContent>
       </Card>

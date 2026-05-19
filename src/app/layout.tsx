@@ -7,12 +7,14 @@ const geistSans = Geist({
   variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
+  preload: true,
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
   display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -21,33 +23,58 @@ export const metadata: Metadata = {
     template: "%s | CampRoomOps",
   },
   description:
-    "Internal room operations system for camp accommodation, room allocation, housekeeping, maintenance, guest stays, and operational reporting.",
+    "Internal room operations system for camp accommodation, guest movement, room allocation, stays, security handoffs, and operational reporting.",
   applicationName: "CampRoomOps",
+  referrer: "strict-origin-when-cross-origin",
+  formatDetection: {
+    telephone: false,
+    date: false,
+    address: false,
+    email: false,
+    url: false,
+  },
   robots: {
     index: false,
     follow: false,
     nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      nocache: true,
+      noimageindex: true,
+      nosnippet: true,
+    },
   },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#dceeff",
+  viewportFit: "cover",
+  themeColor: [
+    {
+      media: "(prefers-color-scheme: light)",
+      color: "#dceeff",
+    },
+    {
+      media: "(prefers-color-scheme: dark)",
+      color: "#182433",
+    },
+  ],
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: ReactNode;
-}>) {
+}>): React.JSX.Element {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full scroll-smooth antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-dvh bg-canvas font-sans text-foreground">
+      <body className="min-h-dvh bg-background font-sans text-foreground">
         {children}
       </body>
     </html>

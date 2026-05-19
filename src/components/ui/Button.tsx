@@ -11,10 +11,11 @@ type ButtonVariant =
 
 type ButtonSize = "sm" | "md" | "lg";
 
-export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = React.ComponentPropsWithoutRef<"button"> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
+  loadingText?: string;
   fullWidth?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -42,17 +43,20 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       variant = "primary",
       size = "md",
       loading = false,
-      disabled,
+      loadingText,
+      disabled = false,
       fullWidth = false,
       leftIcon,
       rightIcon,
       children,
       type = "button",
+      "aria-label": ariaLabel,
       ...props
     },
     ref,
-  ) {
+  ): React.JSX.Element {
     const isDisabled = disabled || loading;
+    const renderedChildren = loading && loadingText ? loadingText : children;
 
     return (
       <button
@@ -60,32 +64,35 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         disabled={isDisabled}
         aria-busy={loading || undefined}
-        data-loading={loading || undefined}
+        aria-label={ariaLabel}
+        data-variant={variant}
+        data-size={size}
+        data-loading={loading ? "true" : undefined}
         className={cn(
           variantClass[variant],
           sizeClass[size],
+          "min-w-0",
           fullWidth && "w-full",
           className,
         )}
         {...props}
       >
         {loading ? (
-          <span
-            aria-hidden="true"
-            className="size-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
-          />
+          <span aria-hidden="true" className="inline-spinner shrink-0" />
         ) : leftIcon ? (
-          <span className="shrink-0" aria-hidden="true">
+          <span aria-hidden="true" className="shrink-0">
             {leftIcon}
           </span>
         ) : null}
 
-        <span className={cn("truncate", loading && "opacity-85")}>
-          {children}
-        </span>
+        {renderedChildren ? (
+          <span className={cn("min-w-0 truncate", loading && "opacity-85")}>
+            {renderedChildren}
+          </span>
+        ) : null}
 
         {!loading && rightIcon ? (
-          <span className="shrink-0" aria-hidden="true">
+          <span aria-hidden="true" className="shrink-0">
             {rightIcon}
           </span>
         ) : null}

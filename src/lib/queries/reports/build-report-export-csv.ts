@@ -41,8 +41,6 @@ type RoomBoardReportRow = {
   is_delegate_suitable: boolean | null;
   current_guest_name: string | null;
   expected_departure_at: string | null;
-  open_maintenance_count: number | string | null;
-  active_housekeeping_status: string | null;
 };
 
 type GuestReportRow = {
@@ -133,20 +131,6 @@ function reportFilenameBase(reportType: ReportType): string {
 
 function reportFilename(reportType: ReportType, format: ExportFormat): string {
   return `${reportFilenameBase(reportType)}.${format}`;
-}
-
-function toNumber(value: number | string | null): number {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  return 0;
 }
 
 function toText(value: unknown): string {
@@ -618,8 +602,6 @@ async function buildReportRows(
           "is_delegate_suitable",
           "current_guest_name",
           "expected_departure_at",
-          "open_maintenance_count",
-          "active_housekeeping_status",
         ].join(","),
       )
       .order("camp_name", { ascending: true })
@@ -648,8 +630,6 @@ async function buildReportRows(
       is_delegate_suitable: room.is_delegate_suitable ?? false,
       current_guest_name: room.current_guest_name,
       expected_departure_at: room.expected_departure_at,
-      open_maintenance_count: toNumber(room.open_maintenance_count),
-      active_housekeeping_status: room.active_housekeeping_status,
     }));
 
     const headers = [
@@ -664,8 +644,6 @@ async function buildReportRows(
       "is_delegate_suitable",
       "current_guest_name",
       "expected_departure_at",
-      "open_maintenance_count",
-      "active_housekeeping_status",
     ];
 
     return {

@@ -64,8 +64,28 @@ export function RoomBoardToolbar({
     isActiveValue(statusValue) ||
     isActiveValue(buildingValue);
 
+  const handleRefresh = (): void => {
+    if (loading) {
+      return;
+    }
+
+    onRefresh?.();
+  };
+
+  const handleClear = (): void => {
+    if (loading || !hasFilters) {
+      return;
+    }
+
+    onClear?.();
+  };
+
   return (
-    <section className={cn("command-bar", className)}>
+    <section
+      className={cn("command-bar", className)}
+      aria-busy={loading}
+      aria-live="polite"
+    >
       <div className="grid gap-3 lg:grid-cols-[minmax(260px,1.4fr)_minmax(150px,0.8fr)_minmax(150px,0.8fr)_auto] lg:items-end">
         <Input
           aria-label="Search rooms"
@@ -95,8 +115,21 @@ export function RoomBoardToolbar({
 
         <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
           {typeof resultCount === "number" ? (
-            <div className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border bg-surface px-3 text-sm font-semibold text-muted">
-              {resultCount} {resultCount === 1 ? "room" : "rooms"}
+            <div className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm font-semibold text-muted">
+              {loading ? (
+                <span aria-hidden="true" className="inline-spinner" />
+              ) : null}
+
+              <span>
+                {loading
+                  ? "Refreshing..."
+                  : `${resultCount} ${resultCount === 1 ? "room" : "rooms"}`}
+              </span>
+            </div>
+          ) : loading ? (
+            <div className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm font-semibold text-muted">
+              <span aria-hidden="true" className="inline-spinner" />
+              <span>Refreshing...</span>
             </div>
           ) : null}
 
@@ -105,10 +138,17 @@ export function RoomBoardToolbar({
               type="button"
               variant="secondary"
               size="sm"
-              onClick={onRefresh}
-              loading={loading}
+              disabled={loading}
+              onClick={handleRefresh}
             >
-              Refresh
+              {loading ? (
+                <>
+                  <span aria-hidden="true" className="inline-spinner" />
+                  Refreshing
+                </>
+              ) : (
+                "Refresh"
+              )}
             </Button>
           ) : null}
 
@@ -117,8 +157,8 @@ export function RoomBoardToolbar({
               type="button"
               variant="ghost"
               size="sm"
-              disabled={!hasFilters}
-              onClick={onClear}
+              disabled={!hasFilters || loading}
+              onClick={handleClear}
             >
               Clear
             </Button>

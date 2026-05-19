@@ -2,43 +2,49 @@ import Link from "next/link";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { AuthMessageCleaner } from "@/components/auth/auth-message-cleaner";
-
 import { signInAction } from "@/lib/actions/auth";
-import { AUTH_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
-
-import { Button } from "@/components/ui/Button";
+import { AUTH_ROUTES } from "@/lib/auth/routes";
 import { Input } from "@/components/ui/Input";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 
-type LoginPageProps = {
-  searchParams?: Promise<{
-    error?: string;
-    success?: string;
-    next?: string;
-  }>;
+type LoginSearchParams = {
+  error?: string;
+  success?: string;
+  next?: string;
 };
 
-function getSafeNextPath(value: string | undefined): string {
-  if (!value) {
-    return SYSTEM_ROUTES.dashboard;
+type LoginPageProps = {
+  searchParams?: Promise<LoginSearchParams>;
+};
+
+const BLOCKED_NEXT_PREFIXES = ["/auth/", "/api/", "/_next/"] as const;
+
+function getSafeNextPath(value: string | undefined): string | null {
+  const nextPath = value?.trim();
+
+  if (!nextPath) {
+    return null;
   }
 
-  if (!value.startsWith("/") || value.startsWith("//")) {
-    return SYSTEM_ROUTES.dashboard;
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) {
+    return null;
   }
 
-  if (value.startsWith("/auth/")) {
-    return SYSTEM_ROUTES.dashboard;
+  if (nextPath.includes("\\")) {
+    return null;
   }
 
-  return value;
+  if (BLOCKED_NEXT_PREFIXES.some((prefix) => nextPath.startsWith(prefix))) {
+    return null;
+  }
+
+  return nextPath;
 }
 
 export default async function LoginPage({
   searchParams,
 }: LoginPageProps): Promise<React.JSX.Element> {
   const params = await searchParams;
-
   const nextPath = getSafeNextPath(params?.next);
 
   return (
@@ -46,12 +52,10 @@ export default async function LoginPage({
       title="Sign in"
       description="Access your assigned camp operations workspace."
     >
-      <AuthMessageCleaner />
-
       <AuthMessage error={params?.error} success={params?.success} />
 
       <form action={signInAction} className="space-y-5">
-        <input type="hidden" name="next" value={nextPath} />
+        {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
 
         <Input
           id="email"
@@ -90,9 +94,13 @@ export default async function LoginPage({
           />
         </div>
 
-        <Button type="submit" className="h-11 w-full rounded-2xl">
+        <PendingSubmitButton
+          pendingLabel="Signing in..."
+          fullWidth
+          className="h-11 rounded-2xl"
+        >
           Sign in
-        </Button>
+        </PendingSubmitButton>
       </form>
     </AuthShell>
   );

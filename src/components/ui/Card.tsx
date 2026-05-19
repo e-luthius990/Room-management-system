@@ -2,12 +2,12 @@ import * as React from "react";
 import { cn } from "@/lib/utils/cn";
 
 type CardVariant = "card" | "panel" | "section" | "muted" | "glass" | "ops";
-
 type CardPadding = "none" | "sm" | "md" | "lg";
 
-export type CardProps = React.HTMLAttributes<HTMLDivElement> & {
+export type CardProps = React.ComponentPropsWithoutRef<"div"> & {
   variant?: CardVariant;
   padding?: CardPadding;
+  interactive?: boolean;
 };
 
 const variantClass: Record<CardVariant, string> = {
@@ -26,14 +26,38 @@ const paddingClass: Record<CardPadding, string> = {
   lg: "p-5 sm:p-6",
 };
 
+const variantsWithIntrinsicPadding = new Set<CardVariant>([
+  "section",
+  "muted",
+  "ops",
+]);
+
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
-  { className, variant = "card", padding = "none", children, ...props },
+  {
+    className,
+    variant = "card",
+    padding = "none",
+    interactive = false,
+    children,
+    ...props
+  },
   ref,
-) {
+): React.JSX.Element {
+  const shouldApplyPadding =
+    padding !== "none" && !variantsWithIntrinsicPadding.has(variant);
+
   return (
     <div
       ref={ref}
-      className={cn(variantClass[variant], paddingClass[padding], className)}
+      data-card-variant={variant}
+      data-card-padding={shouldApplyPadding ? padding : undefined}
+      data-interactive={interactive ? "true" : undefined}
+      className={cn(
+        variantClass[variant],
+        interactive && "surface-card-interactive",
+        shouldApplyPadding && paddingClass[padding],
+        className,
+      )}
       {...props}
     >
       {children}
@@ -41,17 +65,23 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
   );
 });
 
-export type CardHeaderProps = React.HTMLAttributes<HTMLDivElement>;
+Card.displayName = "Card";
+
+export type CardHeaderProps = React.ComponentPropsWithoutRef<"div"> & {
+  divided?: boolean;
+};
 
 export function CardHeader({
   children,
   className,
+  divided = true,
   ...props
 }: CardHeaderProps): React.JSX.Element {
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 border-b border-border px-4 py-4 sm:px-5",
+        "flex flex-col gap-1 px-4 py-4 sm:px-5",
+        divided && "border-b border-border",
         className,
       )}
       {...props}
@@ -61,7 +91,7 @@ export function CardHeader({
   );
 }
 
-export type CardTitleProps = React.HTMLAttributes<HTMLHeadingElement>;
+export type CardTitleProps = React.ComponentPropsWithoutRef<"h2">;
 
 export function CardTitle({
   children,
@@ -81,7 +111,7 @@ export function CardTitle({
   );
 }
 
-export type CardDescriptionProps = React.HTMLAttributes<HTMLParagraphElement>;
+export type CardDescriptionProps = React.ComponentPropsWithoutRef<"p">;
 
 export function CardDescription({
   children,
@@ -95,7 +125,7 @@ export function CardDescription({
   );
 }
 
-export type CardContentProps = React.HTMLAttributes<HTMLDivElement>;
+export type CardContentProps = React.ComponentPropsWithoutRef<"div">;
 
 export function CardContent({
   children,
@@ -109,17 +139,33 @@ export function CardContent({
   );
 }
 
-export type CardFooterProps = React.HTMLAttributes<HTMLDivElement>;
+export type CardFooterProps = React.ComponentPropsWithoutRef<"div"> & {
+  divided?: boolean;
+  align?: "start" | "between" | "end";
+};
+
+const footerAlignClass: Record<
+  NonNullable<CardFooterProps["align"]>,
+  string
+> = {
+  start: "sm:justify-start",
+  between: "sm:justify-between",
+  end: "sm:justify-end",
+};
 
 export function CardFooter({
   children,
   className,
+  divided = true,
+  align = "end",
   ...props
 }: CardFooterProps): React.JSX.Element {
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-t border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-5",
+        "flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5",
+        footerAlignClass[align],
+        divided && "border-t border-border",
         className,
       )}
       {...props}
@@ -129,7 +175,7 @@ export function CardFooter({
   );
 }
 
-export type CardMetaProps = React.HTMLAttributes<HTMLParagraphElement>;
+export type CardMetaProps = React.ComponentPropsWithoutRef<"p">;
 
 export function CardMeta({
   children,

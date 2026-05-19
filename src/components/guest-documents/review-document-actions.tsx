@@ -1,10 +1,12 @@
 import { reviewGuestDocumentAction } from "@/lib/actions/guest-documents/review-document";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
+import { Textarea } from "@/components/ui/Textarea";
 
 export type GuestDocumentReviewStatus =
   | "pending_review"
   | "approved"
   | "rejected"
-  | "active" // legacy only
+  | "active"
   | "archived"
   | "deleted";
 
@@ -36,10 +38,8 @@ export function ReviewDocumentActions({
 }: ReviewDocumentActionsProps): React.JSX.Element {
   if (status !== "pending_review") {
     return (
-      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-        <p className="text-sm leading-6 text-neutral-600">
-          {getReviewedMessage(status)}
-        </p>
+      <div className="alert alert-info">
+        <p className="text-sm leading-6">{getReviewedMessage(status)}</p>
       </div>
     );
   }
@@ -48,41 +48,34 @@ export function ReviewDocumentActions({
     <form action={reviewGuestDocumentAction} className="space-y-4">
       <input type="hidden" name="documentId" value={documentId} />
 
-      <div>
-        <label
-          htmlFor="reviewNotes"
-          className="mb-2 block text-sm font-medium text-neutral-800"
-        >
-          Review notes
-        </label>
-
-        <textarea
-          id="reviewNotes"
-          name="reviewNotes"
-          rows={4}
-          className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-          placeholder="Required when rejecting. Recommended for all reviews."
-        />
-      </div>
+      <Textarea
+        id="reviewNotes"
+        name="reviewNotes"
+        label="Review notes"
+        rows={4}
+        maxLength={1000}
+        placeholder="Required when rejecting. Recommended for all reviews."
+        className="resize-y"
+      />
 
       <div className="grid gap-3 md:grid-cols-2">
-        <button
-          type="submit"
+        <PendingSubmitButton
           name="status"
           value="rejected"
-          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+          pendingLabel="Rejecting document..."
+          className="btn-danger min-h-11 rounded-2xl px-4 py-3"
         >
           Reject document
-        </button>
+        </PendingSubmitButton>
 
-        <button
-          type="submit"
+        <PendingSubmitButton
           name="status"
           value="approved"
-          className="rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+          pendingLabel="Approving document..."
+          className="min-h-11 rounded-2xl px-4 py-3"
         >
           Approve document
-        </button>
+        </PendingSubmitButton>
       </div>
     </form>
   );

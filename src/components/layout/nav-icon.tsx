@@ -1,3 +1,5 @@
+// src/components/layout/nav-icon.tsx
+import type { JSX } from "react";
 import {
   BarChart3,
   Bed,
@@ -11,56 +13,40 @@ import {
   ShieldCheck,
   UserCog,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import type { AppNavIcon } from "@/lib/navigation/app-nav";
+import { cn } from "@/lib/utils/cn";
 
 type NavIconProps = {
   icon: AppNavIcon;
   className?: string;
 };
 
-export function NavIcon({
-  icon,
-  className = "h-4 w-4",
-}: NavIconProps): React.JSX.Element {
-  switch (icon) {
-    case "layout-dashboard":
-      return <LayoutDashboard className={className} />;
+const NAV_ICON_REGISTRY = {
+  "layout-dashboard": LayoutDashboard,
+  bed: Bed,
+  users: Users,
+  "calendar-days": CalendarDays,
+  "clipboard-check": ClipboardCheck,
+  "bar-chart-3": BarChart3,
+  "shield-check": ShieldCheck,
+  settings: Settings,
+  "user-cog": UserCog,
+  "scroll-text": ScrollText,
+  "file-up": FileUp,
+  "building-2": Building2,
+} satisfies Record<AppNavIcon, LucideIcon>;
 
-    case "bed":
-      return <Bed className={className} />;
+export function NavIcon({ icon, className }: NavIconProps): JSX.Element {
+  const Icon = NAV_ICON_REGISTRY[icon];
 
-    case "users":
-      return <Users className={className} />;
-
-    case "calendar-days":
-      return <CalendarDays className={className} />;
-
-    case "clipboard-check":
-      return <ClipboardCheck className={className} />;
-
-    case "bar-chart-3":
-      return <BarChart3 className={className} />;
-
-    case "shield-check":
-      return <ShieldCheck className={className} />;
-
-    case "settings":
-      return <Settings className={className} />;
-
-    case "user-cog":
-      return <UserCog className={className} />;
-
-    case "scroll-text":
-      return <ScrollText className={className} />;
-
-    case "file-up":
-      return <FileUp className={className} />;
-
-    case "building-2":
-      return <Building2 className={className} />;
-
-    default:
-      return <LayoutDashboard className={className} />;
-  }
+  return (
+    <Icon
+      aria-hidden="true"
+      focusable="false"
+      className={cn("size-4 shrink-0", className)}
+      strokeWidth={2}
+    />
+  );
 }

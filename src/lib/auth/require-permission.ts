@@ -1,38 +1,39 @@
 import "server-only";
 
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { hasAnyPermission, hasPermission } from "@/lib/auth/permissions";
 import { requireAuth } from "@/lib/auth/require-auth";
 import type { CurrentUserContext } from "@/lib/auth/types";
 
-export async function requirePermission(
-  permission: string,
-): Promise<CurrentUserContext> {
-  const currentUser = await requireAuth();
+export const requirePermission = cache(
+  async (permission: string): Promise<CurrentUserContext> => {
+    const currentUser = await requireAuth();
 
-  if (!currentUser.role.canAccessSystem) {
-    notFound();
-  }
+    if (!currentUser.role.canAccessSystem) {
+      notFound();
+    }
 
-  if (!hasPermission(currentUser, permission)) {
-    notFound();
-  }
+    if (!hasPermission(currentUser, permission)) {
+      notFound();
+    }
 
-  return currentUser;
-}
+    return currentUser;
+  },
+);
 
-export async function requireAnyPermission(
-  permissions: readonly string[],
-): Promise<CurrentUserContext> {
-  const currentUser = await requireAuth();
+export const requireAnyPermission = cache(
+  async (permissions: readonly string[]): Promise<CurrentUserContext> => {
+    const currentUser = await requireAuth();
 
-  if (!currentUser.role.canAccessSystem) {
-    notFound();
-  }
+    if (!currentUser.role.canAccessSystem) {
+      notFound();
+    }
 
-  if (!hasAnyPermission(currentUser, permissions)) {
-    notFound();
-  }
+    if (!hasAnyPermission(currentUser, permissions)) {
+      notFound();
+    }
 
-  return currentUser;
-}
+    return currentUser;
+  },
+);

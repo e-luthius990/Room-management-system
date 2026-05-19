@@ -1,5 +1,5 @@
 import { checkInReservationAction } from "@/lib/actions/stays/check-in";
-import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Textarea } from "@/components/ui/Textarea";
 
 type ReservationCheckInFormProps = {
@@ -24,9 +24,9 @@ export function ReservationCheckInForm({
         className="min-h-28 resize-none"
       />
 
-      <Button type="submit" className="w-full">
+      <PendingSubmitButton pendingLabel="Checking in reservation..." fullWidth>
         Check in reservation
-      </Button>
+      </PendingSubmitButton>
     </form>
   );
 }

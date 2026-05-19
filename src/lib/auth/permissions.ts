@@ -1,3 +1,4 @@
+import type { CurrentCampAccess } from "@/lib/auth/types";
 import type {
   CampAccessLevel,
   CurrentUserContext,
@@ -34,41 +35,68 @@ export const CAMP_MANAGER_PERMISSIONS = [
   "security.view_presence",
 ] as const;
 
+function canUseSystem(user: CurrentUserContext): boolean {
+  return user.role.canAccessSystem;
+}
+
+function isSuperAdmin(user: CurrentUserContext): boolean {
+  return user.role.key === "super_admin";
+}
+
+function hasPermissionKey(
+  permissions: readonly string[],
+  permission: string,
+): boolean {
+  return permissions.includes(permission);
+}
+
 export function hasPermission(
   user: CurrentUserContext,
   permission: string,
 ): boolean {
-  if (!user.role.canAccessSystem) {
+  if (!canUseSystem(user)) {
     return false;
   }
 
-  if (user.role.key === "super_admin") {
+  if (isSuperAdmin(user)) {
     return true;
   }
 
-  return user.permissions.includes(permission);
+  return hasPermissionKey(user.permissions, permission);
 }
 
 export function hasAnyPermission(
   user: CurrentUserContext,
   permissions: readonly string[],
 ): boolean {
-  if (!user.role.canAccessSystem) {
+  if (!canUseSystem(user)) {
     return false;
   }
 
-  return permissions.some((permission) => hasPermission(user, permission));
+  if (isSuperAdmin(user)) {
+    return true;
+  }
+
+  return permissions.some((permission) =>
+    hasPermissionKey(user.permissions, permission),
+  );
 }
 
 export function hasAllPermissions(
   user: CurrentUserContext,
   permissions: readonly string[],
 ): boolean {
-  if (!user.role.canAccessSystem) {
+  if (!canUseSystem(user)) {
     return false;
   }
 
-  return permissions.every((permission) => hasPermission(user, permission));
+  if (isSuperAdmin(user)) {
+    return true;
+  }
+
+  return permissions.every((permission) =>
+    hasPermissionKey(user.permissions, permission),
+  );
 }
 
 export function hasCampAccess(
@@ -76,7 +104,7 @@ export function hasCampAccess(
   campId: string,
   minimumLevel: CampAccessLevel = "viewer",
 ): boolean {
-  if (!user.role.canAccessSystem) {
+  if (!canUseSystem(user)) {
     return false;
   }
 
@@ -86,7 +114,7 @@ export function hasCampAccess(
 
   const requiredRank = ACCESS_LEVEL_RANK[minimumLevel];
 
-  return user.campAccess.some((access) => {
+  return user.campAccess.some((access: CurrentCampAccess) => {
     return (
       access.camp_id === campId &&
       ACCESS_LEVEL_RANK[access.access_level] >= requiredRank
@@ -95,10 +123,6 @@ export function hasCampAccess(
 }
 
 export const ROUTE_PERMISSIONS = {
-  /**
-   * General dashboard entry.
-   * Camp manager must be allowed here without needing reports/reservations.
-   */
   dashboard: [
     "dashboard.view",
     "rooms.view",
@@ -108,14 +132,6 @@ export const ROUTE_PERMISSIONS = {
     "security.view_gate_dashboard",
   ],
 
-  /**
-   * Camp manager dashboard.
-   * Shows only:
-   * - available/vacant rooms
-   * - occupied rooms
-   * - currently checked-in guests
-   * - exited guests
-   */
   campManagerDashboard: [
     "dashboard.view",
     "rooms.view",
@@ -124,9 +140,6 @@ export const ROUTE_PERMISSIONS = {
     "stays.view_history",
   ],
 
-  /**
-   * Rooms visible to manager.
-   */
   roomBoard: ["rooms.view", "rooms.view_board"],
   rooms: ["rooms.view"],
   availableRooms: ["rooms.view", "rooms.view_board"],
@@ -136,16 +149,9 @@ export const ROUTE_PERMISSIONS = {
   updateRoom: ["rooms.update"],
   roomQrCodes: ["rooms.view"],
 
-  /**
-   * View room status should not require room_status.change.
-   */
   roomStatus: ["room_status.view", "room_status.change"],
   changeRoomStatus: ["room_status.change"],
 
-  /**
-   * Guest profile module.
-   * Manager does not need guests.create or guests.update.
-   */
   guests: ["guests.view"],
   createGuest: ["guests.create"],
   updateGuest: ["guests.update"],
@@ -168,10 +174,6 @@ export const ROUTE_PERMISSIONS = {
   createAllocation: ["allocations.create"],
   cancelAllocation: ["allocations.cancel"],
 
-  /**
-   * Stay visibility.
-   * Manager needs current and historical stays, but not check-in/check-out actions.
-   */
   stays: ["stays.view"],
   currentStays: ["stays.view_current", "stays.view"],
   exitedStays: ["stays.view_history", "stays.view"],
@@ -181,10 +183,6 @@ export const ROUTE_PERMISSIONS = {
   checkInStay: ["stays.check_in"],
   checkOutStay: ["stays.check_out"],
 
-  /**
-   * Security visibility.
-   * Manager should see presence status only.
-   */
   securityPresence: ["security.view_presence"],
 
   security: ["security.view_gate_dashboard"],
@@ -237,27 +235,3 @@ export const ROUTE_PERMISSIONS = {
   settings: ["settings.view"],
   updateSystemSettings: ["system_settings.update"],
 } as const;
-
-export type RoutePermissionKey = keyof typeof ROUTE_PERMISSIONS;
-
-export function canAccessRoute(
-  user: CurrentUserContext,
-  route: RoutePermissionKey,
-): boolean {
-  if (!user.role.canAccessSystem) {
-    return false;
-  }
-
-  return hasAnyPermission(user, ROUTE_PERMISSIONS[route]);
-}
-
-export function canAccessAnyRoute(
-  user: CurrentUserContext,
-  routes: readonly RoutePermissionKey[],
-): boolean {
-  if (!user.role.canAccessSystem) {
-    return false;
-  }
-
-  return routes.some((route) => canAccessRoute(user, route));
-}

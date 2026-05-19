@@ -1,5 +1,5 @@
 import { checkOutStayAction } from "@/lib/actions/stays/check-out";
-import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Textarea } from "@/components/ui/Textarea";
 
 type CheckOutFormProps = {
@@ -27,9 +27,9 @@ export function CheckOutForm({ stayId }: CheckOutFormProps): React.JSX.Element {
         allocation, and return the room to the normal room workflow.
       </div>
 
-      <Button type="submit" className="w-full">
+      <PendingSubmitButton pendingLabel="Checking out guest..." fullWidth>
         Check out guest
-      </Button>
+      </PendingSubmitButton>
     </form>
   );
 }

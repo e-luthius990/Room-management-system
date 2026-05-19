@@ -3,8 +3,8 @@ import type {
   ReservationRoomOption,
 } from "@/lib/queries/reservations/options";
 import { createReservationAction } from "@/lib/actions/reservations/create-reservation";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 
@@ -23,9 +23,6 @@ function formatRoomLabel(room: ReservationRoomOption): string {
   const flags = [
     room.is_vip ? "VIP" : null,
     room.is_delegate_suitable ? "Delegate Suitable" : null,
-    room.open_maintenance_count > 0
-      ? `${room.open_maintenance_count} Open Maintenance`
-      : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -108,7 +105,7 @@ export function ReservationForm({
           required
         />
 
-        <label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-sm text-muted">
+        <label className="flex items-start gap-3 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-sm text-muted md:col-span-2">
           <input name="isVipHold" type="checkbox" className="checkbox mt-1" />
 
           <span className="min-w-0">
@@ -135,7 +132,9 @@ export function ReservationForm({
       </div>
 
       <div className="form-actions">
-        <Button type="submit">Create reservation</Button>
+        <PendingSubmitButton pendingLabel="Creating reservation...">
+          Create reservation
+        </PendingSubmitButton>
       </div>
     </form>
   );

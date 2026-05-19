@@ -8,6 +8,7 @@ import { AUTH_ROUTES } from "@/lib/auth/routes";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 
 type ForgotPasswordPageProps = {
   searchParams?: Promise<{
@@ -21,12 +22,36 @@ export default async function ForgotPasswordPage({
 }: ForgotPasswordPageProps): Promise<React.JSX.Element> {
   const params = await searchParams;
 
+  if (params?.success) {
+    return (
+      <AuthShell
+        title="Check your email"
+        description="If the email address is linked to an account, a secure password reset link has been sent."
+      >
+        <AuthMessage success={params.success} />
+
+        <div className="space-y-4">
+          <Link href={AUTH_ROUTES.login}>
+            <Button type="button" className="h-11 w-full rounded-2xl">
+              Back to sign in
+            </Button>
+          </Link>
+
+          <p className="text-center text-xs leading-5 text-muted">
+            For security, we do not reveal whether an email address exists in
+            the system.
+          </p>
+        </div>
+      </AuthShell>
+    );
+  }
+
   return (
     <AuthShell
       title="Reset password"
       description="Enter your work email address to receive a secure password reset link."
     >
-      <AuthMessage error={params?.error} success={params?.success} />
+      <AuthMessage error={params?.error} />
 
       <form action={requestPasswordResetAction} className="space-y-5">
         <Input
@@ -39,9 +64,13 @@ export default async function ForgotPasswordPage({
           placeholder="name@company.com"
         />
 
-        <Button type="submit" className="h-11 w-full rounded-2xl">
+        <PendingSubmitButton
+          pendingLabel="Sending reset link..."
+          fullWidth
+          className="h-11 rounded-2xl"
+        >
           Send reset link
-        </Button>
+        </PendingSubmitButton>
       </form>
 
       <div className="mt-6 border-t border-border pt-5">

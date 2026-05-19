@@ -29,10 +29,12 @@ export type ReservationRoomOption = {
   condition_status: RoomConditionStatus | null;
   is_vip: boolean;
   is_delegate_suitable: boolean;
-  open_maintenance_count: number;
 };
 
 const NON_RESERVABLE_ROOM_STATUSES: ReadonlySet<RoomStatus> = new Set([
+  "needs_cleaning",
+  "cleaning_in_progress",
+  "inspection_needed",
   "under_maintenance",
   "out_of_service",
   "manager_hold",
@@ -63,26 +65,12 @@ type ReservationRoomViewRow = {
   condition_status: RoomConditionStatus | null;
   is_vip: boolean | null;
   is_delegate_suitable: boolean | null;
-  open_maintenance_count: number | string | null;
 };
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return Array.from(
     new Set(values.filter((value): value is string => Boolean(value))),
   );
-}
-
-function toNumber(value: number | string | null): number {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  return 0;
 }
 
 export async function getReservationGuestOptions(): Promise<
@@ -175,7 +163,6 @@ export async function getReservationRoomOptions(): Promise<
         "condition_status",
         "is_vip",
         "is_delegate_suitable",
-        "open_maintenance_count",
       ].join(","),
     )
     .order("camp_name", { ascending: true })
@@ -210,9 +197,7 @@ export async function getReservationRoomOptions(): Promise<
             room.current_status,
         ),
     )
-    .filter(
-  (room) => !NON_RESERVABLE_ROOM_STATUSES.has(room.current_status),
-)
+    .filter((room) => !NON_RESERVABLE_ROOM_STATUSES.has(room.current_status))
     .map((room) => ({
       room_id: room.room_id,
       room_number: room.room_number,
@@ -225,6 +210,5 @@ export async function getReservationRoomOptions(): Promise<
       condition_status: room.condition_status,
       is_vip: room.is_vip ?? false,
       is_delegate_suitable: room.is_delegate_suitable ?? false,
-      open_maintenance_count: toNumber(room.open_maintenance_count),
     }));
 }
