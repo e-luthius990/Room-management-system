@@ -1,23 +1,27 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import type { Database } from "@/lib/db/types";
 
-const AUTH_PREFIX = "/auth";
+import type { Database } from "@/lib/db/types";
+import { AUTH_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
 
 const PUBLIC_PATHS = new Set<string>([
-  "/auth/login",
-  "/auth/callback",
-  "/auth/accept-invite",
-  "/auth/forgot-password",
-  "/auth/reset-password",
-  "/access-pending",
-  "/account-suspended",
+  AUTH_ROUTES.callback,
+  AUTH_ROUTES.acceptInvite,
+  AUTH_ROUTES.resetPassword,
+  SYSTEM_ROUTES.accessPending,
+  SYSTEM_ROUTES.accountSuspended,
+]);
+
+const AUTH_ENTRY_PATHS = new Set<string>([
+  AUTH_ROUTES.login,
+  AUTH_ROUTES.forgotPassword,
 ]);
 
 const PUBLIC_FILE_PATTERN =
   /\.(?:avif|bmp|css|csv|gif|ico|jpg|jpeg|js|json|map|png|svg|txt|webp|woff|woff2|xml)$/i;
 
 const API_PREFIX = "/api/";
+const BLOCKED_NEXT_PREFIXES = ["/auth/", "/api/", "/_next/"] as const;
 
 function getPublicSupabaseUrl(): string {
   const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -53,43 +57,107 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname) || isStaticAsset(pathname);
 }
 
+function isAuthEntryPath(pathname: string): boolean {
+  return AUTH_ENTRY_PATHS.has(pathname);
+}
+
 function isApiPath(pathname: string): boolean {
   return pathname.startsWith(API_PREFIX);
 }
 
-function isAuthPath(pathname: string): boolean {
-  return pathname.startsWith(AUTH_PREFIX);
+function hasLikelySupabaseAuthCookie(request: NextRequest): boolean {
+  return request.cookies
+    .getAll()
+    .some(
+      ({ name }) => name.startsWith("sb-") && name.includes("-auth-token"),
+    );
+}
+
+function getSafeNextPath(value: string): string | null {
+  const nextPath = value.trim();
+
+  if (!nextPath || nextPath === "/") {
+    return null;
+  }
+
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) {
+    return null;
+  }
+
+  if (nextPath.includes("\\")) {
+    return null;
+  }
+
+  if (BLOCKED_NEXT_PREFIXES.some((prefix) => nextPath.startsWith(prefix))) {
+    return null;
+  }
+
+  return nextPath;
+}
+
+function createPassThroughResponse(request: NextRequest): NextResponse {
+  const response = NextResponse.next({
+    request,
+  });
+
+  response.headers.set("Cache-Control", "no-store");
+
+  return response;
+}
+
+function copyCookies(source: NextResponse, target: NextResponse): NextResponse {
+  source.cookies.getAll().forEach((cookie) => {
+    const { name, value, ...options } = cookie;
+
+    target.cookies.set(name, value, options);
+  });
+
+  return target;
 }
 
 function redirectToLogin(request: NextRequest): NextResponse {
   const redirectUrl = request.nextUrl.clone();
-
-  redirectUrl.pathname = "/auth/login";
-  redirectUrl.searchParams.set(
-    "next",
+  const safeNextPath = getSafeNextPath(
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
   );
 
-  return NextResponse.redirect(redirectUrl);
+  redirectUrl.pathname = AUTH_ROUTES.login;
+  redirectUrl.search = "";
+
+  if (safeNextPath) {
+    redirectUrl.searchParams.set("next", safeNextPath);
+  }
+
+  const response = NextResponse.redirect(redirectUrl);
+  response.headers.set("Cache-Control", "no-store");
+
+  return response;
 }
 
 function redirectToDashboard(request: NextRequest): NextResponse {
   const redirectUrl = request.nextUrl.clone();
 
-  redirectUrl.pathname = "/dashboard";
+  redirectUrl.pathname = SYSTEM_ROUTES.dashboard;
   redirectUrl.search = "";
 
-  return NextResponse.redirect(redirectUrl);
+  const response = NextResponse.redirect(redirectUrl);
+  response.headers.set("Cache-Control", "no-store");
+
+  return response;
 }
 
 function unauthorizedJson(): NextResponse {
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       error: "UNAUTHORIZED",
       message: "Authentication is required.",
     },
     { status: 401 },
   );
+
+  response.headers.set("Cache-Control", "no-store");
+
+  return response;
 }
 
 export async function updateSession(
@@ -97,19 +165,21 @@ export async function updateSession(
 ): Promise<NextResponse> {
   const pathname = request.nextUrl.pathname;
 
-  /**
-   * Important performance guard:
-   * Do not even create the Supabase middleware client for static/public paths.
-   */
-  if (isPublicPath(pathname)) {
+  if (isStaticAsset(pathname)) {
     return NextResponse.next({
       request,
     });
   }
 
-  let response = NextResponse.next({
-    request,
-  });
+  if (isPublicPath(pathname)) {
+    return createPassThroughResponse(request);
+  }
+
+  if (isAuthEntryPath(pathname) && !hasLikelySupabaseAuthCookie(request)) {
+    return createPassThroughResponse(request);
+  }
+
+  let response = createPassThroughResponse(request);
 
   const supabase = createServerClient<Database>(
     getPublicSupabaseUrl(),
@@ -125,9 +195,7 @@ export async function updateSession(
             request.cookies.set(name, value);
           });
 
-          response = NextResponse.next({
-            request,
-          });
+          response = createPassThroughResponse(request);
 
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
@@ -144,20 +212,20 @@ export async function updateSession(
 
   const hasValidSession = !error && Boolean(user);
 
-  if (!hasValidSession) {
-    if (isApiPath(pathname)) {
-      return unauthorizedJson();
+  if (isAuthEntryPath(pathname)) {
+    if (hasValidSession) {
+      return copyCookies(response, redirectToDashboard(request));
     }
 
-    return redirectToLogin(request);
+    return response;
   }
 
-  /**
-   * This normally only applies if your matcher allows protected auth paths.
-   * Public auth pages already returned above.
-   */
-  if (isAuthPath(pathname)) {
-    return redirectToDashboard(request);
+  if (!hasValidSession) {
+    if (isApiPath(pathname)) {
+      return copyCookies(response, unauthorizedJson());
+    }
+
+    return copyCookies(response, redirectToLogin(request));
   }
 
   return response;

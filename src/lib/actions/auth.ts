@@ -42,7 +42,9 @@ function getAppUrl(): string {
   );
 }
 
-function getSafeNextPath(value: FormDataEntryValue | string | null): string | null {
+function getSafeNextPath(
+  value: FormDataEntryValue | string | null,
+): string | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -272,6 +274,24 @@ async function writeAuthAuditLog({
   }
 }
 
+function getPostAuthRedirectPath({
+  nextPath,
+  roleKey,
+}: {
+  nextPath: string | null;
+  roleKey: RoleKey | null;
+}): string {
+  if (nextPath) {
+    return nextPath;
+  }
+
+  if (roleKey) {
+    return getDefaultRouteForRole(roleKey);
+  }
+
+  return SYSTEM_ROUTES.dashboard;
+}
+
 function redirectAfterAuth({
   nextPath,
   roleKey,
@@ -279,17 +299,12 @@ function redirectAfterAuth({
   nextPath: string | null;
   roleKey: RoleKey | null;
 }): never {
-  revalidatePath("/", "layout");
-
-  if (nextPath) {
-    redirect(nextPath);
-  }
-
-  if (roleKey) {
-    redirect(getDefaultRouteForRole(roleKey));
-  }
-
-  redirect(SYSTEM_ROUTES.dashboard);
+  redirect(
+    getPostAuthRedirectPath({
+      nextPath,
+      roleKey,
+    }),
+  );
 }
 
 export async function signInAction(formData: FormData): Promise<never> {
@@ -312,65 +327,15 @@ export async function signInAction(formData: FormData): Promise<never> {
     password: parsed.data.password,
   });
 
-  if (error || !data.user) {
+  if (error || !data.user || !data.session) {
     redirectWithError(AUTH_ROUTES.login, "invalid_credentials", rawNextPath);
   }
 
-  const userId = data.user.id;
-
-  const [profile, accessState] = await Promise.all([
-    loadProfileStatus(userId),
-    getUserAccessState(userId),
-  ]);
-
-  if (!profile) {
-    await supabase.auth.signOut();
-    redirectWithError(SYSTEM_ROUTES.accessPending, "profile_missing");
-  }
-
-  if (profile.account_status === "disabled") {
-    await supabase.auth.signOut();
-    redirectWithError(AUTH_ROUTES.login, "account_disabled");
-  }
-
-  if (profile.account_status === "suspended") {
-    await supabase.auth.signOut();
-    redirectWithError(AUTH_ROUTES.login, "account_suspended");
-  }
-
-  if (profile.account_status === "expired_invite") {
-    await supabase.auth.signOut();
-    redirectWithError(AUTH_ROUTES.login, "invite_expired");
-  }
-
-  if (profile.account_status === "invited") {
-    await supabase.auth.signOut();
-    redirectWithError(AUTH_ROUTES.login, "invite_not_ready");
-  }
-
-  if (
-    profile.account_status === "pending_password_reset" ||
-    profile.force_password_change
-  ) {
-    redirect(AUTH_ROUTES.resetPassword);
-  }
-
-  if (profile.account_status !== "active") {
-    await supabase.auth.signOut();
-    redirectWithError(SYSTEM_ROUTES.accessPending, "access_not_assigned");
-  }
-
-  if (!accessState.canAccessApp || !accessState.roleKey) {
-    await supabase.auth.signOut();
-    redirectWithError(SYSTEM_ROUTES.accessPending, "access_not_assigned");
-  }
-
-  await markLoginSuccessful(userId);
-
-  redirectAfterAuth({
-    nextPath: parsed.data.next ?? null,
-    roleKey: accessState.roleKey,
-  });
+  redirect(
+    buildRedirectPath(AUTH_ROUTES.callback, {
+      next: parsed.data.next ?? SYSTEM_ROUTES.dashboard,
+    }),
+  );
 }
 
 export async function requestPasswordResetAction(

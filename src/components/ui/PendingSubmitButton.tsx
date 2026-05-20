@@ -7,7 +7,7 @@ import { Button, type ButtonProps } from "@/components/ui/Button";
 
 type PendingSubmitButtonProps = Omit<
   ButtonProps,
-  "type" | "loading" | "loadingText" | "leftIcon" | "rightIcon" | "aria-busy"
+  "type" | "loading" | "loadingText" | "aria-busy"
 > & {
   pendingLabel?: string;
   icon?: ReactNode;
@@ -19,17 +19,6 @@ function getComparableValue(value: ButtonProps["value"]): string | null {
   }
 
   return null;
-}
-
-function LiveSpinner(): React.JSX.Element {
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-flex size-4 shrink-0 items-center justify-center"
-    >
-      <span className="inline-spinner" />
-    </span>
-  );
 }
 
 export function PendingSubmitButton({
@@ -65,11 +54,12 @@ export function PendingSubmitButton({
       variant={variant}
       size={size}
       disabled={disabled || pending}
-      aria-busy={showPending}
-      leftIcon={showPending ? <LiveSpinner /> : icon}
+      loading={showPending}
+      loadingText={pendingLabel}
+      leftIcon={icon}
       data-pending={showPending ? "true" : undefined}
     >
-      <span aria-live="polite">{showPending ? pendingLabel : children}</span>
+      {children}
     </Button>
   );
 }
