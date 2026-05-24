@@ -23,7 +23,7 @@ const reportOptions: ReportOption[] = [
     value: "occupancy",
     label: "Occupancy",
     description:
-      "Room occupancy, guest, housekeeping, and maintenance context.",
+      "Camp-level occupancy, availability, reserved rooms, pending checkout, and unavailable room counts.",
   },
   {
     value: "guests",
@@ -33,22 +33,20 @@ const reportOptions: ReportOption[] = [
   {
     value: "rooms",
     label: "Rooms",
-    description: "Room inventory, status, condition, and operational state.",
+    description:
+      "Room inventory, current status, condition, capacity, VIP flag, delegate suitability, and active guest assignment.",
   },
   {
-    value: "maintenance",
-    label: "Maintenance",
-    description: "Maintenance tickets and repair workflow history.",
+    value: "current_stays",
+    label: "Current stays",
+    description:
+      "Currently checked-in guests with assigned room, stay status, expected departure, and security presence.",
   },
   {
-    value: "housekeeping",
-    label: "Housekeeping",
-    description: "Housekeeping task workflow history.",
-  },
-  {
-    value: "room_service",
-    label: "Room Service",
-    description: "Room service task workflow history.",
+    value: "exited_guests",
+    label: "Exited guests",
+    description:
+      "Guests checked out by reception or marked as exited by security, including previous room and exit time.",
   },
 ];
 
@@ -61,7 +59,7 @@ const formatOptions: FormatOption[] = [
   {
     value: "xlsx",
     label: "Excel",
-    description: "Best for managers who want a ready spreadsheet file.",
+    description: "Best for managers who need a spreadsheet file.",
   },
   {
     value: "pdf",
@@ -76,15 +74,15 @@ export function CreateExportForm({
   return (
     <form
       action={createReportExportAction}
-      className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"
+      className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-sm"
     >
       <div>
         <h2 className="text-base font-semibold text-neutral-950">
           Generate report export
         </h2>
         <p className="mt-1 text-sm leading-6 text-neutral-500">
-          Choose a report, select the file format, optionally limit it to a
-          camp, and apply a date range where supported.
+          Choose an operational report, select the file format, optionally limit
+          it to a camp, and apply a date range where supported.
         </p>
       </div>
 
@@ -102,7 +100,7 @@ export function CreateExportForm({
             required
             name="reportType"
             defaultValue="occupancy"
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
+            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-50"
           >
             {reportOptions.map((report) => (
               <option key={report.value} value={report.value}>
@@ -112,7 +110,8 @@ export function CreateExportForm({
           </select>
 
           <p className="mt-2 text-xs leading-5 text-neutral-500">
-            Occupancy and rooms exports use the live room board snapshot.
+            Occupancy and rooms exports use the live room board and occupancy
+            views.
           </p>
         </div>
 
@@ -129,7 +128,7 @@ export function CreateExportForm({
             required
             name="exportFormat"
             defaultValue="csv"
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
+            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-50"
           >
             {formatOptions.map((format) => (
               <option key={format.value} value={format.value}>
@@ -156,7 +155,7 @@ export function CreateExportForm({
             id="campId"
             name="campId"
             defaultValue=""
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
+            className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-50"
           >
             <option value="">All accessible camps</option>
 
@@ -182,7 +181,7 @@ export function CreateExportForm({
             id="dateFrom"
             name="dateFrom"
             type="date"
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
+            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-50"
           />
         </div>
 
@@ -198,21 +197,39 @@ export function CreateExportForm({
             id="dateTo"
             name="dateTo"
             type="date"
-            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
+            className="w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-50"
           />
         </div>
 
-        <div className="md:col-span-2 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs leading-5 text-neutral-600">
-          Date filters apply to guests, maintenance, housekeeping, and room
-          service exports. Occupancy and rooms exports are generated from the
-          current room board snapshot.
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs leading-5 text-neutral-600 md:col-span-2">
+          Date filters apply to guest, current-stay, and exited-guest exports.
+          Occupancy and rooms exports are generated from the current operational
+          snapshot.
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {reportOptions.map((report) => (
+            <div
+              key={report.value}
+              className="rounded-2xl border border-neutral-200 bg-neutral-50/70 p-4"
+            >
+              <div className="text-sm font-semibold text-neutral-950">
+                {report.label}
+              </div>
+              <p className="mt-1 text-xs leading-5 text-neutral-500">
+                {report.description}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="mt-6 flex justify-end">
         <button
           type="submit"
-          className="rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+          className="rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 focus:outline-none focus:ring-4 focus:ring-neutral-200"
         >
           Generate export
         </button>

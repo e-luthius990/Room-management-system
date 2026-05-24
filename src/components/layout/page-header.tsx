@@ -3,6 +3,8 @@ import * as React from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
+type PageHeaderDensity = "default" | "compact";
+
 type PageHeaderProps = Omit<
   React.ComponentPropsWithoutRef<"section">,
   "title"
@@ -14,6 +16,7 @@ type PageHeaderProps = Omit<
   titleId?: string;
   contentClassName?: string;
   actionsClassName?: string;
+  density?: PageHeaderDensity;
 };
 
 export function PageHeader({
@@ -25,6 +28,7 @@ export function PageHeader({
   className,
   contentClassName,
   actionsClassName,
+  density = "default",
   ...props
 }: PageHeaderProps): React.JSX.Element {
   const reactId = React.useId();
@@ -33,7 +37,12 @@ export function PageHeader({
   return (
     <section
       aria-labelledby={resolvedTitleId}
-      className={cn("page-header", className)}
+      data-density={density}
+      className={cn(
+        "page-header",
+        density === "compact" && "page-header-compact",
+        className,
+      )}
       {...props}
     >
       <div className={cn("min-w-0", contentClassName)}>

@@ -1,4 +1,3 @@
-// src/components/ui/DataTable.tsx
 import * as React from "react";
 import { cn } from "@/lib/utils/cn";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -14,6 +13,8 @@ export type DataTableColumn<TData> = {
   hideOnMobile?: boolean;
 };
 
+export type DataTableFrame = "panel" | "attached" | "bare";
+
 export type DataTableProps<TData> = {
   data: readonly TData[];
   columns: readonly DataTableColumn<TData>[];
@@ -24,14 +25,16 @@ export type DataTableProps<TData> = {
   className?: string;
   tableClassName?: string;
   loading?: boolean;
-  loadingRows?: number;
   constrained?: boolean;
   stickyHeader?: boolean;
   density?: "comfortable" | "compact";
+  frame?: DataTableFrame;
   caption?: React.ReactNode;
   onRowClick?: (row: TData, index: number) => void;
   getRowAriaLabel?: (row: TData, index: number) => string;
   rowClassName?: (row: TData, index: number) => string | undefined;
+  getRowStatus?: (row: TData, index: number) => string | undefined;
+  selectedRowKey?: React.Key | null;
 };
 
 const alignClass = {
@@ -45,7 +48,22 @@ const densityCellClass = {
   compact: "[&_th]:py-2 [&_td]:py-2",
 } as const;
 
-const DEFAULT_LOADING_ROWS = 5;
+const frameClass: Record<DataTableFrame, string> = {
+  panel: "table-shell",
+  attached: "border-x border-b border-border bg-surface",
+  bare: "",
+};
+
+function getScrollClass(frame: DataTableFrame, constrained: boolean): string {
+  if (frame === "panel") {
+    return constrained ? "table-scroll-constrained" : "table-scroll";
+  }
+
+  return cn(
+    "w-full overflow-x-auto",
+    constrained && "max-h-[min(720px,calc(100vh-16rem))] overflow-auto",
+  );
+}
 
 function getAccessorValue<TData>(
   row: TData,
@@ -81,14 +99,6 @@ function getAccessorValue<TData>(
   return String(value);
 }
 
-function getLoadingRows(count: number): readonly number[] {
-  const safeCount = Number.isFinite(count)
-    ? Math.max(1, Math.min(Math.trunc(count), 25))
-    : DEFAULT_LOADING_ROWS;
-
-  return Array.from({ length: safeCount }, (_, index) => index);
-}
-
 function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -98,45 +108,6 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
     target.closest(
       'a, button, input, textarea, select, summary, [role="button"], [data-row-click-ignore="true"]',
     ),
-  );
-}
-
-function DataTableSkeleton<TData>({
-  columns,
-  rows,
-}: {
-  columns: readonly DataTableColumn<TData>[];
-  rows: readonly number[];
-}): React.JSX.Element {
-  return (
-    <>
-      {rows.map((rowIndex) => (
-        <tr key={rowIndex} aria-hidden="true">
-          {columns.map((column, columnIndex) => (
-            <td
-              key={column.id}
-              className={cn(
-                alignClass[column.align ?? "left"],
-                column.hideOnMobile && "hidden md:table-cell",
-                column.className,
-              )}
-            >
-              <div
-                className={cn(
-                  "skeleton-block h-4",
-                  columnIndex === 0 && "w-36 max-w-full",
-                  columnIndex === 1 && "w-28 max-w-full",
-                  columnIndex === 2 && "w-24 max-w-full",
-                  columnIndex > 2 && "w-20 max-w-full",
-                  column.align === "right" && "ml-auto",
-                  column.align === "center" && "mx-auto",
-                )}
-              />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
   );
 }
 
@@ -150,28 +121,39 @@ export function DataTable<TData>({
   className,
   tableClassName,
   loading = false,
-  loadingRows = DEFAULT_LOADING_ROWS,
   constrained = false,
   stickyHeader = true,
   density = "comfortable",
+  frame = "panel",
   caption,
   onRowClick,
   getRowAriaLabel,
   rowClassName,
+  getRowStatus,
+  selectedRowKey = null,
 }: DataTableProps<TData>): React.JSX.Element {
-  const skeletonRows = React.useMemo(
-    () => getLoadingRows(loadingRows),
-    [loadingRows],
-  );
-
   const isClickable = typeof onRowClick === "function";
 
-  if (!loading && data.length === 0) {
+  if (data.length === 0) {
     return (
-      <div className={className}>
+      <div
+        className={cn(frameClass[frame], frame !== "bare" && "p-4", className)}
+        aria-busy={loading || undefined}
+        data-loading={loading ? "true" : undefined}
+        data-density={density}
+        data-frame={frame}
+      >
         <EmptyState
-          title={emptyTitle}
-          description={emptyDescription}
+          operational
+          align="left"
+          tone="neutral"
+          size="sm"
+          title={loading ? "Preparing records" : emptyTitle}
+          description={
+            loading
+              ? "This view will update automatically when records are available."
+              : emptyDescription
+          }
           action={emptyAction}
         />
       </div>
@@ -180,16 +162,13 @@ export function DataTable<TData>({
 
   return (
     <div
-      className={cn("table-shell", className)}
+      className={cn(frameClass[frame], className)}
       aria-busy={loading || undefined}
       data-loading={loading ? "true" : undefined}
       data-density={density}
+      data-frame={frame}
     >
-      <div
-        className={cn(
-          constrained ? "table-scroll-constrained" : "table-scroll",
-        )}
-      >
+      <div className={getScrollClass(frame, constrained)}>
         <table
           className={cn(
             "data-table",
@@ -219,73 +198,76 @@ export function DataTable<TData>({
           </thead>
 
           <tbody>
-            {loading ? (
-              <DataTableSkeleton columns={columns} rows={skeletonRows} />
-            ) : (
-              data.map((row, rowIndex) => {
-                const rowKey = getRowKey(row, rowIndex);
-                const ariaLabel = getRowAriaLabel?.(row, rowIndex);
+            {data.map((row, rowIndex) => {
+              const rowKey = getRowKey(row, rowIndex);
+              const ariaLabel = getRowAriaLabel?.(row, rowIndex);
+              const rowStatus = getRowStatus?.(row, rowIndex);
+              const isSelected =
+                selectedRowKey != null &&
+                String(selectedRowKey) === String(rowKey);
 
-                return (
-                  <tr
-                    key={rowKey}
-                    tabIndex={isClickable ? 0 : undefined}
-                    aria-label={isClickable ? ariaLabel : undefined}
-                    data-clickable={isClickable ? "true" : undefined}
-                    onClick={
-                      isClickable
-                        ? (event) => {
-                            if (isInteractiveTarget(event.target)) {
-                              return;
-                            }
-
-                            onRowClick(row, rowIndex);
+              return (
+                <tr
+                  key={rowKey}
+                  tabIndex={isClickable ? 0 : undefined}
+                  aria-label={isClickable ? ariaLabel : undefined}
+                  aria-selected={isSelected || undefined}
+                  data-clickable={isClickable ? "true" : undefined}
+                  data-selected={isSelected ? "true" : undefined}
+                  data-row-status={rowStatus}
+                  onClick={
+                    isClickable
+                      ? (event) => {
+                          if (isInteractiveTarget(event.target)) {
+                            return;
                           }
-                        : undefined
-                    }
-                    onKeyDown={
-                      isClickable
-                        ? (event) => {
-                            if (
-                              isInteractiveTarget(event.target) ||
-                              (event.key !== "Enter" && event.key !== " ")
-                            ) {
-                              return;
-                            }
 
-                            event.preventDefault();
-                            onRowClick(row, rowIndex);
+                          onRowClick(row, rowIndex);
+                        }
+                      : undefined
+                  }
+                  onKeyDown={
+                    isClickable
+                      ? (event) => {
+                          if (
+                            isInteractiveTarget(event.target) ||
+                            (event.key !== "Enter" && event.key !== " ")
+                          ) {
+                            return;
                           }
-                        : undefined
-                    }
-                    className={cn(
-                      isClickable &&
-                        "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset",
-                      rowClassName?.(row, rowIndex),
-                    )}
-                  >
-                    {columns.map((column) => {
-                      const value = column.cell
-                        ? column.cell(row, rowIndex)
-                        : getAccessorValue(row, column.accessor);
 
-                      return (
-                        <td
-                          key={column.id}
-                          className={cn(
-                            alignClass[column.align ?? "left"],
-                            column.hideOnMobile && "hidden md:table-cell",
-                            column.className,
-                          )}
-                        >
-                          {value ?? "—"}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })
-            )}
+                          event.preventDefault();
+                          onRowClick(row, rowIndex);
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    isClickable &&
+                      "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset",
+                    rowClassName?.(row, rowIndex),
+                  )}
+                >
+                  {columns.map((column) => {
+                    const value = column.cell
+                      ? column.cell(row, rowIndex)
+                      : getAccessorValue(row, column.accessor);
+
+                    return (
+                      <td
+                        key={column.id}
+                        className={cn(
+                          alignClass[column.align ?? "left"],
+                          column.hideOnMobile && "hidden md:table-cell",
+                          column.className,
+                        )}
+                      >
+                        {value ?? "—"}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

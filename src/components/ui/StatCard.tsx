@@ -29,6 +29,7 @@ export type StatCardProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
   tone?: StatTone;
   trend?: StatTrend;
   as?: "section" | "article" | "div";
+  density?: "comfortable" | "compact";
 };
 
 const toneClass: Record<StatTone, string> = {
@@ -41,10 +42,10 @@ const toneClass: Record<StatTone, string> = {
 };
 
 const trendToneClass: Record<NonNullable<StatTrend["tone"]>, string> = {
-  neutral: "border-border bg-surface-2 text-muted",
+  neutral: "stat-trend-neutral",
   positive: "stat-trend-up",
   negative: "stat-trend-down",
-  warning: "border-warning-700/25 bg-warning-50 text-warning-700",
+  warning: "stat-trend-warning",
 };
 
 const trendIcon: Record<NonNullable<StatTrend["direction"]>, LucideIcon> = {
@@ -79,6 +80,7 @@ export function StatCard({
   trend,
   className,
   as = "section",
+  density = "comfortable",
   ...props
 }: StatCardProps): React.JSX.Element {
   const Component = as;
@@ -88,6 +90,7 @@ export function StatCard({
     <Component
       className={cn("stat-card", toneClass[tone], className)}
       data-stat-tone={tone}
+      data-density={density}
       {...props}
     >
       <div className="flex items-start justify-between gap-4">

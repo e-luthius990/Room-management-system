@@ -122,10 +122,11 @@ function SidebarNavLink({
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-xl border transition",
+          "flex size-8 shrink-0 items-center justify-center border transition",
+          "rounded-md",
           isActive
             ? "border-brand-500/25 bg-surface text-brand-700"
-            : "border-transparent text-sidebar-muted group-hover:bg-surface/55 group-hover:text-sidebar-foreground",
+            : "border-transparent text-sidebar-muted group-hover:border-sidebar-border group-hover:bg-surface/55 group-hover:text-sidebar-foreground",
         )}
       >
         <NavIcon icon={item.icon} />
@@ -168,7 +169,7 @@ function SidebarSection({
 
 function EmptyNavigationNotice(): JSX.Element {
   return (
-    <div className="rounded-2xl border border-sidebar-border bg-surface/55 p-4 text-sm leading-6 text-sidebar-muted shadow-xs">
+    <div className="border border-sidebar-border bg-surface/55 p-4 text-sm leading-6 text-sidebar-muted shadow-xs">
       No navigation items are available for this role.
     </div>
   );
@@ -178,7 +179,7 @@ function DefaultBrandMark(): JSX.Element {
   return (
     <div
       aria-hidden="true"
-      className="flex size-10 items-center justify-center rounded-2xl border border-sidebar-border bg-surface text-sm font-bold text-brand-700 shadow-xs"
+      className="flex size-10 items-center justify-center border border-sidebar-border bg-surface text-sm font-bold text-brand-700 shadow-xs"
     >
       CR
     </div>
@@ -242,7 +243,7 @@ export function AppSidebar({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 pr-2 scrollbar-thin">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 pr-2">
           {parsedPrimaryItems.length > 0 ? (
             <SidebarSection items={parsedPrimaryItems} current={current} />
           ) : (

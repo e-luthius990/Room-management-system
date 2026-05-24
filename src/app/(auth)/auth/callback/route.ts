@@ -4,6 +4,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/db/types";
 import { AUTH_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
 import { loginSchema } from "@/lib/validation/auth";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getDefaultRouteForRole } from "@/lib/auth/redirect-by-role";
+import type { RoleKey } from "@/lib/auth/types";
 
 type LoginRouteResponse =
   | {
@@ -15,12 +18,34 @@ type LoginRouteResponse =
       error: string;
     };
 
+type RoleJoinRow = {
+  key?: string | null;
+};
+
 const ALLOWED_AUTH_NEXT_PATHS = new Set<string>([
   AUTH_ROUTES.acceptInvite,
   AUTH_ROUTES.resetPassword,
 ]);
 
 const BLOCKED_NEXT_PREFIXES = ["/api/", "/_next/"] as const;
+
+const AUTH_TIMING_ENABLED =
+  process.env.NODE_ENV !== "production" ||
+  process.env.AUTH_DEBUG_TIMING === "true";
+
+function createAuthTimer(scope: string): (label: string) => void {
+  const startedAt = performance.now();
+
+  return (label: string): void => {
+    if (!AUTH_TIMING_ENABLED) {
+      return;
+    }
+
+    console.info(
+      `[${scope}] ${label}: ${Math.round(performance.now() - startedAt)}ms`,
+    );
+  };
+}
 
 function getPublicSupabaseUrl(): string {
   const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,30 +71,34 @@ function isAllowedAuthNextPath(path: string): boolean {
   return ALLOWED_AUTH_NEXT_PATHS.has(path);
 }
 
-function getSafeNextPath(value: string | null): string {
+function getSafeOptionalNextPath(value: string | null | undefined): string | null {
   const nextPath = value?.trim();
 
   if (!nextPath || nextPath === "/") {
-    return SYSTEM_ROUTES.dashboard;
+    return null;
   }
 
   if (!nextPath.startsWith("/") || nextPath.startsWith("//")) {
-    return SYSTEM_ROUTES.dashboard;
+    return null;
   }
 
   if (nextPath.includes("\\")) {
-    return SYSTEM_ROUTES.dashboard;
+    return null;
   }
 
   if (BLOCKED_NEXT_PREFIXES.some((prefix) => nextPath.startsWith(prefix))) {
-    return SYSTEM_ROUTES.dashboard;
+    return null;
   }
 
   if (nextPath.startsWith("/auth/") && !isAllowedAuthNextPath(nextPath)) {
-    return SYSTEM_ROUTES.dashboard;
+    return null;
   }
 
   return nextPath;
+}
+
+function getSafeNextPath(value: string | null | undefined): string {
+  return getSafeOptionalNextPath(value) ?? SYSTEM_ROUTES.dashboard;
 }
 
 function getMissingCodeError({
@@ -95,23 +124,6 @@ function getMissingCodeError({
   return "missing_auth_code";
 }
 
-function buildRedirectPath(
-  path: string,
-  params: Record<string, string | null | undefined>,
-): string {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `${path}?${query}` : path;
-}
-
 function jsonResponse(
   body: LoginRouteResponse,
   status: number,
@@ -120,6 +132,19 @@ function jsonResponse(
   response.headers.set("Cache-Control", "no-store");
 
   return response;
+}
+
+function copyCookies<TBody>(
+  source: NextResponse,
+  target: NextResponse<TBody>,
+): NextResponse<TBody> {
+  source.cookies.getAll().forEach((cookie) => {
+    const { name, value, ...options } = cookie;
+
+    target.cookies.set(name, value, options);
+  });
+
+  return target;
 }
 
 function redirectToLoginWithError(
@@ -165,13 +190,58 @@ function createCallbackSupabaseClient(
   );
 }
 
+function normalizeRoleJoin(value: unknown): RoleJoinRow | null {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    const first = value[0];
+
+    return first && typeof first === "object" ? (first as RoleJoinRow) : null;
+  }
+
+  return typeof value === "object" ? (value as RoleJoinRow) : null;
+}
+
+async function getDefaultPostLoginPath(userId: string): Promise<string> {
+  const admin = createSupabaseAdminClient();
+
+  const { data, error } = await admin
+    .from("user_roles")
+    .select("roles!inner(key)")
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .order("assigned_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to resolve post-login role:", error.message);
+    return SYSTEM_ROUTES.dashboard;
+  }
+
+  const roleRow = data as { roles?: unknown } | null;
+  const role = normalizeRoleJoin(roleRow?.roles ?? null);
+  const roleKey = role?.key as RoleKey | null | undefined;
+
+  if (!roleKey) {
+    return SYSTEM_ROUTES.dashboard;
+  }
+
+  return getDefaultRouteForRole(roleKey);
+}
+
 export async function POST(
   request: NextRequest,
 ): Promise<NextResponse<LoginRouteResponse>> {
+  const mark = createAuthTimer("auth/callback:POST");
+
   let payload: unknown;
 
   try {
     payload = await request.json();
+    mark("request json parsed");
   } catch {
     return jsonResponse(
       {
@@ -183,6 +253,7 @@ export async function POST(
   }
 
   const parsed = loginSchema.safeParse(payload);
+  mark("payload validated");
 
   if (!parsed.success) {
     return jsonResponse(
@@ -194,24 +265,22 @@ export async function POST(
     );
   }
 
-  const redirectTo = buildRedirectPath(AUTH_ROUTES.callback, {
-    next: parsed.data.next ?? SYSTEM_ROUTES.dashboard,
-  });
-
-  const response = jsonResponse(
+  const cookieResponse = jsonResponse(
     {
       ok: true,
-      redirectTo,
+      redirectTo: SYSTEM_ROUTES.dashboard,
     },
     200,
   );
 
-  const supabase = createCallbackSupabaseClient(request, response);
+  const supabase = createCallbackSupabaseClient(request, cookieResponse);
+  mark("supabase client created");
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
+  mark("signInWithPassword completed");
 
   if (error || !data.user || !data.session) {
     return jsonResponse(
@@ -223,9 +292,24 @@ export async function POST(
     );
   }
 
-  return response;
-}
+  const requestedNextPath = getSafeOptionalNextPath(parsed.data.next);
+  mark("next path normalized");
 
+  const redirectTo =
+    requestedNextPath ?? (await getDefaultPostLoginPath(data.user.id));
+  mark("default route resolved");
+
+  const finalResponse = jsonResponse(
+    {
+      ok: true,
+      redirectTo: getSafeNextPath(redirectTo),
+    },
+    200,
+  );
+  mark("response prepared");
+
+  return copyCookies<LoginRouteResponse>(cookieResponse, finalResponse);
+}
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const requestUrl = new URL(request.url);
 

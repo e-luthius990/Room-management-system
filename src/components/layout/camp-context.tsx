@@ -20,13 +20,31 @@ function formatAccessLevel(value: string | null | undefined): string {
   const normalized = normalizeText(value);
 
   if (!normalized) {
-    return "access assigned";
+    return "Access assigned";
   }
 
   return normalized
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getSortedCampAccess(
+  campAccess: CurrentCampAccess[],
+): CurrentCampAccess[] {
+  return [...campAccess].sort((a, b) => {
+    const aName = normalizeText(a.camp_name) ?? "";
+    const bName = normalizeText(b.camp_name) ?? "";
+
+    return aName.localeCompare(bName);
+  });
+}
+
+function getPrimaryCampAccess(
+  campAccess: CurrentCampAccess[],
+): CurrentCampAccess | null {
+  const sorted = getSortedCampAccess(campAccess);
+  return sorted[0] ?? null;
 }
 
 function getCampContextState(
@@ -53,18 +71,35 @@ function getCampContextLabel(
   isSystemActor: boolean,
 ): string {
   if (isSystemActor) {
-    return "All camps";
+    return "All Camps";
   }
 
   if (campAccess.length === 0) {
-    return "No camp assigned";
+    return "No Camp Assigned";
+  }
+
+  const primaryCamp = getPrimaryCampAccess(campAccess);
+
+  return normalizeText(primaryCamp?.camp_name) ?? "Assigned Camp";
+}
+
+function getCampContextMeta(
+  campAccess: CurrentCampAccess[],
+  isSystemActor: boolean,
+): string {
+  if (isSystemActor) {
+    return "System Scope";
+  }
+
+  if (campAccess.length === 0) {
+    return "Access Required";
   }
 
   if (campAccess.length === 1) {
-    return normalizeText(campAccess[0]?.camp_name) ?? "Assigned camp";
+    return formatAccessLevel(campAccess[0]?.access_level);
   }
 
-  return `${campAccess.length} camps`;
+  return `${campAccess.length} Camps Assigned`;
 }
 
 function getCampContextTitle(
@@ -79,7 +114,7 @@ function getCampContextTitle(
     return "No camp access has been assigned";
   }
 
-  return campAccess
+  return getSortedCampAccess(campAccess)
     .map((access) => {
       const campName = normalizeText(access.camp_name) ?? "Unnamed camp";
       const accessLevel = formatAccessLevel(access.access_level);
@@ -96,25 +131,31 @@ export function CampContext({
 }: CampContextProps): JSX.Element {
   const state = getCampContextState(campAccess, isSystemActor);
   const label = getCampContextLabel(campAccess, isSystemActor);
+  const meta = getCampContextMeta(campAccess, isSystemActor);
   const title = getCampContextTitle(campAccess, isSystemActor);
 
   const isWarning = state === "missing";
+  const isMultiCampNonSystemUser = state === "multiple";
 
   return (
     <div
       title={title}
-      aria-label={`Current camp context: ${label}`}
+      aria-label={`Current camp context: ${label}. ${meta}.`}
       data-camp-context={state}
+      data-multi-camp-user={isMultiCampNonSystemUser ? "true" : undefined}
       className={cn(
-        "inline-flex min-h-10 max-w-[min(13rem,46vw)] items-center gap-2 rounded-2xl border border-topbar-border bg-surface/55 px-3 shadow-xs backdrop-blur-xl",
+        "inline-flex min-h-10 max-w-[min(20rem,58vw)] items-center gap-2 border border-topbar-border bg-surface/55 px-3 shadow-xs backdrop-blur-xl",
+        "rounded-md",
         isWarning && "border-warning-700/25 bg-warning-50",
+        isMultiCampNonSystemUser && "border-info-600/25 bg-info-50",
         className,
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "size-2 shrink-0 rounded-full",
+          "size-2 shrink-0",
+          "rounded-[2px]",
           state === "system" && "bg-brand-500",
           state === "assigned" && "bg-success-600",
           state === "multiple" && "bg-info-600",
@@ -122,13 +163,24 @@ export function CampContext({
         )}
       />
 
-      <span
-        className={cn(
-          "min-w-0 truncate text-xs font-bold leading-5",
-          isWarning ? "text-warning-700" : "text-topbar-foreground",
-        )}
-      >
-        {label}
+      <span className="min-w-0">
+        <span
+          className={cn(
+            "block truncate text-xs font-bold leading-4",
+            isWarning ? "text-warning-700" : "text-topbar-foreground",
+          )}
+        >
+          {label}
+        </span>
+
+        <span
+          className={cn(
+            "block truncate text-[10px] font-bold uppercase leading-3 tracking-[0.12em]",
+            isWarning ? "text-warning-700" : "text-topbar-muted",
+          )}
+        >
+          {meta}
+        </span>
       </span>
     </div>
   );

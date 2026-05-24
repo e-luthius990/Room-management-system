@@ -24,7 +24,6 @@ const SECURITY_VISIT_TYPE_VALUES = [
   "staff_visit",
   "delivery",
   "vip",
-  "other",
 ] as const;
 
 export type ClearanceStatus = (typeof CLEARANCE_STATUS_VALUES)[number];
@@ -168,7 +167,6 @@ export const securityVisitTypeLabels: Record<SecurityVisitType, string> = {
   staff_visit: "Staff visit",
   delivery: "Delivery",
   vip: "VIP",
-  other: "Other",
 };
 
 export const clearanceStatusOptions: ReadonlyArray<{
@@ -194,6 +192,20 @@ export const securityVisitTypeOptions: ReadonlyArray<{
   value,
   label: securityVisitTypeLabels[value],
 }));
+
+export const RECEPTION_HANDOFF_VISIT_TYPES = SECURITY_VISIT_TYPE_VALUES;
+
+export type ReceptionHandoffVisitType = SecurityVisitType;
+
+export function canVisitTypeBeSentToReception(
+  visitType: SecurityVisitType | null | undefined,
+): visitType is ReceptionHandoffVisitType {
+  return (
+    visitType !== null &&
+    visitType !== undefined &&
+    RECEPTION_HANDOFF_VISIT_TYPES.includes(visitType)
+  );
+}
 
 export const createSecurityClearanceEventSchema = z
   .object({

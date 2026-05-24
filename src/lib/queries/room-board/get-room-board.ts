@@ -7,6 +7,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type RoomBoardStatus = Enums<"room_status">;
 export type RoomBoardConditionStatus = Enums<"room_condition_status">;
+export type RoomBoardFieldAbsenceStatus = Enums<"field_absence_status">;
 
 export type RoomBoardItem = {
   room_id: string;
@@ -25,6 +26,18 @@ export type RoomBoardItem = {
   current_guest_id: string | null;
   current_guest_name: string | null;
   expected_departure_at: string | null;
+
+  active_field_absence_id: string | null;
+  field_absence_status: RoomBoardFieldAbsenceStatus | null;
+  field_absence_departure_at: string | null;
+  field_absence_expected_return_at: string | null;
+  field_absence_actual_return_at: string | null;
+  field_absence_destination: string | null;
+  field_absence_reason: string | null;
+  field_absence_days_away: number;
+  field_absence_days_until_return: number;
+  field_absence_is_overdue: boolean;
+  is_field_absent: boolean;
 };
 
 export type RoomBoardSummary = {
@@ -35,6 +48,8 @@ export type RoomBoardSummary = {
   occupied: number;
   pendingCheckout: number;
   blocked: number;
+  fieldAbsent: number;
+  fieldAbsenceOverdue: number;
 };
 
 export type RoomBoardResult = {
@@ -59,6 +74,18 @@ type RoomBoardViewRow = {
   current_guest_id: string | null;
   current_guest_name: string | null;
   expected_departure_at: string | null;
+
+  active_field_absence_id: string | null;
+  field_absence_status: RoomBoardFieldAbsenceStatus | null;
+  field_absence_departure_at: string | null;
+  field_absence_expected_return_at: string | null;
+  field_absence_actual_return_at: string | null;
+  field_absence_destination: string | null;
+  field_absence_reason: string | null;
+  field_absence_days_away: number | string | null;
+  field_absence_days_until_return: number | string | null;
+  field_absence_is_overdue: boolean | null;
+  is_field_absent: boolean | null;
 };
 
 type ValidRoomBoardViewRow = RoomBoardViewRow & {
@@ -90,6 +117,17 @@ const ROOM_BOARD_SELECT = [
   "current_guest_id",
   "current_guest_name",
   "expected_departure_at",
+  "active_field_absence_id",
+  "field_absence_status",
+  "field_absence_departure_at",
+  "field_absence_expected_return_at",
+  "field_absence_actual_return_at",
+  "field_absence_destination",
+  "field_absence_reason",
+  "field_absence_days_away",
+  "field_absence_days_until_return",
+  "field_absence_is_overdue",
+  "is_field_absent",
 ].join(",");
 
 const BLOCKED_STATUSES = new Set<RoomBoardStatus>([
@@ -134,6 +172,10 @@ function buildSummary(rooms: readonly RoomBoardItem[]): RoomBoardSummary {
     occupied: countByStatus(rooms, "occupied"),
     pendingCheckout: countByStatus(rooms, "pending_checkout"),
     blocked: rooms.filter(isBlockedRoom).length,
+    fieldAbsent: rooms.filter((room) => room.is_field_absent).length,
+    fieldAbsenceOverdue: rooms.filter(
+      (room) => room.field_absence_is_overdue,
+    ).length,
   };
 }
 
@@ -192,6 +234,20 @@ function mapRoomBoardRow(row: ValidRoomBoardViewRow): RoomBoardItem {
     current_guest_id: row.current_guest_id,
     current_guest_name: row.current_guest_name,
     expected_departure_at: row.expected_departure_at,
+
+    active_field_absence_id: row.active_field_absence_id,
+    field_absence_status: row.field_absence_status,
+    field_absence_departure_at: row.field_absence_departure_at,
+    field_absence_expected_return_at: row.field_absence_expected_return_at,
+    field_absence_actual_return_at: row.field_absence_actual_return_at,
+    field_absence_destination: row.field_absence_destination,
+    field_absence_reason: row.field_absence_reason,
+    field_absence_days_away: toNumber(row.field_absence_days_away),
+    field_absence_days_until_return: toNumber(
+      row.field_absence_days_until_return,
+    ),
+    field_absence_is_overdue: row.field_absence_is_overdue ?? false,
+    is_field_absent: row.is_field_absent ?? false,
   };
 }
 

@@ -4,7 +4,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Menu } from "lucide-react";
 import type { AppNavItem } from "@/lib/navigation/app-nav";
 import { NavIcon } from "@/components/layout/nav-icon";
 import { cn } from "@/lib/utils/cn";
@@ -97,6 +96,35 @@ function getNavItemKey(item: AppNavItem): string {
   return `${item.label}:${item.href}`;
 }
 
+function MobileMenuIcon({ open }: { open: boolean }): React.JSX.Element {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative block h-4 w-5"
+      data-open={open ? "true" : "false"}
+    >
+      <span
+        className={cn(
+          "absolute left-0 top-0 h-[1.5px] w-5 origin-center rounded-[1px] bg-current transition duration-200 ease-out",
+          open && "translate-y-[7px] rotate-45",
+        )}
+      />
+      <span
+        className={cn(
+          "absolute left-0 top-[7px] h-[1.5px] w-5 rounded-[1px] bg-current transition duration-150 ease-out",
+          open && "opacity-0",
+        )}
+      />
+      <span
+        className={cn(
+          "absolute left-0 top-[14px] h-[1.5px] w-5 origin-center rounded-[1px] bg-current transition duration-200 ease-out",
+          open && "-translate-y-[7px] -rotate-45",
+        )}
+      />
+    </span>
+  );
+}
+
 function MobileNavLink({
   item,
   current,
@@ -117,14 +145,16 @@ function MobileNavLink({
       aria-current={isActive ? "page" : undefined}
       data-active={isActive ? "true" : undefined}
       className={cn(
-        "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted outline-none transition hover:bg-surface-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand-500",
+        "flex min-h-11 items-center gap-3 px-3 text-sm font-semibold text-muted outline-none transition",
+        "rounded-md hover:bg-surface-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand-500",
         isActive && "bg-brand-50 text-brand-700",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-xl border transition",
+          "flex size-8 shrink-0 items-center justify-center border transition",
+          "rounded-md",
           isActive
             ? "border-brand-500/25 bg-surface text-brand-700"
             : "border-border bg-surface text-muted",
@@ -177,7 +207,7 @@ function MobileNavSection({
 
 function EmptyMobileNavigationNotice(): React.JSX.Element {
   return (
-    <div className="rounded-2xl border border-border bg-surface-2 p-4 text-sm leading-6 text-muted">
+    <div className="border border-border bg-surface-2 p-4 text-sm leading-6 text-muted">
       No navigation items are available for this role.
     </div>
   );
@@ -260,20 +290,27 @@ export function MobileSidebar({
       <button
         type="button"
         onClick={toggleNavigation}
-        className="inline-flex size-10 items-center justify-center rounded-xl border border-topbar-border bg-surface/75 text-topbar-foreground shadow-xs backdrop-blur-xl transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-canvas"
-        aria-label={open ? "Close navigation" : "Open navigation"}
+        className={cn(
+          "inline-grid size-10 place-items-center border border-topbar-border bg-surface/80 text-topbar-foreground shadow-xs backdrop-blur-xl transition",
+          "rounded-md hover:border-brand-500/30 hover:bg-surface hover:text-brand-700",
+          "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-canvas",
+          "active:scale-[0.97]",
+          open && "border-brand-500/35 bg-brand-50 text-brand-700",
+        )}
+        aria-label={open ? "Close navigation drawer" : "Open navigation drawer"}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-haspopup="true"
+        aria-haspopup="menu"
         data-open={open ? "true" : undefined}
       >
-        <Menu className="size-5" aria-hidden="true" />
+        <MobileMenuIcon open={open} />
       </button>
 
       {open ? (
         <div
           id={panelId}
-          className="dropdown-panel absolute left-0 top-12 z-[90] max-h-[calc(100dvh-5rem)] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto p-2 shadow-floating scrollbar-thin"
+          role="menu"
+          className="dropdown-panel absolute left-0 top-12 z-[90] max-h-[calc(100dvh-5rem)] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto p-2 shadow-floating"
         >
           {parsedPrimaryItems.length > 0 ? (
             <MobileNavSection

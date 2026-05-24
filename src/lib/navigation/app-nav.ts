@@ -16,6 +16,7 @@ export type AppNavIcon =
   | "user-cog"
   | "scroll-text"
   | "file-up"
+  | "file-down"
   | "building-2";
 
 export type AppNavItem = {
@@ -30,9 +31,11 @@ const DASHBOARD_PERMISSIONS = [
   "dashboard.view",
   "rooms.view",
   "reservations.view",
+  "expected_arrivals.view",
   "allocations.view",
   "stays.view",
   "stays.view_current",
+  "field_absences.view",
   "security.view_gate_dashboard",
   "reception.handle_security_handoffs",
   "reports.view_occupancy",
@@ -81,10 +84,40 @@ const CAMP_MANAGER_NAV_ITEMS = [
     permissions: ["stays.view_current"],
   },
   {
+    label: "Field Absences",
+    href: APP_ROUTES.fieldAbsences.list,
+    icon: "clipboard-check",
+    permissions: ["field_absences.view"],
+  },
+  {
+    label: "Expected Arrivals",
+    href: APP_ROUTES.reception.expectedArrivals,
+    icon: "calendar-days",
+    permissions: ["expected_arrivals.view"],
+  },
+  {
     label: "Exited Guests",
     href: APP_ROUTES.manager.guests.exited,
     icon: "clipboard-check",
     permissions: ["stays.view_history"],
+  },
+  {
+    label: "Data Import",
+    href: APP_ROUTES.manager.data.imports,
+    icon: "file-up",
+    permissions: ["data.import", "imports.rooms", "imports.guests"],
+  },
+  {
+    label: "Data Export",
+    href: APP_ROUTES.manager.data.exports,
+    icon: "file-down",
+    permissions: [
+      "data.export",
+      "exports.reports",
+      "reports.export_csv",
+      "reports.export_excel",
+      "reports.export_pdf",
+    ],
   },
 ] as const satisfies readonly AppNavItem[];
 
@@ -95,6 +128,12 @@ const RECEPTIONIST_NAV_ITEMS = [
     href: APP_ROUTES.reception.securityHandoffs,
     icon: "shield-check",
     permissions: ["reception.handle_security_handoffs"],
+  },
+  {
+    label: "Expected Arrivals",
+    href: APP_ROUTES.reception.expectedArrivals,
+    icon: "calendar-days",
+    permissions: ["expected_arrivals.view"],
   },
   {
     label: "Reservations",
@@ -126,10 +165,22 @@ const RECEPTIONIST_NAV_ITEMS = [
     icon: "clipboard-check",
     permissions: ["stays.check_out"],
   },
+  {
+    label: "Field Absences",
+    href: APP_ROUTES.fieldAbsences.list,
+    icon: "clipboard-check",
+    permissions: ["field_absences.view"],
+  },
 ] as const satisfies readonly AppNavItem[];
 
 const SECURITY_NAV_ITEMS = [
   DASHBOARD_NAV_ITEM,
+  {
+    label: "Gate Dashboard",
+    href: APP_ROUTES.security.gate,
+    icon: "shield-check",
+    permissions: ["security.view_gate_dashboard"],
+  },
   {
     label: "Security Review",
     href: APP_ROUTES.security.review,
@@ -160,22 +211,16 @@ export const APP_NAV_ITEMS = [
     permissions: ["rooms.view"],
   },
   {
-    label: "Buildings",
-    href: APP_ROUTES.buildings.list,
-    icon: "building-2",
-    permissions: ["buildings.view"],
-  },
-  {
-    label: "Rooms",
-    href: APP_ROUTES.rooms.list,
-    icon: "bed",
-    permissions: ["rooms.view"],
-  },
-  {
     label: "Guests",
     href: APP_ROUTES.guests.list,
     icon: "users",
     permissions: ["guests.view"],
+  },
+  {
+    label: "Expected Arrivals",
+    href: APP_ROUTES.reception.expectedArrivals,
+    icon: "calendar-days",
+    permissions: ["expected_arrivals.view"],
   },
   {
     label: "Reservations",
@@ -200,6 +245,12 @@ export const APP_NAV_ITEMS = [
     href: `${APP_ROUTES.stays.list}?view=check-outs`,
     icon: "clipboard-check",
     permissions: ["stays.check_out"],
+  },
+  {
+    label: "Field Absences",
+    href: APP_ROUTES.fieldAbsences.list,
+    icon: "clipboard-check",
+    permissions: ["field_absences.view"],
   },
   {
     label: "Security",
@@ -245,6 +296,54 @@ export const ADMIN_NAV_ITEMS = [
     permissions: ["camps.view"],
   },
   {
+    label: "Buildings",
+    href: APP_ROUTES.buildings.list,
+    icon: "building-2",
+    permissions: ["buildings.view"],
+  },
+  {
+    label: "Rooms",
+    href: APP_ROUTES.rooms.list,
+    icon: "bed",
+    permissions: ["rooms.view"],
+  },
+  {
+    label: "Room Types",
+    href: "/admin/room-types",
+    icon: "bed",
+    permissions: ["settings.update_room_types"],
+  },
+  {
+    label: "Amenities",
+    href: "/admin/amenities",
+    icon: "settings",
+    permissions: ["rooms.manage_amenities"],
+  },
+  {
+    label: "Guest Documents",
+    href: "/guest-documents/review",
+    icon: "file-up",
+    permissions: ["guest_documents.view"],
+  },
+  {
+    label: "Gate Dashboard",
+    href: APP_ROUTES.security.gate,
+    icon: "shield-check",
+    permissions: ["security.view_gate_dashboard"],
+  },
+  {
+    label: "Security Review",
+    href: APP_ROUTES.security.review,
+    icon: "shield-check",
+    permissions: ["security.view_clearance"],
+  },
+  {
+    label: "Notifications",
+    href: "/notifications",
+    icon: "clipboard-check",
+    permissions: ["notifications.view"],
+  },
+  {
     label: "Imports",
     href: APP_ROUTES.admin.imports,
     icon: "file-up",
@@ -253,7 +352,7 @@ export const ADMIN_NAV_ITEMS = [
   {
     label: "Exports",
     href: APP_ROUTES.admin.exports,
-    icon: "scroll-text",
+    icon: "file-down",
     permissions: [
       "exports.reports",
       "reports.export_csv",
@@ -275,12 +374,6 @@ export const ADMIN_NAV_ITEMS = [
   },
 ] as const satisfies readonly AppNavItem[];
 
-/**
- * Important:
- * Do not use only `as const satisfies Partial<Record<RoleKey, ...>>` here.
- * That validates the object but keeps the object indexed only by existing literal keys,
- * causing TS errors when indexing with all RoleKey values.
- */
 const ROLE_NAV_ITEMS: Partial<Record<RoleKey, readonly AppNavItem[]>> = {
   camp_manager: CAMP_MANAGER_NAV_ITEMS,
   receptionist: RECEPTIONIST_NAV_ITEMS,

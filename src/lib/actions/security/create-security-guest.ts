@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -26,7 +27,9 @@ const guestCategories = [
 const optionalTrimmedText = (maxLength: number) =>
   z.preprocess(
     (value) => {
-      if (typeof value !== "string") return null;
+      if (typeof value !== "string") {
+        return null;
+      }
 
       const trimmed = value.trim();
 
@@ -37,18 +40,20 @@ const optionalTrimmedText = (maxLength: number) =>
 
 const optionalEmail = z.preprocess(
   (value) => {
-    if (typeof value !== "string") return null;
+    if (typeof value !== "string") {
+      return null;
+    }
 
-    const trimmed = value.trim();
+    const trimmed = value.trim().toLowerCase();
 
     return trimmed.length > 0 ? trimmed : null;
   },
-  z.string().email().max(180).nullable(),
+  z.string().email("Enter a valid email address.").max(180).nullable(),
 );
 
 const createSecurityGuestSchema = z.object({
-  primaryCampId: z.string().uuid(),
-  fullName: z.string().trim().min(2).max(160),
+  primaryCampId: z.string().uuid("Invalid camp."),
+  fullName: z.string().trim().min(2, "Full name is required.").max(160),
   gender: optionalTrimmedText(40),
   nationality: optionalTrimmedText(100),
   organization: optionalTrimmedText(180),
@@ -61,10 +66,14 @@ const createSecurityGuestSchema = z.object({
   isVip: z.boolean(),
 });
 
+type CreateSecurityGuestInput = z.infer<typeof createSecurityGuestSchema>;
+
 function getFormString(formData: FormData, key: string): string | null {
   const value = formData.get(key);
 
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    return null;
+  }
 
   const trimmed = value.trim();
 
@@ -128,6 +137,45 @@ function normalizeSecurityGuestError(message: string): string {
   return "guest_create_failed";
 }
 
+function buildGuestInsertPayload(
+  input: CreateSecurityGuestInput,
+  guestId: string,
+  actorId: string,
+) {
+  const isVip = input.isVip || input.guestCategory === "vip_guest";
+
+  return {
+    id: guestId,
+    primary_camp_id: input.primaryCampId,
+    full_name: input.fullName,
+    gender: optionalText(input.gender),
+    nationality: optionalText(input.nationality),
+    organization: optionalText(input.organization),
+    department_or_project: optionalText(input.departmentOrProject),
+    guest_category: input.guestCategory,
+    phone: optionalText(input.phone),
+    email: optionalText(input.email),
+    id_or_passport_number: optionalText(input.idOrPassportNumber),
+    notes: optionalText(input.notes),
+    is_vip: isVip,
+    security_clearance_status: "pending",
+    created_by: actorId,
+    updated_by: actorId,
+  };
+}
+
+function revalidateSecurityGuestPaths(guestId: string): void {
+  revalidatePath(APP_ROUTES.security.review);
+  revalidatePath(APP_ROUTES.security.gate);
+  revalidatePath(APP_ROUTES.security.pendingReception);
+  revalidatePath(APP_ROUTES.security.home);
+  revalidatePath(APP_ROUTES.security.guestProfile(guestId));
+
+  revalidatePath("/dashboard/security");
+  revalidatePath("/dashboard/reception");
+  revalidatePath("/reception/security-handoffs");
+}
+
 export async function createSecurityGuestAction(
   formData: FormData,
 ): Promise<never> {
@@ -164,28 +212,10 @@ export async function createSecurityGuestAction(
   }
 
   const guestId = randomUUID();
-  const auditUserId = user.id;
-  const isVip =
-    parsed.data.isVip || parsed.data.guestCategory === "vip_guest";
 
-  const { error } = await supabase.from("guests").insert({
-    id: guestId,
-    primary_camp_id: parsed.data.primaryCampId,
-    full_name: parsed.data.fullName,
-    gender: optionalText(parsed.data.gender),
-    nationality: optionalText(parsed.data.nationality),
-    organization: optionalText(parsed.data.organization),
-    department_or_project: optionalText(parsed.data.departmentOrProject),
-    guest_category: parsed.data.guestCategory,
-    phone: optionalText(parsed.data.phone),
-    email: optionalText(parsed.data.email),
-    id_or_passport_number: optionalText(parsed.data.idOrPassportNumber),
-    notes: optionalText(parsed.data.notes),
-    is_vip: isVip,
-    security_clearance_status: "pending",
-    created_by: auditUserId,
-    updated_by: auditUserId,
-  });
+  const { error } = await supabase
+    .from("guests")
+    .insert(buildGuestInsertPayload(parsed.data, guestId, user.id));
 
   if (error) {
     console.error("Security guest intake insert failed", {
@@ -203,11 +233,7 @@ export async function createSecurityGuestAction(
     redirect(`${APP_ROUTES.security.newGuest}?error=${code}`);
   }
 
-  revalidatePath(APP_ROUTES.security.review);
-  revalidatePath(APP_ROUTES.security.gate);
-  revalidatePath(APP_ROUTES.security.pendingReception);
-  revalidatePath(APP_ROUTES.security.home);
-  revalidatePath(APP_ROUTES.security.guestProfile(guestId));
+  revalidateSecurityGuestPaths(guestId);
 
   redirect(`${APP_ROUTES.security.guestProfile(guestId)}?success=guest_created`);
 }

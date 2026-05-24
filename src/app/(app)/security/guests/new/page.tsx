@@ -1,9 +1,12 @@
-import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
+
 import { requirePermission } from "@/lib/auth/require-permission";
-import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SecurityGuestIntakeForm } from "@/components/security/security-guest-intake-form";
 import { EmptyState } from "@/components/ui/EmptyState";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type PageSearchParams = {
   error?: string | string[];
@@ -23,11 +26,7 @@ type CampOption = {
 function getFirstParam(
   value: string | string[] | undefined,
 ): string | undefined {
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-
-  return value;
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function getErrorMessage(error?: string): string | null {
@@ -69,6 +68,8 @@ async function getCampOptions(): Promise<CampOption[]> {
 export default async function NewSecurityGuestPage({
   searchParams,
 }: SecurityGuestIntakePageProps): Promise<React.JSX.Element> {
+  noStore();
+
   await requirePermission("security.create_guest_intake");
 
   const resolvedSearchParams: PageSearchParams = searchParams
@@ -83,47 +84,34 @@ export default async function NewSecurityGuestPage({
 
   return (
     <div className="page-stack">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="page-kicker">Security intake</div>
-
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-3xl">
-            Register visitor
-          </h1>
-
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Create a limited guest intake record for security clearance and gate
-            operations.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Link href={APP_ROUTES.security.review} className="btn-secondary">
-            Security review
-          </Link>
-
-          <Link href={APP_ROUTES.security.gate} className="btn-primary">
-            Gate operations
-          </Link>
-        </div>
-      </div>
-
       {errorMessage ? (
         <div className="alert alert-danger">{errorMessage}</div>
       ) : null}
 
       {camps.length === 0 ? (
-        <EmptyState
-          title="No camps available"
-          description="A camp is required before security can register a guest. Ask an administrator to create or restore an active camp."
-          action={
-            <Link href={APP_ROUTES.security.review} className="btn-secondary">
-              Back to security review
-            </Link>
-          }
-        />
+        <section className="surface-panel p-4">
+          <EmptyState
+            title="No camps available"
+            description="A camp is required before security can register a guest. Ask an administrator to create or restore an active camp."
+          />
+        </section>
       ) : (
-        <SecurityGuestIntakeForm camps={camps} />
+        <section className="surface-panel overflow-hidden">
+          <div className="border-b border-border px-4 py-4">
+            <h2 className="text-sm font-semibold tracking-[-0.015em] text-foreground">
+              Create guest
+            </h2>
+
+            <p className="mt-1 text-xs leading-5 text-muted">
+              Capture the visitor identity, organization, document details, host
+              context, and security notes.
+            </p>
+          </div>
+
+          <div className="p-4">
+            <SecurityGuestIntakeForm camps={camps} />
+          </div>
+        </section>
       )}
     </div>
   );

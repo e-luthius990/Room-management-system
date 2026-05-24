@@ -79,7 +79,11 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </label>
         ) : null}
 
-        <div className="relative">
+        <div
+          className="relative"
+          data-has-left-icon={hasLeftIcon ? "true" : undefined}
+          data-has-right-icon={hasRightIcon ? "true" : undefined}
+        >
           {hasLeftIcon ? (
             <span
               aria-hidden="true"
@@ -96,7 +100,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             disabled={disabled}
             required={required}
             aria-invalid={isInvalid || undefined}
-            aria-errormessage={hasError ? errorId : undefined}
+            aria-errormessage={isInvalid && hasError ? errorId : undefined}
             aria-describedby={describedBy}
             data-invalid={isInvalid ? "true" : undefined}
             className={cn(

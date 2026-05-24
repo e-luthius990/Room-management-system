@@ -8,22 +8,22 @@ type CheckInFormProps = {
 
 export function CheckInForm({ stayId }: CheckInFormProps): React.JSX.Element {
   return (
-    <form action={checkInStayAction} className="space-y-4">
+    <form action={checkInStayAction} className="space-y-3">
       <input type="hidden" name="stayId" value={stayId} />
 
       <Textarea
         id="check-in-notes"
         name="notes"
-        label="Check-in notes"
-        hint="This note is saved on the stay record after check-in."
+        label="Reception note"
+        hint="Optional note saved on the stay record."
         rows={3}
         maxLength={700}
-        placeholder="Optional front-desk note for this stay..."
-        className="min-h-28 resize-none"
+        placeholder="Add anything reception should remember for this stay..."
+        className="min-h-24 resize-none"
       />
 
-      <PendingSubmitButton pendingLabel="Checking in guest..." fullWidth>
-        Check in guest
+      <PendingSubmitButton pendingLabel="Checking in..." fullWidth>
+        Confirm check-in
       </PendingSubmitButton>
     </form>
   );

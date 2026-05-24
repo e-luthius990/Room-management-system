@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
+import { redirect } from "next/navigation";
+
 import { requirePermission } from "@/lib/auth/require-permission";
-import { PageHeader } from "@/components/layout/page-header";
 import { getGuests } from "@/lib/queries/guests/get-guests";
 
 type GuestsPageProps = {
@@ -11,9 +13,16 @@ type GuestsPageProps = {
   }>;
 };
 
-function formatLabel(value: string): string {
+function formatLabel(value: string | null | undefined): string {
+  if (!value) {
+    return "—";
+  }
+
   return value
     .replaceAll("_", " ")
+    .replaceAll("-", " ")
+    .replace(/\s+/g, " ")
+    .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
@@ -21,13 +30,24 @@ function getClearanceLabel(value: string | null): string {
   return value ? formatLabel(value) : "Not set";
 }
 
-function getSuccessMessage(success?: string): string | null {
-  const messages: Record<string, string> = {
-    guest_created: "Guest record created successfully.",
-    guest_updated: "Guest record updated successfully.",
-  };
+function getClearanceClass(value: string | null): string {
+  switch (value) {
+    case "cleared":
+      return "border-success-600/25 bg-success-50 text-success-700";
 
-  return success ? (messages[success] ?? null) : null;
+    case "watchlist":
+    case "suspended":
+      return "border-warning-700/25 bg-warning-50 text-warning-700";
+
+    case "denied":
+      return "border-danger-600/25 bg-danger-50 text-danger-700";
+
+    case "pending":
+      return "border-info-600/25 bg-info-50 text-info-700";
+
+    default:
+      return "border-border bg-surface-2 text-muted";
+  }
 }
 
 function getErrorMessage(error?: string): string | null {
@@ -50,148 +70,193 @@ function getErrorMessage(error?: string): string | null {
 export default async function GuestsPage({
   searchParams,
 }: GuestsPageProps): Promise<React.JSX.Element> {
+  noStore();
+
   await requirePermission("guests.view");
 
   const params = searchParams ? await searchParams : undefined;
   const query = params?.q?.trim() ?? "";
-  const guests = await getGuests(query);
 
-  const successMessage = getSuccessMessage(params?.success);
+  if (params?.success) {
+    redirect(query ? `/guests?q=${encodeURIComponent(query)}` : "/guests");
+  }
+
+  const guests = await getGuests(query);
   const errorMessage = getErrorMessage(params?.error);
 
   return (
-    <div>
-      <PageHeader
-        title="Guest Directory"
-        description="Search and manage guests, delegates, visitors, contractors, and staff accommodation records."
-        actions={
-          <Link
-            href="/guests/new"
-            className="rounded-2xl bg-neutral-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
-          >
+    <div className="page-stack">
+      <section className="surface-panel overflow-hidden">
+        <div className="grid gap-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+              Reception registry
+            </p>
+
+            <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
+              Guest directory
+            </h1>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+              Search guest profiles, delegate records, visitors, contractors,
+              and staff accommodation identities.
+            </p>
+          </div>
+
+          <Link href="/guests/new" className="btn-primary">
             Add guest
           </Link>
-        }
-      />
-
-      {successMessage ? (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {successMessage}
         </div>
-      ) : null}
+      </section>
 
       {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {errorMessage}
-        </div>
+        <div className="alert alert-danger">{errorMessage}</div>
       ) : null}
 
-      <form className="mb-6 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row">
-          <input
-            name="q"
-            defaultValue={query}
-            className="min-h-11 flex-1 rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none transition focus:border-neutral-400"
-            placeholder="Search by name, phone, email, organization, project, or nationality..."
-          />
+      <section className="surface-panel overflow-hidden">
+        <form
+          className="border-b border-border px-4 py-3"
+          method="get"
+          action="/guests"
+        >
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
+            <div className="min-w-0">
+              <label
+                htmlFor="guest-search"
+                className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-muted"
+              >
+                Search register
+              </label>
 
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              className="rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-            >
+              <input
+                id="guest-search"
+                name="q"
+                defaultValue={query}
+                className="input-field"
+                placeholder="Search by name, phone, email, organization, project, or nationality..."
+              />
+            </div>
+
+            <button type="submit" className="btn-primary">
               Search
             </button>
 
             {query ? (
-              <Link
-                href="/guests"
-                className="rounded-2xl border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-              >
+              <Link href="/guests" className="btn-secondary">
                 Clear
               </Link>
             ) : null}
           </div>
-        </div>
-      </form>
+        </form>
 
-      <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] text-left text-sm">
-            <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3">Guest</th>
-                <th className="px-4 py-3">Camp</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Contact</th>
-                <th className="px-4 py-3">Clearance</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+        <div className="table-shell rounded-none border-0 shadow-none">
+          <div className="table-scroll">
+            <table className="data-table min-w-[980px] table-fixed [&_td]:px-3 [&_td]:py-3 [&_th]:px-3 [&_th]:py-2.5">
+              <colgroup>
+                <col className="w-[260px]" />
+                <col className="w-[160px]" />
+                <col className="w-[150px]" />
+                <col className="w-[210px]" />
+                <col className="w-[130px]" />
+                <col className="w-[90px]" />
+              </colgroup>
 
-            <tbody className="divide-y divide-neutral-100">
-              {guests.length === 0 ? (
+              <thead>
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-10 text-center text-sm text-neutral-500"
-                  >
-                    No guests found.
-                  </td>
+                  <th className="text-left">Guest</th>
+                  <th className="text-left">Camp</th>
+                  <th className="text-left">Category</th>
+                  <th className="text-left">Contact</th>
+                  <th className="text-left">Clearance</th>
+                  <th className="text-right" />
                 </tr>
-              ) : (
-                guests.map((guest) => (
-                  <tr key={guest.id} className="align-top">
-                    <td className="px-4 py-4">
-                      <div className="font-medium text-neutral-950">
-                        {guest.full_name}
-                      </div>
+              </thead>
 
-                      <div className="mt-1 text-xs text-neutral-500">
-                        {guest.organization_name ?? "No organization"}
-                      </div>
-
-                      {guest.department_or_project ? (
-                        <div className="mt-1 text-xs text-neutral-500">
-                          {guest.department_or_project}
-                        </div>
-                      ) : null}
-                    </td>
-
-                    <td className="px-4 py-4 text-neutral-700">
-                      {guest.primary_camp_name}
-                    </td>
-
-                    <td className="px-4 py-4 text-neutral-700">
-                      {formatLabel(guest.guest_category)}
-                    </td>
-
-                    <td className="px-4 py-4 text-neutral-700">
-                      <div>{guest.phone ?? "—"}</div>
-                      <div className="mt-1 text-xs text-neutral-500">
-                        {guest.email ?? "No email"}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-4 text-neutral-700">
-                      {getClearanceLabel(guest.security_clearance_status)}
-                    </td>
-
-                    <td className="px-4 py-4 text-right">
-                      <Link
-                        href={`/guests/${guest.id}`}
-                        className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-50"
-                      >
-                        Open
-                      </Link>
-                    </td>
+              <tbody>
+                {guests.length === 0 ? (
+                  <tr className="table-empty-row">
+                    <td colSpan={6}>No guests found.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  guests.map((guest) => (
+                    <tr key={guest.id} className="align-top">
+                      <td>
+                        <div
+                          className="truncate font-semibold text-foreground"
+                          title={guest.full_name}
+                        >
+                          {guest.full_name}
+                        </div>
+
+                        <div
+                          className="mt-1 line-clamp-2 text-xs leading-5 text-muted"
+                          title={guest.organization_name ?? "No organization"}
+                        >
+                          {guest.organization_name ?? "No organization"}
+                        </div>
+
+                        {guest.department_or_project ? (
+                          <div
+                            className="mt-1 truncate text-xs text-muted"
+                            title={guest.department_or_project}
+                          >
+                            {guest.department_or_project}
+                          </div>
+                        ) : null}
+                      </td>
+
+                      <td className="text-sm text-muted">
+                        <div
+                          className="truncate leading-5"
+                          title={guest.primary_camp_name}
+                        >
+                          {guest.primary_camp_name}
+                        </div>
+                      </td>
+
+                      <td className="text-sm text-muted">
+                        {formatLabel(guest.guest_category)}
+                      </td>
+
+                      <td className="text-sm text-muted">
+                        <div className="truncate" title={guest.phone ?? "—"}>
+                          {guest.phone ?? "—"}
+                        </div>
+
+                        <div
+                          className="mt-1 truncate text-xs text-muted"
+                          title={guest.email ?? "No email"}
+                        >
+                          {guest.email ?? "No email"}
+                        </div>
+                      </td>
+
+                      <td>
+                        <span
+                          className={`inline-flex border px-2 py-0.5 text-[11px] font-bold ${getClearanceClass(
+                            guest.security_clearance_status,
+                          )}`}
+                        >
+                          {getClearanceLabel(guest.security_clearance_status)}
+                        </span>
+                      </td>
+
+                      <td className="text-right">
+                        <Link
+                          href={`/guests/${guest.id}`}
+                          className="btn-secondary btn-sm"
+                        >
+                          Open
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

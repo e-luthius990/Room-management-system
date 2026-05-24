@@ -1,11 +1,4 @@
 import { createSecurityGuestAction } from "@/lib/actions/security/create-security-guest";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
@@ -43,155 +36,132 @@ const genderOptions = [
   { value: "undisclosed", label: "Undisclosed" },
 ] as const;
 
+function formatCampLabel(camp: CampOption): string {
+  const location = camp.location?.trim();
+
+  return `${camp.name} (${camp.code})${location ? ` · ${location}` : ""}`;
+}
+
 export function SecurityGuestIntakeForm({
   camps,
 }: SecurityGuestIntakeFormProps): React.JSX.Element {
+  const hasCamps = camps.length > 0;
+
+  const campOptions = camps.map((camp) => ({
+    value: camp.id,
+    label: formatCampLabel(camp),
+  }));
+
   return (
-    <form action={createSecurityGuestAction}>
-      <Card variant="card">
-        <CardHeader>
-          <div className="page-kicker">Security intake</div>
+    <form action={createSecurityGuestAction} className="space-y-5">
+      <div className="form-grid">
+        <Select
+          label="Camp"
+          id="primaryCampId"
+          name="primaryCampId"
+          required
+          defaultValue=""
+          placeholder="Select camp"
+          options={campOptions}
+          disabled={!hasCamps}
+        />
 
-          <CardTitle>Register visitor or gate guest</CardTitle>
+        <Select
+          label="Guest category"
+          id="guestCategory"
+          name="guestCategory"
+          required
+          defaultValue="visitor"
+          options={guestCategoryOptions}
+        />
 
-          <CardDescription>
-            Create a limited guest record for security clearance and gate
-            movement. Reception remains responsible for reservations,
-            allocations, and check-in.
-          </CardDescription>
-        </CardHeader>
+        <Input
+          label="Full name"
+          id="fullName"
+          name="fullName"
+          required
+          maxLength={160}
+          placeholder="Guest full name"
+        />
 
-        <CardContent className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Select
-              label="Camp"
-              id="primaryCampId"
-              name="primaryCampId"
-              required
-              defaultValue=""
-              placeholder="Select camp"
-              options={camps.map((camp) => ({
-                value: camp.id,
-                label: `${camp.name} (${camp.code})${
-                  camp.location ? ` · ${camp.location}` : ""
-                }`,
-              }))}
-            />
+        <Input
+          label="ID / passport number"
+          id="idOrPassportNumber"
+          name="idOrPassportNumber"
+          maxLength={120}
+          placeholder="Optional but recommended"
+        />
 
-            <Select
-              label="Guest category"
-              id="guestCategory"
-              name="guestCategory"
-              required
-              defaultValue="visitor"
-              options={guestCategoryOptions}
-            />
+        <Input
+          label="Phone"
+          id="phone"
+          name="phone"
+          type="tel"
+          maxLength={60}
+          placeholder="+256..."
+        />
 
-            <Input
-              label="Full name"
-              id="fullName"
-              name="fullName"
-              required
-              maxLength={160}
-              placeholder="Guest full name"
-            />
+        <Input
+          label="Email"
+          id="email"
+          name="email"
+          type="email"
+          maxLength={180}
+          placeholder="guest@example.com"
+        />
 
-            <Input
-              label="ID / passport number"
-              id="idOrPassportNumber"
-              name="idOrPassportNumber"
-              maxLength={120}
-              placeholder="Optional but recommended"
-            />
+        <Input
+          label="Nationality"
+          id="nationality"
+          name="nationality"
+          maxLength={100}
+          placeholder="Nationality"
+        />
 
-            <Input
-              label="Phone"
-              id="phone"
-              name="phone"
-              type="tel"
-              maxLength={60}
-              placeholder="+256..."
-            />
+        <Select
+          label="Gender"
+          id="gender"
+          name="gender"
+          defaultValue=""
+          options={genderOptions}
+        />
 
-            <Input
-              label="Email"
-              id="email"
-              name="email"
-              type="email"
-              maxLength={180}
-              placeholder="guest@example.com"
-            />
+        <Input
+          label="Organization"
+          id="organization"
+          name="organization"
+          maxLength={180}
+          placeholder="Company, agency, organization..."
+        />
 
-            <Input
-              label="Nationality"
-              id="nationality"
-              name="nationality"
-              maxLength={100}
-              placeholder="Nationality"
-            />
+        <Input
+          label="Department / project"
+          id="departmentOrProject"
+          name="departmentOrProject"
+          maxLength={180}
+          placeholder="Department, project, or unit"
+        />
 
-            <Select
-              label="Gender"
-              id="gender"
-              name="gender"
-              defaultValue=""
-              options={genderOptions}
-            />
+        <Textarea
+          wrapperClassName="md:col-span-2"
+          label="Security notes"
+          id="notes"
+          name="notes"
+          rows={4}
+          maxLength={1000}
+          placeholder="Initial security notes, document observations, or intake context..."
+          className="min-h-28 resize-y"
+        />
+      </div>
 
-            <Input
-              label="Organization"
-              id="organization"
-              name="organization"
-              maxLength={180}
-              placeholder="Company, agency, delegation..."
-            />
-
-            <Input
-              label="Department / project"
-              id="departmentOrProject"
-              name="departmentOrProject"
-              maxLength={180}
-              placeholder="Host department, project, or purpose group"
-            />
-          </div>
-
-          <Textarea
-            label="Security intake notes"
-            id="notes"
-            name="notes"
-            rows={4}
-            maxLength={1500}
-            placeholder="Optional. Record useful gate intake context before clearance."
-            className="resize-y"
-          />
-
-          <label className="flex items-start gap-3 rounded-2xl border border-border bg-surface-2 px-4 py-3">
-            <input type="checkbox" name="isVip" className="checkbox mt-1" />
-
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-foreground">
-                Mark as VIP
-              </span>
-
-              <span className="mt-1 block text-xs leading-5 text-muted">
-                VIP guests should receive heightened attention during clearance
-                and reception handoff.
-              </span>
-            </span>
-          </label>
-
-          <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="max-w-2xl text-xs leading-5 text-muted">
-              The guest will be created with pending security clearance. Open
-              the profile next to approve, deny, or record gate entry.
-            </p>
-
-            <PendingSubmitButton pendingLabel="Registering guest...">
-              Register and review
-            </PendingSubmitButton>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex justify-end border-t border-border pt-4">
+        <PendingSubmitButton
+          pendingLabel="Creating guest..."
+          disabled={!hasCamps}
+        >
+          Create guest
+        </PendingSubmitButton>
+      </div>
     </form>
   );
 }

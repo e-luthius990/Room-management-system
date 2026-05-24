@@ -1,13 +1,14 @@
 import "server-only";
 
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import type { Enums } from "@/lib/db/types";
+
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
+import type { Enums } from "@/lib/db/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { ClearanceEventForm } from "@/components/security/clearance-event-form";
 import { GateEntryForm } from "@/components/security/gate-entry-form";
 import {
   ClearanceStatusBadge,
@@ -25,12 +26,14 @@ import {
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusIndicator } from "@/components/ui/StatusIndicator";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type GuestCategory = Enums<"guest_category">;
 type StayStatus = Enums<"stay_status">;
 
 type PageSearchParams = {
   error?: string | string[];
-  success?: string | string[];
 };
 
 type SecurityGuestPageProps = {
@@ -62,7 +65,6 @@ type SecurityClearanceEventItem = {
   risk_level: string | null;
   notes: string | null;
   expires_at: string | null;
-
   event_type: string | null;
   visit_type: string | null;
   purpose: string | null;
@@ -71,7 +73,6 @@ type SecurityClearanceEventItem = {
   entry_at: string | null;
   exit_at: string | null;
   sent_to_reception_at: string | null;
-
   created_at: string;
   created_by_name: string | null;
 };
@@ -132,7 +133,6 @@ type SecurityClearanceEventRow = {
   note: string | null;
   notes: string | null;
   expires_at: string | null;
-
   event_type: string | null;
   visit_type: string | null;
   purpose: string | null;
@@ -141,7 +141,6 @@ type SecurityClearanceEventRow = {
   entry_at: string | null;
   exit_at: string | null;
   sent_to_reception_at: string | null;
-
   created_at: string | null;
   created_by: string | null;
 };
@@ -210,6 +209,8 @@ function formatLabel(value: string | null | undefined): string {
   return value
     .replaceAll("_", " ")
     .replaceAll("-", " ")
+    .replace(/\s+/g, " ")
+    .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
@@ -225,8 +226,11 @@ function formatDateTime(value: string | null | undefined): string {
   }
 
   return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
     timeZone: "Africa/Kampala",
   }).format(date);
 }
@@ -234,11 +238,7 @@ function formatDateTime(value: string | null | undefined): string {
 function getFirstSearchParam(
   value: string | string[] | undefined,
 ): string | undefined {
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-
-  return value;
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function getErrorMessage(error?: string): string | null {
@@ -247,8 +247,9 @@ function getErrorMessage(error?: string): string | null {
   }
 
   const messages: Record<string, string> = {
-    invalid_input: "Check the security clearance form and try again.",
-    invalid_gate_entry: "Check the gate entry form and try again.",
+    invalid_input: "Check the security form and try again.",
+    invalid_gate_entry:
+      "Complete visit type, host name, purpose of visit, clearance status, and risk level before recording gate entry.",
     invalid_security_event: "Security event was not found or is invalid.",
     guest_not_found: "Guest record was not found.",
     security_event_not_found: "Security event was not found.",
@@ -266,21 +267,6 @@ function getErrorMessage(error?: string): string | null {
   };
 
   return messages[error] ?? "Security action could not be completed.";
-}
-
-function getSuccessMessage(success?: string): string | null {
-  if (!success) {
-    return null;
-  }
-
-  const messages: Record<string, string> = {
-    clearance_updated: "Security clearance updated successfully.",
-    gate_entry_recorded: "Gate entry recorded successfully.",
-    sent_to_reception: "Guest sent to reception successfully.",
-    gate_exit_recorded: "Gate exit recorded successfully.",
-  };
-
-  return messages[success] ?? null;
 }
 
 function getBuildingName(
@@ -616,7 +602,6 @@ async function getSecurityGuestDetail(
       risk_level: event.risk_level,
       notes: event.notes ?? event.note,
       expires_at: event.expires_at,
-
       event_type: event.event_type,
       visit_type: event.visit_type,
       purpose: event.purpose,
@@ -625,7 +610,6 @@ async function getSecurityGuestDetail(
       entry_at: event.entry_at,
       exit_at: event.exit_at,
       sent_to_reception_at: event.sent_to_reception_at,
-
       created_at: event.created_at ?? "",
       created_by_name: event.created_by
         ? (profileNamesById.get(event.created_by) ?? "Unknown user")
@@ -652,7 +636,7 @@ async function getSecurityGuestDetail(
   };
 }
 
-function DetailCard({
+function TextPanel({
   title,
   description,
   children,
@@ -662,18 +646,23 @@ function DetailCard({
   children: ReactNode;
 }): React.JSX.Element {
   return (
-    <Card variant="card">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
+    <section className="border border-border bg-surface">
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold tracking-[-0.015em] text-foreground">
+          {title}
+        </h2>
 
-      <CardContent>{children}</CardContent>
-    </Card>
+        {description ? (
+          <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
+        ) : null}
+      </div>
+
+      <div className="px-4 py-2">{children}</div>
+    </section>
   );
 }
 
-function InfoRow({
+function LabelValueRow({
   label,
   value,
 }: {
@@ -681,14 +670,12 @@ function InfoRow({
   value: ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="rounded-2xl border border-border bg-surface-2 px-4 py-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+    <div className="grid gap-2 border-b border-border py-2.5 last:border-b-0 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
+      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
         {label}
-      </div>
+      </dt>
 
-      <div className="mt-1 text-sm font-medium leading-6 text-foreground">
-        {value}
-      </div>
+      <dd className="min-w-0 text-sm leading-5 text-foreground">{value}</dd>
     </div>
   );
 }
@@ -699,9 +686,9 @@ function PresencePanel({
   presence: SecurityGuestPresenceSummary;
 }): React.JSX.Element {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      <InfoRow
-        label="Current presence"
+    <dl>
+      <LabelValueRow
+        label="Presence"
         value={
           <PresenceBadge
             isInside={presence.is_currently_inside}
@@ -710,35 +697,129 @@ function PresencePanel({
         }
       />
 
-      <InfoRow
-        label="Latest entry"
+      <LabelValueRow
+        label="Entry"
         value={formatDateTime(presence.latest_entry_at)}
       />
 
-      <InfoRow
-        label="Latest exit"
+      <LabelValueRow
+        label="Exit"
         value={formatDateTime(presence.latest_exit_at)}
       />
 
-      <InfoRow
-        label="Reception handoff"
+      <LabelValueRow
+        label="Reception"
         value={formatDateTime(presence.latest_sent_to_reception_at)}
       />
 
-      <InfoRow
-        label="Latest visit type"
+      <LabelValueRow
+        label="Visit"
         value={<VisitTypeBadge visitType={presence.latest_visit_type} />}
       />
 
-      <InfoRow
-        label="Latest event"
+      <LabelValueRow
+        label="Event"
         value={formatLabel(presence.latest_event_type)}
       />
-    </div>
+    </dl>
   );
 }
 
-function SecurityActionPanel({
+function GuestContextPanel({
+  guest,
+}: {
+  guest: SecurityGuestDetail;
+}): React.JSX.Element {
+  return (
+    <dl>
+      <LabelValueRow
+        label="Organization"
+        value={guest.organization_name ?? "Not recorded"}
+      />
+
+      <LabelValueRow
+        label="Nationality"
+        value={guest.nationality ?? "Not recorded"}
+      />
+
+      <LabelValueRow
+        label="Category"
+        value={formatLabel(guest.guest_category)}
+      />
+
+      <LabelValueRow label="Camp" value={guest.primary_camp_name} />
+
+      <LabelValueRow
+        label="Last seen"
+        value={formatDateTime(guest.last_seen_at)}
+      />
+
+      <LabelValueRow label="Created" value={formatDateTime(guest.created_at)} />
+    </dl>
+  );
+}
+
+function GateActionPanel({
+  guest,
+  presence,
+}: {
+  guest: SecurityGuestDetail;
+  presence: SecurityGuestPresenceSummary;
+}): React.JSX.Element {
+  if (presence.is_currently_inside) {
+    return (
+      <Card variant="console" className="min-w-0">
+        <CardHeader className="border-b border-border px-4 py-3">
+          <div className="page-kicker">Gate entry active</div>
+
+          <CardTitle className="text-sm">
+            Guest is already recorded inside camp
+          </CardTitle>
+
+          <CardDescription className="mt-1 text-xs leading-5">
+            A new gate entry cannot be opened until the existing entry is marked
+            as left from gate operations.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="p-4">
+          <Link href={APP_ROUTES.security.gate} className="btn-primary">
+            Open gate operations
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (guest.primary_camp_id) {
+    return (
+      <GateEntryForm
+        guestId={guest.id}
+        campId={guest.primary_camp_id}
+        guestName={guest.full_name}
+        campName={guest.primary_camp_name}
+        currentClearanceStatus={guest.security_clearance_status}
+      />
+    );
+  }
+
+  return (
+    <Card variant="console" className="min-w-0">
+      <CardHeader className="border-b border-border px-4 py-3">
+        <div className="page-kicker">Gate entry unavailable</div>
+
+        <CardTitle className="text-sm">Guest has no primary camp</CardTitle>
+
+        <CardDescription className="mt-1 text-xs leading-5">
+          A primary camp is required before security can record a gate entry for
+          this guest.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function RightRail({
   guest,
   presence,
 }: {
@@ -746,55 +827,65 @@ function SecurityActionPanel({
   presence: SecurityGuestPresenceSummary;
 }): React.JSX.Element {
   return (
-    <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-      <ClearanceEventForm
-        guestId={guest.id}
-        currentStatus={guest.security_clearance_status}
-        submitLabel="Save clearance decision"
-      />
+    <aside className="grid min-w-0 gap-4 xl:sticky xl:top-4">
+      <TextPanel
+        title="Guest context"
+        description="Profile details used by security while making gate decisions."
+      >
+        <GuestContextPanel guest={guest} />
+      </TextPanel>
 
-      {presence.is_currently_inside ? (
-        <Card variant="card">
-          <CardHeader>
-            <div className="page-kicker">Gate entry active</div>
+      <TextPanel
+        title="Presence summary"
+        description="Latest gate and reception state for this guest."
+      >
+        <PresencePanel presence={presence} />
+      </TextPanel>
+    </aside>
+  );
+}
 
-            <CardTitle>Guest is already recorded inside camp</CardTitle>
+function EventsPanel({
+  events,
+}: {
+  events: SecurityClearanceEventItem[];
+}): React.JSX.Element {
+  return (
+    <Card variant="console" className="min-w-0">
+      <CardHeader className="border-b border-border px-4 py-3">
+        <CardTitle className="text-sm">Security event history</CardTitle>
 
-            <CardDescription>
-              A new gate entry cannot be opened until the existing entry is
-              marked as left from gate operations.
-            </CardDescription>
-          </CardHeader>
+        <CardDescription className="mt-1 text-xs leading-5">
+          Chronological security decisions, gate movements, handoffs, and notes.
+        </CardDescription>
+      </CardHeader>
 
-          <CardContent>
-            <Link href={APP_ROUTES.security.gate} className="btn-primary">
-              Open gate operations
-            </Link>
-          </CardContent>
-        </Card>
-      ) : guest.primary_camp_id ? (
-        <GateEntryForm
-          guestId={guest.id}
-          campId={guest.primary_camp_id}
-          guestName={guest.full_name}
-          campName={guest.primary_camp_name}
-          currentClearanceStatus={guest.security_clearance_status}
-        />
-      ) : (
-        <Card variant="card">
-          <CardHeader>
-            <div className="page-kicker">Gate entry unavailable</div>
+      <CardContent className="p-0">
+        <EventsTable events={events} />
+      </CardContent>
+    </Card>
+  );
+}
 
-            <CardTitle>Guest has no primary camp</CardTitle>
+function StaysPanel({
+  stays,
+}: {
+  stays: SecurityGuestStayItem[];
+}): React.JSX.Element {
+  return (
+    <Card variant="console" className="min-w-0">
+      <CardHeader className="border-b border-border px-4 py-3">
+        <CardTitle className="text-sm">Stay context</CardTitle>
 
-            <CardDescription>
-              A primary camp is required before security can record a gate entry
-              for this guest.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-    </section>
+        <CardDescription className="mt-1 text-xs leading-5">
+          Room and stay context visible to security for operational awareness.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="p-0">
+        <StaysTable stays={stays} />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -805,33 +896,46 @@ function EventsTable({
 }): React.JSX.Element {
   if (events.length === 0) {
     return (
-      <EmptyState
-        title="No security events recorded"
-        description="Clearance decisions, gate movements, and reception handoffs will appear here once recorded."
-      />
+      <div className="p-4">
+        <EmptyState
+          title="No security events recorded"
+          description="Security decisions, gate movements, and reception handoffs will appear here once recorded."
+        />
+      </div>
     );
   }
 
   return (
     <div className="table-shell rounded-none border-0 shadow-none">
       <div className="table-scroll">
-        <table className="data-table min-w-[1100px]">
+        <table className="data-table min-w-[960px] table-fixed [&_td]:px-3 [&_td]:py-3 [&_th]:px-3 [&_th]:py-2.5">
+          <colgroup>
+            <col className="w-[150px]" />
+            <col className="w-[135px]" />
+            <col className="w-[100px]" />
+            <col className="w-[145px]" />
+            <col className="w-[135px]" />
+            <col className="w-[170px]" />
+            <col className="w-[145px]" />
+            <col className="w-[130px]" />
+          </colgroup>
+
           <thead>
             <tr>
-              <th>Event</th>
-              <th>Clearance</th>
-              <th>Risk</th>
-              <th>Visit</th>
-              <th>Host</th>
-              <th>Movement</th>
-              <th>Note</th>
-              <th>Recorded</th>
+              <th className="text-left">Event</th>
+              <th className="text-left">Clearance</th>
+              <th className="text-left">Risk</th>
+              <th className="text-left">Visit</th>
+              <th className="text-left">Host</th>
+              <th className="text-left">Movement</th>
+              <th className="text-left">Note</th>
+              <th className="text-left">Recorded</th>
             </tr>
           </thead>
 
           <tbody>
             {events.map((event) => (
-              <tr key={event.id}>
+              <tr key={event.id} className="align-top">
                 <td>
                   <div className="font-semibold text-foreground">
                     {formatLabel(event.event_type)}
@@ -861,17 +965,20 @@ function EventsTable({
                   <VisitTypeBadge visitType={event.visit_type} />
 
                   {event.purpose ? (
-                    <div className="mt-2 max-w-[220px] text-xs leading-5 text-muted">
+                    <div
+                      className="mt-2 line-clamp-2 text-xs leading-5 text-muted"
+                      title={event.purpose}
+                    >
                       {event.purpose}
                     </div>
                   ) : null}
                 </td>
 
-                <td className="text-muted">
-                  <div>{event.host_name ?? "—"}</div>
+                <td className="text-sm text-muted">
+                  <div className="truncate">{event.host_name ?? "—"}</div>
 
                   {event.host_department ? (
-                    <div className="mt-1 text-xs text-muted">
+                    <div className="mt-1 truncate text-xs text-muted">
                       {event.host_department}
                     </div>
                   ) : null}
@@ -885,13 +992,16 @@ function EventsTable({
                   <div>Exit: {formatDateTime(event.exit_at)}</div>
                 </td>
 
-                <td className="text-muted">
-                  <div className="max-w-[260px] whitespace-pre-wrap text-sm leading-6">
+                <td className="text-sm text-muted">
+                  <div
+                    className="line-clamp-3 whitespace-pre-wrap leading-5"
+                    title={event.notes ?? "—"}
+                  >
                     {event.notes ?? "—"}
                   </div>
                 </td>
 
-                <td className="text-muted">
+                <td className="text-sm text-muted">
                   <div>{formatDateTime(event.created_at)}</div>
 
                   {event.expires_at ? (
@@ -916,35 +1026,51 @@ function StaysTable({
 }): React.JSX.Element {
   if (stays.length === 0) {
     return (
-      <EmptyState
-        title="No stay history visible"
-        description="Room stays linked to this guest will appear here when available to security."
-      />
+      <div className="p-4">
+        <EmptyState
+          title="No stay history visible"
+          description="Room stays linked to this guest will appear here when available to security."
+        />
+      </div>
     );
   }
 
   return (
     <div className="table-shell rounded-none border-0 shadow-none">
       <div className="table-scroll">
-        <table className="data-table min-w-[900px]">
+        <table className="data-table min-w-[860px] table-fixed [&_td]:px-3 [&_td]:py-3 [&_th]:px-3 [&_th]:py-2.5">
+          <colgroup>
+            <col className="w-[150px]" />
+            <col className="w-[140px]" />
+            <col className="w-[120px]" />
+            <col className="w-[135px]" />
+            <col className="w-[145px]" />
+            <col className="w-[135px]" />
+            <col className="w-[135px]" />
+          </colgroup>
+
           <thead>
             <tr>
-              <th>Room</th>
-              <th>Camp</th>
-              <th>Status</th>
-              <th>Expected arrival</th>
-              <th>Expected departure</th>
-              <th>Checked in</th>
-              <th>Checked out</th>
+              <th className="text-left">Room</th>
+              <th className="text-left">Camp</th>
+              <th className="text-left">Status</th>
+              <th className="text-left">Expected arrival</th>
+              <th className="text-left">Expected departure</th>
+              <th className="text-left">Checked in</th>
+              <th className="text-left">Checked out</th>
             </tr>
           </thead>
 
           <tbody>
             {stays.map((stay) => (
-              <tr key={stay.id}>
+              <tr key={stay.id} className="align-top">
                 <td>
-                  <div className="font-semibold text-foreground">
-                    Room {stay.room_number}
+                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                    Room
+                  </div>
+
+                  <div className="mt-1 text-lg font-semibold tracking-[-0.04em] text-foreground">
+                    {stay.room_number}
                   </div>
 
                   <div className="mt-1 text-xs text-muted">
@@ -952,7 +1078,7 @@ function StaysTable({
                   </div>
                 </td>
 
-                <td className="text-muted">{stay.camp_name}</td>
+                <td className="text-sm text-muted">{stay.camp_name}</td>
 
                 <td>
                   <StatusIndicator
@@ -961,19 +1087,19 @@ function StaysTable({
                   />
                 </td>
 
-                <td className="text-muted">
+                <td className="text-sm text-muted">
                   {formatDateTime(stay.expected_arrival_at)}
                 </td>
 
-                <td className="text-muted">
+                <td className="text-sm text-muted">
                   {formatDateTime(stay.expected_departure_at)}
                 </td>
 
-                <td className="text-muted">
+                <td className="text-sm text-muted">
                   {formatDateTime(stay.checked_in_at)}
                 </td>
 
-                <td className="text-muted">
+                <td className="text-sm text-muted">
                   {formatDateTime(stay.checked_out_at)}
                 </td>
               </tr>
@@ -989,6 +1115,8 @@ export default async function SecurityGuestProfilePage({
   params,
   searchParams,
 }: SecurityGuestPageProps): Promise<React.JSX.Element> {
+  noStore();
+
   await requirePermission("security.view_clearance");
   await requirePermission("guests.view");
 
@@ -1002,35 +1130,18 @@ export default async function SecurityGuestProfilePage({
     getFirstSearchParam(resolvedSearchParams.error),
   );
 
-  const successMessage = getSuccessMessage(
-    getFirstSearchParam(resolvedSearchParams.success),
-  );
-
   return (
     <div className="page-stack">
-      <section className="surface-panel p-4 sm:p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <section className="surface-panel overflow-hidden">
+        <div className="grid gap-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="min-w-0">
-            <div className="page-kicker">Security profile</div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+              Security profile
+            </p>
 
-            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-3xl">
+            <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
               {guest.full_name}
             </h1>
-
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Clearance posture, gate presence, event history, and stay context
-              for this guest.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Link href={APP_ROUTES.security.review} className="btn-secondary">
-              Security review
-            </Link>
-
-            <Link href={APP_ROUTES.security.gate} className="btn-primary">
-              Gate operations
-            </Link>
           </div>
         </div>
       </section>
@@ -1039,71 +1150,19 @@ export default async function SecurityGuestProfilePage({
         <div className="alert alert-danger">{errorMessage}</div>
       ) : null}
 
-      {successMessage ? (
-        <div className="alert alert-success">{successMessage}</div>
-      ) : null}
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+        <div className="grid min-w-0 gap-5">
+          <GateActionPanel guest={guest} presence={presence} />
+        </div>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <InfoRow
-          label="Clearance status"
-          value={
-            <ClearanceStatusBadge status={guest.security_clearance_status} />
-          }
-        />
-
-        <InfoRow label="Primary camp" value={guest.primary_camp_name} />
-
-        <InfoRow
-          label="Guest category"
-          value={formatLabel(guest.guest_category)}
-        />
-
-        <InfoRow label="Created" value={formatDateTime(guest.created_at)} />
+        <RightRail guest={guest} presence={presence} />
       </section>
 
-      <SecurityActionPanel guest={guest} presence={presence} />
+      <section className="grid gap-5 xl:grid-cols-2 xl:items-start">
+        <EventsPanel events={events} />
 
-      <DetailCard title="Guest context">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <InfoRow
-            label="Organization"
-            value={guest.organization_name ?? "Not recorded"}
-          />
-
-          <InfoRow
-            label="Nationality"
-            value={guest.nationality ?? "Not recorded"}
-          />
-
-          <InfoRow
-            label="Last seen"
-            value={formatDateTime(guest.last_seen_at)}
-          />
-
-          <InfoRow label="Guest ID" value={guest.id} />
-        </div>
-      </DetailCard>
-
-      <DetailCard
-        title="Presence summary"
-        description="Current security-facing presence state derived from the latest gate and reception events."
-      >
-        <PresencePanel presence={presence} />
-      </DetailCard>
-
-      <DetailCard
-        title="Security event history"
-        description="Chronological security decisions, gate movements, handoffs, and notes."
-      >
-        <EventsTable events={events} />
-      </DetailCard>
-
-      <DetailCard
-        title="Stay context"
-        description="Room and stay context visible to security for operational awareness only."
-      >
-        <StaysTable stays={stays} />
-      </DetailCard>
+        <StaysPanel stays={stays} />
+      </section>
     </div>
   );
 }

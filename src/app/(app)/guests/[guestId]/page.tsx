@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
 import { requirePermission } from "@/lib/auth/require-permission";
-import { PageHeader } from "@/components/layout/page-header";
 import { GuestForm } from "@/components/guests/guest-form";
 import { GuestDocumentsPanel } from "@/components/guest-documents/guest-documents-panel";
 import { getCampOptions } from "@/lib/queries/setup/options";
 import { getGuestProfile } from "@/lib/queries/guests/get-guest-profile";
+import { ClearanceStatusBadge } from "@/components/security/security-status-badge";
 
 type GuestProfilePageProps = {
   params: Promise<{
@@ -16,6 +18,12 @@ type GuestProfilePageProps = {
   }>;
 };
 
+const DATE_FORMATTER = new Intl.DateTimeFormat("en-UG", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Africa/Kampala",
+});
+
 function formatDate(value: string | null): string {
   if (!value) return "—";
 
@@ -25,10 +33,7 @@ function formatDate(value: string | null): string {
     return "—";
   }
 
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return DATE_FORMATTER.format(date);
 }
 
 function formatLabel(value: string | null): string {
@@ -65,18 +70,6 @@ function getErrorMessage(error?: string): string | null {
   return messages[error] ?? "The request could not be completed.";
 }
 
-function getSuccessMessage(success?: string): string | null {
-  if (!success) return null;
-
-  const messages: Record<string, string> = {
-    guest_created: "Guest created successfully.",
-    guest_updated: "Guest saved successfully.",
-    document_uploaded: "Private guest document uploaded successfully.",
-  };
-
-  return messages[success] ?? null;
-}
-
 export default async function GuestProfilePage({
   params,
   searchParams,
@@ -86,96 +79,131 @@ export default async function GuestProfilePage({
   const { guestId } = await params;
   const query = searchParams ? await searchParams : undefined;
 
+  if (query?.success) {
+    redirect(`/guests/${guestId}`);
+  }
+
   const [{ guest, stays, documents }, camps] = await Promise.all([
     getGuestProfile(guestId),
     getCampOptions(),
   ]);
 
   const errorMessage = getErrorMessage(query?.error);
-  const successMessage = getSuccessMessage(query?.success);
 
   return (
-    <div>
-      <PageHeader
-        title={guest.full_name}
-        description="Guest profile, contact details, security clearance, private documents, and stay history."
-        actions={
-          <Link
-            href="/guests"
-            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-          >
-            Back to guests
-          </Link>
-        }
-      />
+    <main className="page-stack">
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border bg-surface px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Guest record
+              </p>
+
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                {guest.full_name}
+              </h1>
+
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                Guest profile, reception identity, security clearance, protected
+                documents, and stay history.
+              </p>
+            </div>
+
+            <Link
+              href="/guests"
+              className="btn-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
+            >
+              Back to guests
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
           {errorMessage}
         </div>
       ) : null}
 
-      {successMessage ? (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {successMessage}
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="min-w-0">
+          <GuestForm camps={camps} guest={guest} />
         </div>
-      ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
-        <GuestForm camps={camps} guest={guest} />
+        <aside className="space-y-5">
+          <section className="border border-border bg-surface">
+            <div className="border-b border-border px-4 py-3">
+              <h2 className="text-sm font-semibold text-foreground">
+                Registry summary
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Fixed identity context for reception and security workflows.
+              </p>
+            </div>
 
-        <aside className="space-y-6">
-          <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-neutral-950">
-              Guest Summary
-            </h2>
-
-            <dl className="mt-5 space-y-4 text-sm">
-              <div>
-                <dt className="text-neutral-500">Primary camp</dt>
-                <dd className="mt-1 font-medium text-neutral-950">
+            <dl className="px-4 text-sm">
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">Primary camp</dt>
+                <dd className="font-medium text-foreground">
                   {guest.primary_camp_name}
                 </dd>
               </div>
 
-              <div>
-                <dt className="text-neutral-500">Category</dt>
-                <dd className="mt-1 font-medium text-neutral-950">
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">Category</dt>
+                <dd className="font-medium text-foreground">
                   {formatLabel(guest.guest_category)}
                 </dd>
               </div>
 
-              <div>
-                <dt className="text-neutral-500">VIP</dt>
-                <dd className="mt-1 font-medium text-neutral-950">
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">Clearance</dt>
+                <dd>
+                  <ClearanceStatusBadge
+                    status={guest.security_clearance_status}
+                  />
+                </dd>
+              </div>
+
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">VIP</dt>
+                <dd className="font-medium text-foreground">
                   {guest.is_vip ? "Yes" : "No"}
                 </dd>
               </div>
 
-              <div>
-                <dt className="text-neutral-500">Organization</dt>
-                <dd className="mt-1 font-medium text-neutral-950">
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">Organization</dt>
+                <dd className="font-medium text-foreground">
                   {guest.organization_name ?? "Not set"}
                 </dd>
               </div>
 
-              <div>
-                <dt className="text-neutral-500">Department / project</dt>
-                <dd className="mt-1 font-medium text-neutral-950">
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">Department / project</dt>
+                <dd className="font-medium text-foreground">
                   {guest.department_or_project ?? "Not set"}
                 </dd>
               </div>
 
-              <div>
-                <dt className="text-neutral-500">Security clearance</dt>
-                <dd className="mt-1 font-medium text-neutral-950">
-                  {formatLabel(guest.security_clearance_status)}
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">Phone</dt>
+                <dd className="font-medium text-foreground">
+                  {guest.phone ?? "Not set"}
                 </dd>
               </div>
 
-              <div>
-                <dt className="text-neutral-500">Created</dt>
-                <dd className="mt-1 font-medium text-neutral-950">
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">Email</dt>
+                <dd className="font-medium text-foreground">
+                  {guest.email ?? "Not set"}
+                </dd>
+              </div>
+
+              <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <dt className="text-muted-foreground">Created</dt>
+                <dd className="font-medium text-foreground">
                   {formatDate(guest.created_at)}
                 </dd>
               </div>
@@ -184,68 +212,86 @@ export default async function GuestProfilePage({
 
           <GuestDocumentsPanel guestId={guest.id} documents={documents} />
         </aside>
-      </div>
+      </section>
 
-      <section className="mt-6 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-neutral-950">
-          Stay History
-        </h2>
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border bg-surface px-4 py-4 sm:px-5">
+          <h2 className="text-base font-semibold text-foreground">
+            Stay history
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Previous and current accommodation records linked to this guest.
+          </p>
+        </div>
 
-        <div className="mt-4 overflow-hidden rounded-2xl border border-neutral-200">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase text-neutral-500">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[920px] text-left text-sm">
+            <thead className="border-b border-border bg-surface text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-semibold sm:px-5">Room</th>
+                <th className="px-4 py-3 font-semibold">Camp</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="px-4 py-3 font-semibold">Expected window</th>
+                <th className="px-4 py-3 font-semibold">Actual movement</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-border">
+              {stays.length === 0 ? (
                 <tr>
-                  <th className="px-4 py-3">Room</th>
-                  <th className="px-4 py-3">Camp</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Expected</th>
-                  <th className="px-4 py-3">Actual</th>
-                </tr>
-              </thead>
+                  <td colSpan={5} className="px-4 py-12 sm:px-5">
+                    <div className="max-w-xl">
+                      <p className="text-sm font-semibold text-foreground">
+                        No stay history yet
+                      </p>
 
-              <tbody className="divide-y divide-neutral-100">
-                {stays.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-10 text-center text-sm text-neutral-500"
-                    >
-                      No stay history yet.
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        This guest has not been checked into a room or linked to
+                        a completed stay record yet.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                stays.map((stay) => (
+                  <tr
+                    key={stay.id}
+                    className="align-top transition-colors hover:bg-muted/35"
+                  >
+                    <td className="px-4 py-4 sm:px-5">
+                      <span className="text-lg font-semibold tracking-tight text-foreground">
+                        {stay.room_number}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-4 text-foreground">
+                      {stay.camp_name}
+                    </td>
+
+                    <td className="px-4 py-4 text-foreground">
+                      {formatLabel(stay.status)}
+                    </td>
+
+                    <td className="px-4 py-4 text-foreground">
+                      <div>{formatDate(stay.expected_arrival_at)}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        to {formatDate(stay.expected_departure_at)}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4 text-foreground">
+                      <div>{formatDate(stay.checked_in_at)}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        to {formatDate(stay.checked_out_at)}
+                      </div>
                     </td>
                   </tr>
-                ) : (
-                  stays.map((stay) => (
-                    <tr key={stay.id} className="align-top">
-                      <td className="px-4 py-4 font-medium text-neutral-950">
-                        {stay.room_number}
-                      </td>
-
-                      <td className="px-4 py-4 text-neutral-700">
-                        {stay.camp_name}
-                      </td>
-
-                      <td className="px-4 py-4 text-neutral-700">
-                        {formatLabel(stay.status)}
-                      </td>
-
-                      <td className="px-4 py-4 text-neutral-700">
-                        {formatDate(stay.expected_arrival_at)} →{" "}
-                        {formatDate(stay.expected_departure_at)}
-                      </td>
-
-                      <td className="px-4 py-4 text-neutral-700">
-                        {formatDate(stay.checked_in_at)} →{" "}
-                        {formatDate(stay.checked_out_at)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

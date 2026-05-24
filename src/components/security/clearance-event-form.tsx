@@ -16,10 +16,13 @@ import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 
+type ClearanceEventFormLayout = "default" | "inspector";
+
 type ClearanceEventFormProps = {
   guestId: string;
   currentStatus: string | null;
   submitLabel?: string;
+  layout?: ClearanceEventFormLayout;
 };
 
 const CLEARANCE_STATUSES = new Set<string>([
@@ -42,24 +45,37 @@ export function ClearanceEventForm({
   guestId,
   currentStatus,
   submitLabel = "Save clearance event",
+  layout = "default",
 }: ClearanceEventFormProps): React.JSX.Element {
   const defaultStatus = normalizeCurrentStatus(currentStatus);
+  const isInspector = layout === "inspector";
 
   return (
     <form action={createSecurityClearanceEventAction}>
       <input type="hidden" name="guestId" value={guestId} />
 
-      <Card variant="card">
-        <CardHeader>
-          <CardTitle>Clearance decision</CardTitle>
-          <CardDescription>
+      <Card variant={isInspector ? "console" : "card"} className="min-w-0">
+        <CardHeader
+          className={
+            isInspector ? "border-b border-border px-4 py-3" : undefined
+          }
+        >
+          <CardTitle className={isInspector ? "text-sm" : undefined}>
+            Clearance decision
+          </CardTitle>
+
+          <CardDescription
+            className={isInspector ? "mt-1 text-xs leading-5" : undefined}
+          >
             Record the latest security decision for this guest. Restricted and
             high-risk decisions require notes.
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
+        <CardContent className={isInspector ? "space-y-4 p-4" : "space-y-5"}>
+          <div
+            className={isInspector ? "grid gap-3" : "grid gap-4 md:grid-cols-2"}
+          >
             <Select
               label="Clearance status"
               id="clearance-new-status"
@@ -92,10 +108,10 @@ export function ClearanceEventForm({
             hint="Keep notes factual, concise, and useful for future reviews."
             id="clearance-notes"
             name="notes"
-            rows={4}
+            rows={isInspector ? 3 : 4}
             maxLength={1000}
             placeholder="Required for watchlist, denied, suspended, high-risk, or critical-risk decisions."
-            className="resize-y"
+            className={isInspector ? "min-h-24 resize-y" : "resize-y"}
           />
 
           <PendingSubmitButton

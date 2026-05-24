@@ -18,6 +18,7 @@ export type StatusIndicatorProps = Omit<
   status?: string | null;
   statusClassName?: string;
   withDot?: boolean;
+  compact?: boolean;
 };
 
 const toneClass: Record<StatusTone, string> = {
@@ -27,6 +28,22 @@ const toneClass: Record<StatusTone, string> = {
   danger: "status-under-maintenance",
   brand: "status-needs-cleaning",
   muted: "status-muted",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  vacant_ready: "Vacant Ready",
+  pending_check_in: "Pending Check-in",
+  pending_checkout: "Pending Checkout",
+  pending_check_out: "Pending Checkout",
+  out_of_service: "Out of Service",
+  under_maintenance: "Under Maintenance",
+  manager_hold: "Manager Hold",
+  no_show: "No-show",
+  checked_in: "Checked In",
+  sent_to_reception: "Sent to Reception",
+  in_camp: "In Camp",
+  gate_entry: "Gate Entry",
+  gate_exit: "Gate Exit",
 };
 
 function normalizeStatusValue(
@@ -61,6 +78,19 @@ export function formatStatusLabel(status: string | null | undefined): string {
     return "Unknown";
   }
 
+  const directLabel = STATUS_LABELS[raw];
+
+  if (directLabel) {
+    return directLabel;
+  }
+
+  const normalizedKey = raw.toLowerCase().replace(/[-\s]+/g, "_");
+  const mappedLabel = STATUS_LABELS[normalizedKey];
+
+  if (mappedLabel) {
+    return mappedLabel;
+  }
+
   const normalized = raw
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
@@ -88,6 +118,7 @@ export function StatusIndicator({
   status,
   statusClassName,
   withDot = true,
+  compact = false,
   className,
   title,
   ...props
@@ -103,9 +134,11 @@ export function StatusIndicator({
       title={title ?? getTextTitle(label)}
       data-status={normalizedStatus ?? undefined}
       data-tone={tone}
+      data-compact={compact ? "true" : undefined}
       className={cn(
         "status-indicator max-w-full",
         computedStatusClass,
+        compact && "status-indicator-compact",
         className,
       )}
       {...props}

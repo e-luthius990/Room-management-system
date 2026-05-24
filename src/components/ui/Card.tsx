@@ -1,13 +1,23 @@
 import * as React from "react";
 import { cn } from "@/lib/utils/cn";
 
-type CardVariant = "card" | "panel" | "section" | "muted" | "glass" | "ops";
+type CardVariant =
+  | "card"
+  | "panel"
+  | "section"
+  | "muted"
+  | "glass"
+  | "ops"
+  | "console"
+  | "inspector";
+
 type CardPadding = "none" | "sm" | "md" | "lg";
 
 export type CardProps = React.ComponentPropsWithoutRef<"div"> & {
   variant?: CardVariant;
   padding?: CardPadding;
   interactive?: boolean;
+  selected?: boolean;
 };
 
 const variantClass: Record<CardVariant, string> = {
@@ -15,8 +25,10 @@ const variantClass: Record<CardVariant, string> = {
   panel: "surface-panel",
   section: "surface-section",
   muted: "muted-panel",
-  glass: "surface-glass rounded-3xl",
+  glass: "surface-glass",
   ops: "ops-card",
+  console: "ops-console-card",
+  inspector: "ops-inspector-card",
 };
 
 const paddingClass: Record<CardPadding, string> = {
@@ -30,6 +42,8 @@ const variantsWithIntrinsicPadding = new Set<CardVariant>([
   "section",
   "muted",
   "ops",
+  "console",
+  "inspector",
 ]);
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
@@ -38,6 +52,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
     variant = "card",
     padding = "none",
     interactive = false,
+    selected = false,
     children,
     ...props
   },
@@ -52,9 +67,11 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(function Card(
       data-card-variant={variant}
       data-card-padding={shouldApplyPadding ? padding : undefined}
       data-interactive={interactive ? "true" : undefined}
+      data-selected={selected ? "true" : undefined}
       className={cn(
         variantClass[variant],
         interactive && "surface-card-interactive",
+        selected && "surface-card-selected",
         shouldApplyPadding && paddingClass[padding],
         className,
       )}
@@ -69,18 +86,21 @@ Card.displayName = "Card";
 
 export type CardHeaderProps = React.ComponentPropsWithoutRef<"div"> & {
   divided?: boolean;
+  dense?: boolean;
 };
 
 export function CardHeader({
   children,
   className,
   divided = true,
+  dense = false,
   ...props
 }: CardHeaderProps): React.JSX.Element {
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 px-4 py-4 sm:px-5",
+        "flex flex-col gap-1 px-4 sm:px-5",
+        dense ? "py-3" : "py-4",
         divided && "border-b border-border",
         className,
       )}
@@ -125,15 +145,21 @@ export function CardDescription({
   );
 }
 
-export type CardContentProps = React.ComponentPropsWithoutRef<"div">;
+export type CardContentProps = React.ComponentPropsWithoutRef<"div"> & {
+  dense?: boolean;
+};
 
 export function CardContent({
   children,
   className,
+  dense = false,
   ...props
 }: CardContentProps): React.JSX.Element {
   return (
-    <div className={cn("px-4 py-4 sm:px-5", className)} {...props}>
+    <div
+      className={cn("px-4 sm:px-5", dense ? "py-3" : "py-4", className)}
+      {...props}
+    >
       {children}
     </div>
   );
@@ -142,6 +168,7 @@ export function CardContent({
 export type CardFooterProps = React.ComponentPropsWithoutRef<"div"> & {
   divided?: boolean;
   align?: "start" | "between" | "end";
+  dense?: boolean;
 };
 
 const footerAlignClass: Record<
@@ -158,12 +185,14 @@ export function CardFooter({
   className,
   divided = true,
   align = "end",
+  dense = false,
   ...props
 }: CardFooterProps): React.JSX.Element {
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5",
+        "flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:px-5",
+        dense ? "py-3" : "py-4",
         footerAlignClass[align],
         divided && "border-t border-border",
         className,

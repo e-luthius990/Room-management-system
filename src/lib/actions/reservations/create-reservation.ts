@@ -5,6 +5,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-permission";
+import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createReservationSchema } from "@/lib/validation/reservations";
 
@@ -83,32 +84,32 @@ export async function createReservationAction(
   });
 
   if (!parsed.success) {
-    redirect("/reservations/new?error=invalid_input");
+    redirect(`${APP_ROUTES.reservations.new}?error=invalid_input`);
   }
 
   const supabase = await createServerSupabaseClient();
 
   const { data: reservation, error } = await supabase
-  .rpc("create_reservation", {
-    p_guest_id: parsed.data.guestId,
-    p_group_id: (parsed.data.groupId ?? null) as unknown as string,
-    p_room_id: parsed.data.roomId,
-    p_expected_arrival_at: parsed.data.expectedArrivalAt,
-    p_expected_departure_at: parsed.data.expectedDepartureAt,
-    p_is_vip_hold: parsed.data.isVipHold,
-    p_notes: parsed.data.notes ?? undefined,
-  })
-  .returns<CreatedReservationRow>();
+    .rpc("create_reservation", {
+      p_guest_id: parsed.data.guestId,
+      p_group_id: (parsed.data.groupId ?? null) as unknown as string,
+      p_room_id: parsed.data.roomId,
+      p_expected_arrival_at: parsed.data.expectedArrivalAt,
+      p_expected_departure_at: parsed.data.expectedDepartureAt,
+      p_is_vip_hold: parsed.data.isVipHold,
+      p_notes: parsed.data.notes ?? undefined,
+    })
+    .returns<CreatedReservationRow>();
 
   if (error || !reservation?.id) {
     const code = mapReservationError(error?.message ?? "create_failed");
-    redirect(`/reservations/new?error=${code}`);
+    redirect(`${APP_ROUTES.reservations.new}?error=${code}`);
   }
 
-  revalidatePath("/reservations");
-  revalidatePath(`/reservations/${reservation.id}`);
+  revalidatePath(APP_ROUTES.reservations.list);
+  revalidatePath(APP_ROUTES.reservations.detail(reservation.id));
   revalidatePath("/room-board");
   revalidatePath("/stays");
 
-  redirect(`/reservations/${reservation.id}?success=reservation_created`);
+  redirect(APP_ROUTES.reservations.detail(reservation.id));
 }

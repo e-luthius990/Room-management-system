@@ -1,62 +1,299 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
+
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
-import { PageHeader } from "@/components/layout/page-header";
-import { getSecurityReviewList } from "@/lib/queries/security/get-security-review-list";
+import type { CurrentUserContext } from "@/lib/auth/types";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   ClearanceStatusBadge,
   PresenceBadge,
   RiskLevelBadge,
   VisitTypeBadge,
 } from "@/components/security/security-status-badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { cn } from "@/lib/utils/cn";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type SecurityReviewPageProps = {
   searchParams?: Promise<{
     error?: string;
-    success?: string;
   }>;
 };
 
-type SecurityReviewItem = Awaited<
-  ReturnType<typeof getSecurityReviewList>
->[number];
+type GuestCategory =
+  | "visitor"
+  | "contractor"
+  | "vip_guest"
+  | "long_stay_guest"
+  | "eu_delegate"
+  | "american_delegate"
+  | string;
 
-type SummaryTone = "default" | "success" | "warning" | "danger" | "info";
+type SecurityReviewItem = {
+  id: string;
+  full_name: string;
+  primary_camp_id: string | null;
+  primary_camp_name: string;
+  guest_category: GuestCategory;
+  organization_name: string | null;
+  organization: string | null;
+  nationality: string | null;
+  phone: string | null;
+  email: string | null;
+  security_clearance_status: string | null;
+  latest_risk_level: string | null;
+  latest_security_note: string | null;
+  latest_security_event_at: string | null;
+  latest_security_event_id: string | null;
+  latest_event_type: string | null;
+  latest_visit_type: string | null;
+  latest_entry_at: string | null;
+  latest_exit_at: string | null;
+  latest_sent_to_reception_at: string | null;
+  latest_purpose: string | null;
+  latest_host_name: string | null;
+  latest_host_department: string | null;
+  is_currently_inside: boolean;
+  is_pending_reception: boolean;
+  last_seen_at: string | null;
+  created_at: string;
+};
 
-function countSecuritySummary(
-  guests: Awaited<ReturnType<typeof getSecurityReviewList>>,
-) {
-  return {
-    total: guests.length,
-    inside: guests.filter((guest) => guest.is_currently_inside).length,
-    pendingReception: guests.filter((guest) => guest.is_pending_reception)
-      .length,
-    pending: guests.filter(
-      (guest) =>
-        !guest.security_clearance_status ||
-        guest.security_clearance_status === "pending",
-    ).length,
-    cleared: guests.filter(
-      (guest) => guest.security_clearance_status === "cleared",
-    ).length,
-    restricted: guests.filter((guest) =>
-      ["watchlist", "denied", "suspended"].includes(
-        guest.security_clearance_status ?? "",
-      ),
-    ).length,
+type SecurityReviewSummary = {
+  total: number;
+  inside: number;
+  pendingReception: number;
+  pending: number;
+  cleared: number;
+  restricted: number;
+};
+
+type SecurityReviewData = {
+  summary: SecurityReviewSummary;
+  items: SecurityReviewItem[];
+};
+
+type RpcError = {
+  message: string;
+};
+
+type SecurityReviewRpcClient = {
+  rpc(
+    fn: "get_security_review_snapshot",
+    args: {
+      p_camp_ids: string[] | null;
+      p_limit: number;
+    },
+  ): Promise<{
+    data: unknown;
+    error: RpcError | null;
+  }>;
+};
+
+type PressureTone = "default" | "success" | "warning" | "danger" | "info";
+
+const SECURITY_REVIEW_LIMIT = 120;
+
+const SECURITY_REVIEW_TIMING_ENABLED =
+  process.env.NODE_ENV !== "production" ||
+  process.env.DASHBOARD_DEBUG_TIMING === "true";
+
+function createSecurityReviewTimer(scope: string): (label: string) => void {
+  const startedAt = performance.now();
+
+  return (label: string): void => {
+    if (!SECURITY_REVIEW_TIMING_ENABLED) {
+      return;
+    }
+
+    console.info(
+      `[${scope}] ${label}: ${Math.round(performance.now() - startedAt)}ms`,
+    );
   };
 }
 
+function getSecurityCampIds(currentUser: CurrentUserContext): string[] | null {
+  if (currentUser.isSystemActor) {
+    return null;
+  }
+
+  const campIds = currentUser.campAccess
+    .map((access) => access.camp_id)
+    .filter(
+      (campId): campId is string =>
+        typeof campId === "string" && campId.length > 0,
+    );
+
+  return [...new Set(campIds)];
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function textValue(value: unknown, fallback = ""): string {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function nullableTextValue(value: unknown): string | null {
+  const normalized = textValue(value);
+
+  return normalized.length > 0 ? normalized : null;
+}
+
+function numberValue(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function booleanValue(value: unknown): boolean {
+  return value === true;
+}
+
+function parseSummary(value: unknown): SecurityReviewSummary {
+  const summary = asRecord(value);
+
+  return {
+    total: numberValue(summary.total),
+    inside: numberValue(summary.inside),
+    pendingReception: numberValue(summary.pendingReception),
+    pending: numberValue(summary.pending),
+    cleared: numberValue(summary.cleared),
+    restricted: numberValue(summary.restricted),
+  };
+}
+
+function parseReviewItem(value: unknown): SecurityReviewItem | null {
+  const item = asRecord(value);
+  const id = textValue(item.id);
+  const fullName = textValue(item.full_name, "Unknown guest");
+
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    full_name: fullName,
+    primary_camp_id: nullableTextValue(item.primary_camp_id),
+    primary_camp_name: textValue(item.primary_camp_name, "Unknown camp"),
+    guest_category: textValue(item.guest_category, "visitor"),
+    organization_name: nullableTextValue(item.organization_name),
+    organization: nullableTextValue(item.organization),
+    nationality: nullableTextValue(item.nationality),
+    phone: nullableTextValue(item.phone),
+    email: nullableTextValue(item.email),
+    security_clearance_status: nullableTextValue(
+      item.security_clearance_status,
+    ),
+    latest_risk_level: nullableTextValue(item.latest_risk_level),
+    latest_security_note: nullableTextValue(item.latest_security_note),
+    latest_security_event_at: nullableTextValue(item.latest_security_event_at),
+    latest_security_event_id: nullableTextValue(item.latest_security_event_id),
+    latest_event_type: nullableTextValue(item.latest_event_type),
+    latest_visit_type: nullableTextValue(item.latest_visit_type),
+    latest_entry_at: nullableTextValue(item.latest_entry_at),
+    latest_exit_at: nullableTextValue(item.latest_exit_at),
+    latest_sent_to_reception_at: nullableTextValue(
+      item.latest_sent_to_reception_at,
+    ),
+    latest_purpose: nullableTextValue(item.latest_purpose),
+    latest_host_name: nullableTextValue(item.latest_host_name),
+    latest_host_department: nullableTextValue(item.latest_host_department),
+    is_currently_inside: booleanValue(item.is_currently_inside),
+    is_pending_reception: booleanValue(item.is_pending_reception),
+    last_seen_at: nullableTextValue(item.last_seen_at),
+    created_at: textValue(item.created_at, new Date(0).toISOString()),
+  };
+}
+
+function parseSecurityReviewData(value: unknown): SecurityReviewData {
+  const root = asRecord(value);
+
+  return {
+    summary: parseSummary(root.summary),
+    items: asArray(root.items).flatMap((item) => {
+      const parsed = parseReviewItem(item);
+
+      return parsed ? [parsed] : [];
+    }),
+  };
+}
+
+function getEmptySecurityReviewData(): SecurityReviewData {
+  return {
+    summary: {
+      total: 0,
+      inside: 0,
+      pendingReception: 0,
+      pending: 0,
+      cleared: 0,
+      restricted: 0,
+    },
+    items: [],
+  };
+}
+
+async function getSecurityReviewData(
+  currentUser: CurrentUserContext,
+  mark: (label: string) => void,
+): Promise<SecurityReviewData> {
+  const campIds = getSecurityCampIds(currentUser);
+
+  if (campIds !== null && campIds.length === 0) {
+    return getEmptySecurityReviewData();
+  }
+
+  const admin =
+    createSupabaseAdminClient() as unknown as SecurityReviewRpcClient;
+
+  mark("admin client created");
+
+  const { data, error } = await admin.rpc("get_security_review_snapshot", {
+    p_camp_ids: campIds,
+    p_limit: SECURITY_REVIEW_LIMIT,
+  });
+
+  mark("security review snapshot loaded");
+
+  if (error) {
+    console.error("Failed to load security review snapshot:", error.message);
+    return getEmptySecurityReviewData();
+  }
+
+  return parseSecurityReviewData(data);
+}
+
 function formatLabel(value: string | null): string {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
   return value
     .replaceAll("_", " ")
@@ -65,7 +302,9 @@ function formatLabel(value: string | null): string {
 }
 
 function formatDateTime(value: string | null): string {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
   const date = new Date(value);
 
@@ -74,14 +313,19 @@ function formatDateTime(value: string | null): string {
   }
 
   return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
     timeZone: "Africa/Kampala",
   }).format(date);
 }
 
 function getErrorMessage(error?: string): string | null {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
 
   const messages: Record<string, string> = {
     invalid_input: "Check the security clearance form and try again.",
@@ -103,55 +347,6 @@ function getErrorMessage(error?: string): string | null {
   };
 
   return messages[error] ?? "Security action could not be completed.";
-}
-
-function getSuccessMessage(success?: string): string | null {
-  if (!success) return null;
-
-  const messages: Record<string, string> = {
-    clearance_updated: "Security clearance updated successfully.",
-    gate_entry_recorded: "Gate entry recorded successfully.",
-    sent_to_reception: "Guest sent to reception successfully.",
-    gate_exit_recorded: "Gate exit recorded successfully.",
-  };
-
-  return messages[success] ?? null;
-}
-
-function getPresenceSortWeight(guest: SecurityReviewItem): number {
-  if (guest.is_pending_reception) return 0;
-  if (guest.is_currently_inside) return 1;
-
-  if (
-    ["watchlist", "denied", "suspended"].includes(
-      guest.security_clearance_status ?? "",
-    )
-  ) {
-    return 2;
-  }
-
-  if (guest.security_clearance_status === "pending") return 3;
-
-  return 4;
-}
-
-function sortSecurityReviewItems(
-  guests: Awaited<ReturnType<typeof getSecurityReviewList>>,
-): Awaited<ReturnType<typeof getSecurityReviewList>> {
-  return [...guests].sort((a, b) => {
-    const byPresence = getPresenceSortWeight(a) - getPresenceSortWeight(b);
-
-    if (byPresence !== 0) {
-      return byPresence;
-    }
-
-    const aDate =
-      a.latest_security_event_at ?? a.last_seen_at ?? a.created_at ?? "";
-    const bDate =
-      b.latest_security_event_at ?? b.last_seen_at ?? b.created_at ?? "";
-
-    return bDate.localeCompare(aDate);
-  });
 }
 
 function getContextLine(guest: SecurityReviewItem): string {
@@ -183,38 +378,38 @@ function getLatestMovementLabel(guest: SecurityReviewItem): string {
     : "No security event yet";
 }
 
-function SummaryCard({
-  title,
+function PressureCell({
+  label,
   value,
-  description,
+  hint,
   tone = "default",
 }: {
-  title: string;
+  label: string;
   value: number;
-  description?: string;
-  tone?: SummaryTone;
+  hint: string;
+  tone?: PressureTone;
 }): React.JSX.Element {
-  const toneClass: Record<SummaryTone, string> = {
-    default: "border-border bg-surface",
-    success: "border-success-600/25 bg-success-50",
-    warning: "border-warning-700/25 bg-warning-50",
-    danger: "border-danger-600/25 bg-danger-50",
-    info: "border-info-600/25 bg-info-50",
+  const toneClass: Record<PressureTone, string> = {
+    default: "bg-surface",
+    success: "bg-success-50/60",
+    warning: "bg-warning-50/70",
+    danger: "bg-danger-50/60",
+    info: "bg-info-50/60",
   };
 
   return (
-    <article className={cn("rounded-2xl border px-4 py-3", toneClass[tone])}>
-      <div className="text-2xl font-semibold tracking-[-0.045em] text-foreground">
-        {value}
+    <article className={cn("px-4 py-3", toneClass[tone])}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+          {label}
+        </p>
+
+        <p className="text-xl font-semibold tracking-[-0.04em] text-foreground">
+          {value}
+        </p>
       </div>
 
-      <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-        {title}
-      </div>
-
-      {description ? (
-        <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
-      ) : null}
+      <p className="mt-1 truncate text-xs text-muted">{hint}</p>
     </article>
   );
 }
@@ -222,136 +417,175 @@ function SummaryCard({
 export default async function SecurityReviewPage({
   searchParams,
 }: SecurityReviewPageProps): Promise<React.JSX.Element> {
-  await requirePermission("security.view_clearance");
-  await requirePermission("guests.view");
+  noStore();
 
-  const [query, guests] = await Promise.all([
+  const mark = createSecurityReviewTimer("security:review");
+
+  const currentUser = await requirePermission("security.view_clearance");
+  mark("security.view_clearance permission checked");
+
+  await requirePermission("guests.view");
+  mark("guests.view permission checked");
+
+  const [query, data] = await Promise.all([
     searchParams,
-    getSecurityReviewList(),
+    getSecurityReviewData(currentUser, mark),
   ]);
 
-  const sortedGuests = sortSecurityReviewItems(guests);
-  const summary = countSecuritySummary(guests);
+  mark("security review data prepared");
+
+  const summary = data.summary;
+  const guests = data.items;
   const errorMessage = getErrorMessage(query?.error);
-  const successMessage = getSuccessMessage(query?.success);
 
   return (
     <div className="page-stack">
-      <PageHeader
-        title="Security review"
-        description="Review guest clearance posture, current gate presence, reception handoff, and recent security notes."
-        actions={
-          <div className="flex flex-wrap gap-2">
+      <section className="surface-panel overflow-hidden">
+        <div className="grid gap-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+              Security clearance control
+            </p>
+
+            <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
+              Security review
+            </h1>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+              Review guest clearance posture, current gate presence, reception
+              handoff state, and latest security notes from one operational
+              register.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 lg:justify-end">
             <Link href={APP_ROUTES.security.gate} className="btn-primary">
               Gate operations
             </Link>
-
-            <Link
-              href={APP_ROUTES.security.pendingReception}
-              className="btn-secondary"
-            >
-              Pending reception
-            </Link>
           </div>
-        }
-      />
+        </div>
+
+        <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-6">
+          <PressureCell
+            label="Visible"
+            value={summary.total}
+            hint="Guests in review scope"
+          />
+
+          <PressureCell
+            label="Inside"
+            value={summary.inside}
+            hint="Open gate entries"
+            tone="success"
+          />
+
+          <PressureCell
+            label="Reception"
+            value={summary.pendingReception}
+            hint="Sent from security"
+            tone="info"
+          />
+
+          <PressureCell
+            label="Pending"
+            value={summary.pending}
+            hint="Awaiting decision"
+            tone="warning"
+          />
+
+          <PressureCell
+            label="Cleared"
+            value={summary.cleared}
+            hint="Approved guests"
+            tone="success"
+          />
+
+          <PressureCell
+            label="Restricted"
+            value={summary.restricted}
+            hint="Watchlist / denied"
+            tone="danger"
+          />
+        </div>
+      </section>
 
       {errorMessage ? (
         <div className="alert alert-danger">{errorMessage}</div>
       ) : null}
 
-      {successMessage ? (
-        <div className="alert alert-success">{successMessage}</div>
-      ) : null}
+      <Card variant="console">
+        <CardHeader className="border-b border-border px-4 py-4">
+          <div className="max-w-3xl">
+            <CardTitle>Guest security register</CardTitle>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <SummaryCard
-          title="Total guests"
-          value={summary.total}
-          description="Visible to security review"
-        />
-
-        <SummaryCard
-          title="Inside camp"
-          value={summary.inside}
-          description="Open gate entries"
-          tone="success"
-        />
-
-        <SummaryCard
-          title="Pending reception"
-          value={summary.pendingReception}
-          description="Sent from security"
-          tone="info"
-        />
-
-        <SummaryCard
-          title="Pending clearance"
-          value={summary.pending}
-          description="Awaiting decision"
-          tone="warning"
-        />
-
-        <SummaryCard
-          title="Cleared"
-          value={summary.cleared}
-          description="Approved guests"
-          tone="success"
-        />
-
-        <SummaryCard
-          title="Restricted"
-          value={summary.restricted}
-          description="Watchlist / denied"
-          tone="danger"
-        />
-      </section>
-
-      <Card variant="card">
-        <CardHeader>
-          <CardTitle>Guest security register</CardTitle>
-          <CardDescription>
-            Priority order shows pending reception, people inside, restricted
-            records, then the latest reviewed guests.
-          </CardDescription>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Priority order: pending reception, people inside, restricted
+              records, then latest reviewed guests. Showing up to{" "}
+              {SECURITY_REVIEW_LIMIT} records.
+            </p>
+          </div>
         </CardHeader>
 
         <CardContent className="p-0">
           <div className="table-shell rounded-none border-0 shadow-none">
             <div className="table-scroll">
-              <table className="data-table min-w-[1280px]">
+              <table className="data-table min-w-[1180px] table-fixed [&_td]:px-3 [&_td]:py-3 [&_th]:px-3 [&_th]:py-2.5">
+                <colgroup>
+                  <col className="w-[210px]" />
+                  <col className="w-[140px]" />
+                  <col className="w-[145px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[125px]" />
+                  <col className="w-[115px]" />
+                  <col className="w-[175px]" />
+                  <col className="w-[120px]" />
+                </colgroup>
+
                 <thead>
                   <tr>
-                    <th>Guest</th>
-                    <th>Camp</th>
-                    <th>Presence</th>
-                    <th>Visit</th>
-                    <th>Clearance</th>
-                    <th>Risk</th>
-                    <th>Latest movement</th>
-                    <th>Latest note</th>
-                    <th />
+                    <th className="text-left">Guest</th>
+                    <th className="text-left">Camp</th>
+                    <th className="text-left">Presence</th>
+                    <th className="text-left">Visit</th>
+                    <th className="text-left">Clearance</th>
+                    <th className="text-left">Risk</th>
+                    <th className="text-left">Latest movement</th>
+                    <th className="text-left">Latest note</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {sortedGuests.map((guest) => (
-                    <tr key={guest.id}>
+                  {guests.map((guest) => (
+                    <tr key={guest.id} className="align-top">
                       <td>
-                        <div className="font-semibold text-foreground">
+                        <Link
+                          href={APP_ROUTES.security.guestProfile(guest.id)}
+                          className="block truncate font-semibold text-foreground underline-offset-4 hover:underline"
+                          title={guest.full_name}
+                        >
                           {guest.full_name}
-                        </div>
+                        </Link>
 
-                        <div className="mt-1 text-xs leading-5 text-muted">
+                        <div
+                          className="mt-1 line-clamp-2 text-xs leading-5 text-muted"
+                          title={getContextLine(guest)}
+                        >
                           {getContextLine(guest)}
                         </div>
 
-                        <div className="mt-2 text-xs text-muted">
+                        <div className="mt-1.5 text-xs text-muted">
                           {formatLabel(guest.guest_category)}
                         </div>
                       </td>
 
-                      <td className="text-muted">{guest.primary_camp_name}</td>
+                      <td className="text-sm text-muted">
+                        <div
+                          className="leading-5"
+                          title={guest.primary_camp_name}
+                        >
+                          {guest.primary_camp_name}
+                        </div>
+                      </td>
 
                       <td>
                         <PresenceBadge
@@ -361,13 +595,18 @@ export default async function SecurityReviewPage({
                       </td>
 
                       <td>
-                        <VisitTypeBadge visitType={guest.latest_visit_type} />
+                        <div className="flex flex-col items-start gap-1.5">
+                          <VisitTypeBadge visitType={guest.latest_visit_type} />
 
-                        {guest.latest_purpose ? (
-                          <div className="mt-2 max-w-[220px] truncate text-xs text-muted">
-                            {guest.latest_purpose}
-                          </div>
-                        ) : null}
+                          {guest.latest_purpose ? (
+                            <div
+                              className="line-clamp-2 text-xs leading-5 text-muted"
+                              title={guest.latest_purpose}
+                            >
+                              {guest.latest_purpose}
+                            </div>
+                          ) : null}
+                        </div>
                       </td>
 
                       <td>
@@ -380,14 +619,17 @@ export default async function SecurityReviewPage({
                         <RiskLevelBadge riskLevel={guest.latest_risk_level} />
                       </td>
 
-                      <td className="text-muted">
-                        <div className="max-w-[220px] text-sm">
+                      <td className="text-sm text-muted">
+                        <div
+                          className="line-clamp-2 leading-5"
+                          title={getLatestMovementLabel(guest)}
+                        >
                           {getLatestMovementLabel(guest)}
                         </div>
 
                         {guest.latest_host_name ||
                         guest.latest_host_department ? (
-                          <div className="mt-1 max-w-[220px] truncate text-xs text-muted">
+                          <div className="mt-1 truncate text-xs text-muted">
                             {[
                               guest.latest_host_name,
                               guest.latest_host_department,
@@ -398,26 +640,20 @@ export default async function SecurityReviewPage({
                         ) : null}
                       </td>
 
-                      <td className="text-muted">
-                        <div className="max-w-[280px] truncate">
+                      <td className="text-sm text-muted">
+                        <div
+                          className="line-clamp-2 leading-5"
+                          title={guest.latest_security_note ?? "—"}
+                        >
                           {guest.latest_security_note ?? "—"}
                         </div>
-                      </td>
-
-                      <td className="text-right">
-                        <Link
-                          href={APP_ROUTES.security.guestProfile(guest.id)}
-                          className="btn-secondary btn-sm"
-                        >
-                          Open
-                        </Link>
                       </td>
                     </tr>
                   ))}
 
-                  {sortedGuests.length === 0 ? (
+                  {guests.length === 0 ? (
                     <tr className="table-empty-row">
-                      <td colSpan={9}>No guests found for security review.</td>
+                      <td colSpan={8}>No guests found for security review.</td>
                     </tr>
                   ) : null}
                 </tbody>

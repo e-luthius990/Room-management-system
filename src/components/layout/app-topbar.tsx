@@ -1,8 +1,8 @@
 // src/components/layout/app-topbar.tsx
 import type { JSX } from "react";
+
 import type { CurrentCampAccess } from "@/lib/auth/types";
 import type { AppNavItem } from "@/lib/navigation/app-nav";
-import { CampContext } from "@/components/layout/camp-context";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { UserAccountMenu } from "@/components/layout/user-account-menu";
 import { cn } from "@/lib/utils/cn";
@@ -22,7 +22,49 @@ function normalizeDisplayValue(
   value: string | null | undefined,
 ): string | null {
   const trimmed = value?.trim();
+
   return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+function getCampName(access: CurrentCampAccess): string | null {
+  const record = access as unknown as Record<string, unknown>;
+
+  const candidates = [
+    record.camp_name,
+    record.campName,
+    record.name,
+    record.camp,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string") {
+      const normalized = normalizeDisplayValue(candidate);
+
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+
+  return null;
+}
+
+function getCampDisplayName({
+  campAccess,
+  isSystemActor,
+}: {
+  campAccess: CurrentCampAccess[];
+  isSystemActor: boolean;
+}): string {
+  if (isSystemActor) {
+    return "All camps";
+  }
+
+  const firstCamp = campAccess
+    .map(getCampName)
+    .find((campName): campName is string => Boolean(campName));
+
+  return firstCamp ?? "No camp selected";
 }
 
 export function AppTopbar({
@@ -39,6 +81,11 @@ export function AppTopbar({
   const displayEmail = normalizeDisplayValue(email);
   const displayRoleName = normalizeDisplayValue(roleName) ?? "System user";
 
+  const campName = getCampDisplayName({
+    campAccess,
+    isSystemActor,
+  });
+
   return (
     <header
       className={cn("topbar", className)}
@@ -49,11 +96,10 @@ export function AppTopbar({
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <MobileSidebar primaryItems={primaryItems} adminItems={adminItems} />
 
-          <div className="min-w-0">
-            <CampContext
-              campAccess={campAccess}
-              isSystemActor={isSystemActor}
-            />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold leading-5 text-foreground">
+              {campName}
+            </p>
           </div>
         </div>
 

@@ -3,28 +3,25 @@
 
 import type { JSX } from "react";
 import { useMemo, useState } from "react";
-import { BedDouble, Grid3X3, Layers3, ListChecks } from "lucide-react";
-import type { RoomBoardItem } from "@/lib/queries/room-board/get-room-board";
+import Link from "next/link";
+import { BedDouble, Crown, Eye, MapPin } from "lucide-react";
+
+import type {
+  RoomBoardItem,
+  RoomBoardSummary,
+} from "@/lib/queries/room-board/get-room-board";
+import { APP_ROUTES } from "@/lib/auth/routes";
 import { RoomBoardFilters } from "@/components/room-board/room-board-filters";
-import { RoomCard } from "@/components/room-board/room-card";
+import { RoomBoardSummaryCards } from "@/components/room-board/room-board-summary";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { AutoStatusIndicator } from "@/components/ui/StatusIndicator";
+import {
+  AutoStatusIndicator,
+  StatusIndicator,
+} from "@/components/ui/StatusIndicator";
 import { cn } from "@/lib/utils/cn";
 
 type RoomBoardClientProps = {
   rooms: RoomBoardItem[];
-};
-
-type RoomBoardView = "matrix" | "cards";
-
-type SummaryTone = "success" | "warning" | "danger" | "info" | "brand";
-
-type SummaryItem = {
-  key: string;
-  label: string;
-  note: string;
-  value: number;
-  tone: SummaryTone;
 };
 
 type RoomGroup = {
@@ -48,14 +45,6 @@ const HIDDEN_SEARCH_STATUSES = new Set([
   "inspection_needed",
   "under_maintenance",
 ]);
-
-const summaryToneClass: Record<SummaryTone, string> = {
-  success: "ops-live-card-success",
-  warning: "ops-live-card-warning",
-  danger: "ops-live-card-danger",
-  info: "ops-live-card-info",
-  brand: "",
-};
 
 function normalize(value: unknown): string {
   return String(value ?? "")
@@ -88,8 +77,26 @@ function formatLabel(value: string | null | undefined): string {
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) {
+    return "Not set";
+  }
+
+  const date = new Date(value);
+
+  if (!Number.isFinite(date.getTime())) {
+    return "Not set";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Kampala",
+  }).format(date);
+}
+
 function getRoomTitle(room: RoomBoardItem): string {
-  return room.room_number?.trim() || "Unnamed room";
+  return room.room_number?.trim() || "Unnamed";
 }
 
 function getRoomSubtitle(room: RoomBoardItem): string {
@@ -102,20 +109,6 @@ function getSearchableStatus(status: string): string {
   }
 
   return status;
-}
-
-function countByStatus(
-  rooms: readonly RoomBoardItem[],
-  statuses: readonly string[],
-): number {
-  const statusSet = new Set(statuses);
-
-  return rooms.filter((room) => statusSet.has(room.current_status)).length;
-}
-
-function countBlockedRooms(rooms: readonly RoomBoardItem[]): number {
-  return rooms.filter((room) => BLOCKED_ROOM_STATUSES.has(room.current_status))
-    .length;
 }
 
 function sortRooms(a: RoomBoardItem, b: RoomBoardItem): number {
@@ -154,114 +147,74 @@ function buildRoomGroups(rooms: readonly RoomBoardItem[]): RoomGroup[] {
       rooms: [...group.rooms].sort(sortRooms),
     }))
     .sort((a, b) => {
-      const campCompare = a.subtitle.localeCompare(b.subtitle);
-      return campCompare !== 0 ? campCompare : a.title.localeCompare(b.title);
+      const campCompare = a.subtitle.localeCompare(b.subtitle, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+
+      if (campCompare !== 0) {
+        return campCompare;
+      }
+
+      return a.title.localeCompare(b.title, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
     });
 }
 
-function buildSummary(rooms: readonly RoomBoardItem[]): SummaryItem[] {
-  return [
-    {
-      key: "vacant_ready",
-      label: "Vacant ready",
-      value: countByStatus(rooms, ["vacant_ready"]),
-      note: "Ready for allocation",
-      tone: "success",
-    },
-    {
-      key: "reserved",
-      label: "Reserved",
-      value: countByStatus(rooms, ["reserved"]),
-      note: "Held for arrival",
-      tone: "warning",
-    },
-    {
-      key: "pending_check_in",
-      label: "Check-in",
-      value: countByStatus(rooms, ["pending_check_in"]),
-      note: "Expected today",
-      tone: "warning",
-    },
-    {
-      key: "occupied",
-      label: "Occupied",
-      value: countByStatus(rooms, ["occupied"]),
-      note: "Guest in room",
-      tone: "info",
-    },
-    {
-      key: "pending_checkout",
-      label: "Checkout",
-      value: countByStatus(rooms, ["pending_checkout"]),
-      note: "Leaving soon",
-      tone: "warning",
-    },
-    {
-      key: "blocked",
-      label: "Blocked",
-      value: countBlockedRooms(rooms),
-      note: "Not allocatable",
-      tone: "danger",
-    },
-  ];
+function buildSummary(rooms: readonly RoomBoardItem[]): RoomBoardSummary {
+  const fieldAbsent = rooms.filter((room) => room.is_field_absent).length;
+  const fieldAbsenceOverdue = rooms.filter(
+    (room) => room.field_absence_is_overdue,
+  ).length;
+
+  return {
+    total: rooms.length,
+    vacantReady: rooms.filter((room) => room.current_status === "vacant_ready")
+      .length,
+    reserved: rooms.filter((room) => room.current_status === "reserved").length,
+    pendingCheckIn: rooms.filter(
+      (room) => room.current_status === "pending_check_in",
+    ).length,
+    occupied: rooms.filter((room) => room.current_status === "occupied").length,
+    pendingCheckout: rooms.filter(
+      (room) => room.current_status === "pending_checkout",
+    ).length,
+    blocked: rooms.filter((room) =>
+      BLOCKED_ROOM_STATUSES.has(room.current_status),
+    ).length,
+    fieldAbsent,
+    fieldAbsenceOverdue,
+  };
 }
 
-function RoomBoardViewSwitch({
-  value,
-  onChange,
+function FieldAbsenceBadge({
+  room,
+  compact = false,
 }: {
-  value: RoomBoardView;
-  onChange: (value: RoomBoardView) => void;
-}): JSX.Element {
-  return (
-    <div className="segmented-control" aria-label="Room board view">
-      <button
-        type="button"
-        className={cn(
-          "segmented-item",
-          value === "matrix" && "segmented-item-active",
-        )}
-        aria-pressed={value === "matrix"}
-        onClick={() => onChange("matrix")}
-      >
-        <Grid3X3 className="size-4" aria-hidden="true" />
-        Matrix
-      </button>
+  room: RoomBoardItem;
+  compact?: boolean;
+}): JSX.Element | null {
+  if (!room.is_field_absent) {
+    return null;
+  }
 
-      <button
-        type="button"
-        className={cn(
-          "segmented-item",
-          value === "cards" && "segmented-item-active",
-        )}
-        aria-pressed={value === "cards"}
-        onClick={() => onChange("cards")}
-      >
-        <Layers3 className="size-4" aria-hidden="true" />
-        Cards
-      </button>
-    </div>
-  );
-}
-
-function RoomSummaryStrip({
-  summary,
-}: {
-  summary: SummaryItem[];
-}): JSX.Element {
   return (
-    <section aria-label="Room status summary" className="ops-live-strip">
-      {summary.map((item) => (
-        <article
-          key={item.key}
-          className={cn("ops-live-card", summaryToneClass[item.tone])}
-        >
-          <div className="ops-live-label">{item.label}</div>
-          <div className="ops-live-value">{item.value}</div>
-          <div className="ops-live-note">{item.note}</div>
-        </article>
-      ))}
-    </section>
+    <StatusIndicator
+      compact={compact}
+      statusClassName={
+        room.field_absence_is_overdue
+          ? "status-under-maintenance"
+          : "status-reserved"
+      }
+      label={room.field_absence_is_overdue ? "Field Overdue" : "Away In Field"}
+      title={
+        room.field_absence_is_overdue
+          ? "Field absence return is overdue"
+          : "Occupant is away in field"
+      }
+    />
   );
 }
 
@@ -289,16 +242,27 @@ function RoomMatrixCell({
         active && "room-cell-active",
       )}
     >
-      <div className="room-cell-number">{getRoomTitle(room)}</div>
+      <div className="room-cell-code">
+        {room.building_name || room.camp_name || "Room"}
+      </div>
 
-      <div className="room-cell-meta">
+      <div className="mt-2 text-2xl font-semibold leading-7 tracking-[-0.055em] text-foreground">
+        {getRoomTitle(room)}
+      </div>
+
+      <div className="mt-1 truncate text-[11px] leading-4 text-muted">
         {guestName || subtitle || "No active guest"}
       </div>
 
-      <div className="room-cell-status">
-        <span className="room-cell-status-text">
-          {formatLabel(room.current_status)}
-        </span>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <StatusIndicator
+          compact
+          withDot={false}
+          statusClassName={`status-${statusClass}`}
+          label={formatLabel(room.current_status)}
+        />
+
+        <FieldAbsenceBadge room={room} compact />
       </div>
     </button>
   );
@@ -317,9 +281,9 @@ function RoomMatrix({
     <section className="room-matrix" aria-label="Interactive room matrix">
       <div className="room-matrix-header">
         <div className="min-w-0">
-          <h2 className="room-matrix-title">Interactive room matrix</h2>
+          <h2 className="room-matrix-title">Room matrix</h2>
           <p className="room-matrix-subtitle">
-            Scan rooms by building, current status, and active guest state.
+            Grouped by camp and building. Select a room to inspect live state.
           </p>
         </div>
 
@@ -328,14 +292,17 @@ function RoomMatrix({
             <span className="room-matrix-legend-dot" />
             Ready
           </span>
+
           <span className="room-matrix-legend-item text-info-700">
             <span className="room-matrix-legend-dot" />
             Occupied
           </span>
+
           <span className="room-matrix-legend-item text-warning-700">
             <span className="room-matrix-legend-dot" />
             Reserved
           </span>
+
           <span className="room-matrix-legend-item text-danger-700">
             <span className="room-matrix-legend-dot" />
             Blocked
@@ -355,13 +322,14 @@ function RoomMatrix({
                   >
                     {group.title}
                   </h3>
+
                   <p className="truncate text-xs text-muted">
                     {group.subtitle} · {group.rooms.length} rooms
                   </p>
                 </div>
               </div>
 
-              <div className="room-matrix-grid room-matrix-grid-dense">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-2">
                 {group.rooms.map((room) => (
                   <RoomMatrixCell
                     key={room.room_id}
@@ -379,6 +347,26 @@ function RoomMatrix({
   );
 }
 
+function InspectorRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}): JSX.Element {
+  return (
+    <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-b border-border py-2.5 last:border-b-0">
+      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
+        {label}
+      </div>
+
+      <div className="min-w-0 text-sm font-semibold leading-5 text-foreground">
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function SelectedRoomPanel({
   room,
 }: {
@@ -386,7 +374,7 @@ function SelectedRoomPanel({
 }): JSX.Element {
   if (!room) {
     return (
-      <aside className="ops-card">
+      <aside className="ops-inspector-card">
         <div className="ops-card-header">
           <div>
             <h2 className="ops-card-title">Room detail</h2>
@@ -397,68 +385,152 @@ function SelectedRoomPanel({
         </div>
 
         <EmptyState
+          operational
+          align="left"
           size="sm"
           icon={<BedDouble className="size-4" />}
           title="No room selected"
-          description="Choose any room from the matrix to view details."
+          description="Choose a room from the matrix."
         />
       </aside>
     );
   }
 
   return (
-    <aside className="ops-card">
-      <div className="ops-card-header">
-        <div className="min-w-0">
-          <h2 className="ops-card-title truncate">Room {getRoomTitle(room)}</h2>
-          <p className="ops-card-meta truncate">
-            {room.camp_name || "Unknown camp"} ·{" "}
-            {room.building_name || "Unknown building"}
-          </p>
+    <aside className="ops-inspector-card">
+      <div className="border-b border-border pb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+              Selected room
+            </div>
+
+            <h2 className="mt-1 text-4xl font-semibold leading-none tracking-[-0.065em] text-foreground">
+              {getRoomTitle(room)}
+            </h2>
+
+            <p className="mt-2 truncate text-xs font-semibold text-muted">
+              {room.camp_name || "Unknown camp"} ·{" "}
+              {room.building_name || "Unknown building"}
+            </p>
+          </div>
+
+          <AutoStatusIndicator compact status={room.current_status} />
         </div>
 
-        <AutoStatusIndicator status={room.current_status} />
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <FieldAbsenceBadge room={room} compact />
+
+          {room.is_vip ? (
+            <StatusIndicator
+              compact
+              withDot={false}
+              statusClassName="status-reserved"
+              label={
+                <span className="inline-flex items-center gap-1">
+                  <Crown className="size-3" aria-hidden="true" />
+                  VIP
+                </span>
+              }
+            />
+          ) : null}
+
+          {room.is_delegate_suitable ? (
+            <StatusIndicator
+              compact
+              withDot={false}
+              statusClassName="status-occupied"
+              label="Delegate"
+            />
+          ) : null}
+        </div>
       </div>
 
-      <div className="metadata-grid xl:grid-cols-1">
-        <div className="metadata-item">
-          <div className="metadata-label">Room type</div>
-          <div className="metadata-value">{room.room_type || "Not set"}</div>
-        </div>
+      <div className="mt-3 divide-y divide-border">
+        <InspectorRow label="Type" value={room.room_type || "Not set"} />
 
-        <div className="metadata-item">
-          <div className="metadata-label">Condition</div>
-          <div className="metadata-value">
-            {formatLabel(room.condition_status)}
+        <InspectorRow
+          label="Condition"
+          value={formatLabel(room.condition_status)}
+        />
+
+        <InspectorRow
+          label="Guest"
+          value={room.current_guest_name || "No active guest"}
+        />
+
+        <InspectorRow
+          label="Departure"
+          value={formatDateTime(room.expected_departure_at)}
+        />
+      </div>
+
+      {room.is_field_absent ? (
+        <div
+          className={cn(
+            "mt-4 border px-3 py-2.5",
+            room.field_absence_is_overdue
+              ? "border-danger-600/25 bg-danger-50"
+              : "border-warning-700/25 bg-warning-50",
+          )}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <FieldAbsenceBadge room={room} compact />
+
+            <span
+              className={cn(
+                "text-xs font-bold",
+                room.field_absence_is_overdue
+                  ? "text-danger-700"
+                  : "text-warning-700",
+              )}
+            >
+              {room.field_absence_is_overdue
+                ? "Return overdue"
+                : `${room.field_absence_days_away} days away`}
+            </span>
+          </div>
+
+          <div className="mt-2 grid gap-1.5 text-xs leading-5 text-muted">
+            <div>
+              <span className="font-semibold text-foreground">
+                Expected return:
+              </span>{" "}
+              {formatDateTime(room.field_absence_expected_return_at)}
+            </div>
+
+            <div>
+              <span className="font-semibold text-foreground">
+                Days until return:
+              </span>{" "}
+              {room.field_absence_is_overdue
+                ? "Overdue"
+                : room.field_absence_days_until_return}
+            </div>
+
+            {room.field_absence_destination ? (
+              <div>
+                <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+                  <MapPin className="size-3.5" aria-hidden="true" />
+                  Destination:
+                </span>{" "}
+                {room.field_absence_destination}
+              </div>
+            ) : null}
           </div>
         </div>
+      ) : null}
 
-        <div className="metadata-item">
-          <div className="metadata-label">Current guest</div>
-          <div className="metadata-value">
-            {room.current_guest_name || "No active guest"}
-          </div>
-        </div>
-
-        <div className="metadata-item">
-          <div className="metadata-label">Delegate suitability</div>
-          <div className="metadata-value">
-            {room.is_delegate_suitable ? "Suitable" : "Not marked"}
-            {room.is_vip ? " · VIP" : ""}
-          </div>
-        </div>
+      <div className="mt-4 grid gap-2 border-t border-border pt-4">
+        <Link
+          href={APP_ROUTES.rooms.detail(room.room_id)}
+          className="btn-primary"
+        >
+          <Eye className="size-4" aria-hidden="true" />
+          Open room
+        </Link>
       </div>
     </aside>
-  );
-}
-
-function RoomCardsView({ rooms }: { rooms: RoomBoardItem[] }): JSX.Element {
-  return (
-    <section className="room-board-grid" aria-label="Room cards">
-      {rooms.map((room) => (
-        <RoomCard key={room.room_id} room={room} />
-      ))}
-    </section>
   );
 }
 
@@ -467,7 +539,6 @@ export function RoomBoardClient({ rooms }: RoomBoardClientProps): JSX.Element {
   const [selectedBuilding, setSelectedBuilding] = useState(ALL_VALUE);
   const [selectedStatus, setSelectedStatus] = useState(ALL_VALUE);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<RoomBoardView>("matrix");
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(
     rooms[0]?.room_id ?? null,
   );
@@ -509,6 +580,11 @@ export function RoomBoardClient({ rooms }: RoomBoardClientProps): JSX.Element {
           room.current_guest_name,
           room.current_guest_id,
           room.current_stay_id,
+          room.is_field_absent ? "away in field field absence" : "",
+          room.field_absence_status,
+          room.field_absence_destination,
+          room.field_absence_reason,
+          room.field_absence_is_overdue ? "field overdue" : "",
           room.is_vip ? "vip" : "",
           room.is_delegate_suitable ? "delegate suitable" : "",
         ].join(" "),
@@ -568,47 +644,27 @@ export function RoomBoardClient({ rooms }: RoomBoardClientProps): JSX.Element {
         onSearchChange={handleSearchChange}
       />
 
-      <RoomSummaryStrip summary={summary} />
-
-      <section className="toolbar" aria-label="Room board controls">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <ListChecks className="size-4 text-muted" aria-hidden="true" />
-            <p className="text-sm font-semibold text-foreground">
-              Showing {filteredRooms.length} of {rooms.length} rooms
-            </p>
-          </div>
-
-          <p className="mt-1 text-xs leading-5 text-muted">
-            Use matrix mode for fast operational scanning. Use cards for full
-            room actions.
-          </p>
-        </div>
-
-        <RoomBoardViewSwitch value={view} onChange={setView} />
-      </section>
+      <RoomBoardSummaryCards summary={summary} />
 
       {filteredRooms.length > 0 ? (
-        view === "matrix" ? (
-          <section className="ops-console-layout">
-            <div className="ops-console-main">
-              <RoomMatrix
-                groups={groups}
-                selectedRoomId={selectedRoom?.room_id ?? null}
-                onSelectRoom={setSelectedRoomId}
-              />
-            </div>
+        <section className="ops-console-layout">
+          <div className="ops-console-main">
+            <RoomMatrix
+              groups={groups}
+              selectedRoomId={selectedRoom?.room_id ?? null}
+              onSelectRoom={setSelectedRoomId}
+            />
+          </div>
 
-            <div className="ops-console-rail">
-              <SelectedRoomPanel room={selectedRoom} />
-            </div>
-          </section>
-        ) : (
-          <RoomCardsView rooms={filteredRooms} />
-        )
+          <div className="ops-console-rail">
+            <SelectedRoomPanel room={selectedRoom} />
+          </div>
+        </section>
       ) : (
         <EmptyState
-          size="lg"
+          operational
+          align="left"
+          size="sm"
           icon={<BedDouble className="size-5" />}
           title="No rooms found"
           description="No rooms match the current filters. Clear the filters or adjust your search."

@@ -5,7 +5,8 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requirePermission } from "@/lib/auth/require-permission";
+
+import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadImportBatchSchema } from "@/lib/validation/imports";
 import { parseCsv } from "@/lib/actions/imports/csv-parser";
@@ -98,11 +99,16 @@ function mapImportError(message: string): string {
   return "import_failed";
 }
 
+async function requireImportPermission(importType: "rooms_csv" | "guests_csv"): Promise<void> {
+  await requireAnyPermission([
+    "data.import",
+    importType === "rooms_csv" ? "imports.rooms" : "imports.guests",
+  ]);
+}
+
 export async function createImportBatchAction(
   formData: FormData,
 ): Promise<never> {
-  await requirePermission("imports.upload");
-
   const parsed = uploadImportBatchSchema.safeParse({
     campId: getFormString(formData, "campId"),
     importType: getFormString(formData, "importType"),
@@ -117,6 +123,8 @@ export async function createImportBatchAction(
       }),
     );
   }
+
+  await requireImportPermission(parsed.data.importType);
 
   const supabase = await createServerSupabaseClient();
 

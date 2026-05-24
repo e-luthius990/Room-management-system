@@ -15,9 +15,8 @@ export function formatReportType(type: string): string {
     occupancy: "Occupancy",
     guests: "Guests",
     rooms: "Rooms",
-    maintenance: "Maintenance",
-    housekeeping: "Housekeeping",
-    room_service: "Room Service",
+    current_stays: "Current stays",
+    exited_guests: "Exited guests",
   };
 
   return labels[type as ReportType] ?? formatFallbackLabel(type);

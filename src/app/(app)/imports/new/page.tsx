@@ -1,14 +1,26 @@
 import Link from "next/link";
-import { requirePermission } from "@/lib/auth/require-permission";
+
+import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { PageHeader } from "@/components/layout/page-header";
 import { getCampOptions } from "@/lib/queries/setup/options";
 import { CreateImportForm } from "@/components/imports/create-import-form";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type NewImportPageProps = {
   searchParams?: Promise<{
     error?: string;
   }>;
 };
+
+const NEW_IMPORT_PAGE_PERMISSIONS = [
+  "data.import",
+  "imports.rooms",
+  "imports.guests",
+  "imports.upload",
+] as const;
 
 function getErrorMessage(error?: string): string | null {
   if (!error) return null;
@@ -31,22 +43,24 @@ function getErrorMessage(error?: string): string | null {
 export default async function NewImportPage({
   searchParams,
 }: NewImportPageProps): Promise<React.JSX.Element> {
-  await requirePermission("imports.upload");
+  await requireAnyPermission([...NEW_IMPORT_PAGE_PERMISSIONS]);
 
-  const query = searchParams ? await searchParams : undefined;
-  const camps = await getCampOptions();
+  const [query, camps] = await Promise.all([
+    searchParams ?? Promise.resolve(undefined),
+    getCampOptions(),
+  ]);
 
   const errorMessage = getErrorMessage(query?.error);
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
-        title="New Data Import"
-        description="Upload a CSV file, validate rows, review errors, then apply valid rooms or guests into operational records."
+        title="New data import"
+        description="Upload a CSV file, validate rows, review errors, then apply valid room or guest records into the system."
         actions={
           <Link
             href="/imports"
-            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
+            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-sky-200 hover:bg-sky-50"
           >
             Back to imports
           </Link>
@@ -54,15 +68,15 @@ export default async function NewImportPage({
       />
 
       {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {errorMessage}
         </div>
       ) : null}
 
       {camps.length === 0 ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-          No accessible camps were found. You need manager access to at least
-          one active camp before creating an import.
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-medium text-amber-800">
+          No accessible camps were found. You need access to at least one active
+          camp before creating an import.
         </div>
       ) : (
         <CreateImportForm camps={camps} />

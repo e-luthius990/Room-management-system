@@ -1,4 +1,3 @@
-// src/components/ui/PendingSubmitButton.tsx
 "use client";
 
 import type { ReactNode } from "react";
@@ -7,7 +6,7 @@ import { Button, type ButtonProps } from "@/components/ui/Button";
 
 type PendingSubmitButtonProps = Omit<
   ButtonProps,
-  "type" | "loading" | "loadingText" | "aria-busy"
+  "type" | "loading" | "loadingText" | "aria-busy" | "leftIcon"
 > & {
   pendingLabel?: string;
   icon?: ReactNode;
@@ -23,7 +22,7 @@ function getComparableValue(value: ButtonProps["value"]): string | null {
 
 export function PendingSubmitButton({
   children,
-  pendingLabel = "Loading...",
+  pendingLabel = "Working...",
   icon,
   disabled = false,
   name,
@@ -44,6 +43,7 @@ export function PendingSubmitButton({
     !shouldTrackSpecificSubmitter || String(submittedValue) === submitterValue;
 
   const showPending = pending && isActiveSubmitter;
+  const isDisabled = disabled || pending;
 
   return (
     <Button
@@ -53,11 +53,12 @@ export function PendingSubmitButton({
       value={value}
       variant={variant}
       size={size}
-      disabled={disabled || pending}
+      disabled={isDisabled}
       loading={showPending}
       loadingText={pendingLabel}
       leftIcon={icon}
       data-pending={showPending ? "true" : undefined}
+      data-form-pending={pending ? "true" : undefined}
     >
       {children}
     </Button>

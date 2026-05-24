@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requirePermission } from "@/lib/auth/require-permission";
+
+import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { PageHeader } from "@/components/layout/page-header";
 import { getImportBatches } from "@/lib/queries/imports/get-import-batches";
 import {
@@ -8,12 +9,23 @@ import {
   importStatusTone,
 } from "@/components/imports/status";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type ImportsPageProps = {
   searchParams?: Promise<{
     error?: string;
     success?: string;
   }>;
 };
+
+const IMPORTS_PAGE_PERMISSIONS = [
+  "data.import",
+  "imports.rooms",
+  "imports.guests",
+  "imports.view",
+] as const;
 
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
@@ -27,6 +39,7 @@ function formatDateTime(value: string | null): string {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Africa/Kampala",
   }).format(date);
 }
 
@@ -60,23 +73,25 @@ function getErrorMessage(error?: string): string | null {
 export default async function ImportsPage({
   searchParams,
 }: ImportsPageProps): Promise<React.JSX.Element> {
-  await requirePermission("imports.view");
+  await requireAnyPermission([...IMPORTS_PAGE_PERMISSIONS]);
 
-  const params = searchParams ? await searchParams : undefined;
-  const batches = await getImportBatches();
+  const [params, batches] = await Promise.all([
+    searchParams ?? Promise.resolve(undefined),
+    getImportBatches(),
+  ]);
 
   const successMessage = getSuccessMessage(params?.success);
   const errorMessage = getErrorMessage(params?.error);
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
-        title="Data Imports"
+        title="Data imports"
         description="Upload, validate, review, and apply bulk room or guest CSV imports to operational records."
         actions={
           <Link
             href="/imports/new"
-            className="rounded-2xl bg-neutral-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
+            className="rounded-2xl bg-neutral-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
           >
             New import
           </Link>
@@ -84,47 +99,57 @@ export default async function ImportsPage({
       />
 
       {successMessage ? (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
           {successMessage}
         </div>
       ) : null}
 
       {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {errorMessage}
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] text-left text-sm">
-            <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3">Import</th>
-                <th className="px-4 py-3">Camp</th>
-                <th className="px-4 py-3">Rows</th>
-                <th className="px-4 py-3">Errors</th>
-                <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+      <section className="rounded-[1.75rem] border border-neutral-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 p-5">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-950">
+              Import history
+            </h2>
+            <p className="mt-1 text-sm text-neutral-500">
+              Showing {batches.length} import batch
+              {batches.length === 1 ? "" : "es"}.
+            </p>
+          </div>
+        </div>
 
-            <tbody className="divide-y divide-neutral-100">
-              {batches.length === 0 ? (
+        {batches.length === 0 ? (
+          <div className="p-8 text-sm text-neutral-500">
+            No import batches found.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1050px] text-left text-sm">
+              <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-10 text-center text-sm text-neutral-500"
-                  >
-                    No import batches found.
-                  </td>
+                  <th className="px-4 py-3 font-semibold">Import</th>
+                  <th className="px-4 py-3 font-semibold">Camp</th>
+                  <th className="px-4 py-3 font-semibold">Rows</th>
+                  <th className="px-4 py-3 font-semibold">Errors</th>
+                  <th className="px-4 py-3 font-semibold">Created</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3" />
                 </tr>
-              ) : (
-                batches.map((batch) => (
-                  <tr key={batch.id} className="align-top">
+              </thead>
+
+              <tbody className="divide-y divide-neutral-100">
+                {batches.map((batch) => (
+                  <tr
+                    key={batch.id}
+                    className="align-top transition hover:bg-neutral-50/70"
+                  >
                     <td className="px-4 py-4">
-                      <div className="font-medium text-neutral-950">
+                      <div className="font-semibold text-neutral-950">
                         {formatImportType(batch.import_type)}
                       </div>
                       <div className="mt-1 text-xs text-neutral-500">
@@ -161,7 +186,7 @@ export default async function ImportsPage({
                     <td className="px-4 py-4">
                       <span
                         className={[
-                          "rounded-full border px-3 py-1 text-xs font-medium",
+                          "rounded-full border px-3 py-1 text-xs font-semibold",
                           importStatusTone(batch.status),
                         ].join(" ")}
                       >
@@ -172,18 +197,18 @@ export default async function ImportsPage({
                     <td className="px-4 py-4 text-right">
                       <Link
                         href={`/imports/${batch.id}`}
-                        className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-50"
+                        className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:border-sky-200 hover:bg-sky-50"
                       >
                         Review
                       </Link>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

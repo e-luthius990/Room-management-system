@@ -21,12 +21,12 @@ type BadgeProps = {
 };
 
 const toneClasses: Record<Tone, string> = {
-  neutral: "border-border bg-surface-2 text-muted",
-  success: "border-success-600/25 bg-success-50 text-success-700",
-  warning: "border-warning-700/25 bg-warning-50 text-warning-700",
-  danger: "border-danger-600/25 bg-danger-50 text-danger-700",
-  critical: "border-danger-600/35 bg-danger-50 text-danger-700",
-  info: "border-info-600/25 bg-info-50 text-info-700",
+  neutral: "status-muted",
+  success: "status-vacant-ready",
+  warning: "status-reserved",
+  danger: "status-under-maintenance",
+  critical: "status-under-maintenance",
+  info: "status-occupied",
 };
 
 export function SecurityBadge({
@@ -38,13 +38,17 @@ export function SecurityBadge({
   return (
     <span
       title={title}
+      data-security-tone={tone}
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none",
+        "status-indicator status-indicator-compact max-w-full",
         toneClasses[tone],
+        tone === "critical" &&
+          "border-danger-600/40 bg-danger-50 text-danger-700",
         className,
       )}
     >
-      {children}
+      <span className="status-dot shrink-0" aria-hidden="true" />
+      <span className="min-w-0 truncate">{children}</span>
     </span>
   );
 }
@@ -140,9 +144,11 @@ export function ClearanceStatusBadge({
 }: {
   status: string | null;
 }): React.JSX.Element {
+  const label = getClearanceLabel(status);
+
   return (
-    <SecurityBadge tone={getClearanceTone(status)}>
-      {getClearanceLabel(status)}
+    <SecurityBadge tone={getClearanceTone(status)} title={label}>
+      {label}
     </SecurityBadge>
   );
 }
@@ -152,9 +158,11 @@ export function RiskLevelBadge({
 }: {
   riskLevel: string | null;
 }): React.JSX.Element {
+  const label = getRiskLabel(riskLevel);
+
   return (
-    <SecurityBadge tone={getRiskTone(riskLevel)}>
-      {getRiskLabel(riskLevel)}
+    <SecurityBadge tone={getRiskTone(riskLevel)} title={label}>
+      {label}
     </SecurityBadge>
   );
 }
@@ -164,9 +172,11 @@ export function VisitTypeBadge({
 }: {
   visitType: string | null;
 }): React.JSX.Element {
+  const label = getVisitLabel(visitType);
+
   return (
-    <SecurityBadge tone={getVisitTone(visitType)}>
-      {getVisitLabel(visitType)}
+    <SecurityBadge tone={getVisitTone(visitType)} title={label}>
+      {label}
     </SecurityBadge>
   );
 }
@@ -179,12 +189,24 @@ export function PresenceBadge({
   isPendingReception?: boolean;
 }): React.JSX.Element {
   if (isPendingReception) {
-    return <SecurityBadge tone="info">Pending reception</SecurityBadge>;
+    return (
+      <SecurityBadge tone="info" title="Pending reception">
+        Pending reception
+      </SecurityBadge>
+    );
   }
 
   if (isInside) {
-    return <SecurityBadge tone="success">Inside camp</SecurityBadge>;
+    return (
+      <SecurityBadge tone="success" title="Inside camp">
+        Inside camp
+      </SecurityBadge>
+    );
   }
 
-  return <SecurityBadge tone="neutral">Not inside</SecurityBadge>;
+  return (
+    <SecurityBadge tone="neutral" title="Not inside">
+      Not inside
+    </SecurityBadge>
+  );
 }

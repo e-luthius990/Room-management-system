@@ -9,9 +9,16 @@ import type {
 
 type CsvRow = Record<string, unknown>;
 
+type ReportColumn = {
+  key: string;
+  label: string;
+  format?: (value: unknown, row: CsvRow) => string;
+};
+
 type ReportRowsResult = {
+  title: string;
   filenameBase: string;
-  headers: string[];
+  columns: ReportColumn[];
   rows: CsvRow[];
   rowCount: number;
 };
@@ -29,7 +36,17 @@ export type ReportExportFileResult = {
   rowCount: number;
 };
 
+type CampFilterQueryBuilder<TSelf> = {
+  eq(column: string, value: string): TSelf;
+};
+
+type DateRangeFilterQueryBuilder<TSelf> = {
+  gte(column: string, value: string): TSelf;
+  lte(column: string, value: string): TSelf;
+};
+
 type RoomBoardReportRow = {
+  camp_id: string | null;
   camp_name: string | null;
   building_name: string | null;
   room_number: string | null;
@@ -54,31 +71,134 @@ type GuestReportRow = {
   created_at: string | null;
 };
 
-type MaintenanceReportRow = {
-  issue_type: string | null;
-  priority: string | null;
-  status: string | null;
-  is_room_blocking: boolean | null;
-  created_at: string | null;
-  started_at: string | null;
-  resolved_at: string | null;
-  verified_at: string | null;
+type OccupancyReportRow = {
+  camp_id: string | null;
+  camp_name: string | null;
+  total_rooms: number | null;
+  occupied_rooms: number | null;
+  vacant_ready_rooms: number | null;
+  reserved_rooms: number | null;
+  pending_checkout_rooms: number | null;
+  unavailable_rooms: number | null;
+  occupancy_rate: number | string | null;
 };
 
-type TaskReportRow = {
-  task_type: string | null;
-  priority: string | null;
-  status: string | null;
-  created_at: string | null;
-  started_at: string | null;
-  completed_at: string | null;
+type CurrentStayReportRow = {
+  stay_id: string | null;
+  camp_id: string | null;
+  camp_name: string | null;
+  room_id: string | null;
+  room_number: string | null;
+  guest_id: string | null;
+  guest_name: string | null;
+  guest_category: string | null;
+  organization: string | null;
+  is_vip: boolean | null;
+  stay_status: string | null;
+  arrival_time: string | null;
+  expected_departure_at: string | null;
+  security_event_id: string | null;
+  security_entry_at: string | null;
+  security_exit_at: string | null;
+  security_last_seen_at: string | null;
+  security_presence_status: string | null;
+};
+
+type ExitedGuestReportRow = {
+  stay_id: string | null;
+  camp_id: string | null;
+  guest_id: string | null;
+  guest_name: string | null;
+  guest_category: string | null;
+  organization: string | null;
+  room_id: string | null;
+  room_number: string | null;
+  stay_status: string | null;
+  checked_in_at: string | null;
+  checked_out_at: string | null;
+  security_exit_at: string | null;
+  departure_or_exit_time: string | null;
+  exit_source: string | null;
 };
 
 const EXPORT_CONTENT_TYPES: Record<ExportFormat, string> = {
-  csv: "text/csv;charset=utf-8",
+  csv: "text/csv",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   pdf: "application/pdf",
 };
+
+function formatFallbackLabel(value: string): string {
+  return value
+    .replaceAll("_", " ")
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatDateTime(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Kampala",
+  }).format(date);
+}
+
+function formatBoolean(value: unknown): string {
+  return value === true ? "Yes" : "No";
+}
+
+function formatStatus(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return "—";
+  }
+
+  return formatFallbackLabel(value);
+}
+
+function formatPercent(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "0%";
+  }
+
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return `${String(value)}%`;
+  }
+
+  return `${numeric.toFixed(2).replace(/\.00$/, "")}%`;
+}
+
+function formatCellValue(column: ReportColumn, row: CsvRow): string {
+  const value = row[column.key];
+
+  if (column.format) {
+    return column.format(value, row);
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  if (typeof value === "boolean") {
+    return formatBoolean(value);
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
 
 function csvCell(value: unknown): string {
   if (value === null || value === undefined) {
@@ -94,11 +214,11 @@ function csvCell(value: unknown): string {
   return text;
 }
 
-function toCsv(headers: string[], rows: CsvRow[]): string {
+function toCsv(columns: ReportColumn[], rows: CsvRow[]): string {
   const lines = [
-    headers.map(csvCell).join(","),
+    columns.map((column) => csvCell(column.label)).join(","),
     ...rows.map((row) =>
-      headers.map((header) => csvCell(row[header])).join(","),
+      columns.map((column) => csvCell(formatCellValue(column, row))).join(","),
     ),
   ];
 
@@ -111,18 +231,6 @@ function normalizeExportFormat(format: ExportFormat | undefined): ExportFormat {
   }
 
   return "csv";
-}
-
-function formatTitleFromIssueType(issueType: string | null): string {
-  if (!issueType) {
-    return "Maintenance Issue";
-  }
-
-  return issueType
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function reportFilenameBase(reportType: ReportType): string {
@@ -171,11 +279,28 @@ function columnName(index: number): string {
   return name;
 }
 
-function buildSheetXml(headers: string[], rows: CsvRow[]): string {
+function buildSheetXml(columns: ReportColumn[], rows: CsvRow[]): string {
   const matrix = [
-    headers,
-    ...rows.map((row) => headers.map((header) => toText(row[header]))),
+    columns.map((column) => column.label),
+    ...rows.map((row) =>
+      columns.map((column) => formatCellValue(column, row)),
+    ),
   ];
+
+  const columnWidths = columns
+    .map((column, index) => {
+      const contentWidths = rows.map(
+        (row) => formatCellValue(column, row).length + 2,
+      );
+
+      const width = Math.min(
+        Math.max(column.label.length + 4, ...contentWidths, 12),
+        48,
+      );
+
+      return `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`;
+    })
+    .join("");
 
   const sheetRows = matrix
     .map((row, rowIndex) => {
@@ -202,6 +327,7 @@ function buildSheetXml(headers: string[], rows: CsvRow[]): string {
   return [
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+    `<cols>${columnWidths}</cols>`,
     `<sheetData>${sheetRows}</sheetData>`,
     "</worksheet>",
   ].join("");
@@ -296,7 +422,7 @@ function createZip(files: ReadonlyArray<{ name: string; data: Buffer }>): Buffer
   return Buffer.concat([localDirectory, centralDirectory, endRecord]);
 }
 
-function buildXlsx(headers: string[], rows: CsvRow[]): Buffer {
+function buildXlsx(columns: ReportColumn[], rows: CsvRow[]): Buffer {
   const files = [
     {
       name: "[Content_Types].xml",
@@ -340,7 +466,7 @@ function buildXlsx(headers: string[], rows: CsvRow[]): Buffer {
           'xmlns:dcmitype="http://purl.org/dc/dcmitype/" ',
           'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
           "<dc:title>Room Operations Report</dc:title>",
-          "<dc:creator>Room Management System</dc:creator>",
+          "<dc:creator>Room Operations Management System</dc:creator>",
           `<dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>`,
           "</cp:coreProperties>",
         ].join(""),
@@ -354,7 +480,7 @@ function buildXlsx(headers: string[], rows: CsvRow[]): Buffer {
           '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
           '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" ',
           'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">',
-          "<Application>Room Management System</Application>",
+          "<Application>Room Operations Management System</Application>",
           "</Properties>",
         ].join(""),
         "utf8",
@@ -389,7 +515,7 @@ function buildXlsx(headers: string[], rows: CsvRow[]): Buffer {
     },
     {
       name: "xl/worksheets/sheet1.xml",
-      data: Buffer.from(buildSheetXml(headers, rows), "utf8"),
+      data: Buffer.from(buildSheetXml(columns, rows), "utf8"),
     },
   ];
 
@@ -405,7 +531,7 @@ function escapePdfText(value: string): string {
     .trim();
 }
 
-function splitPdfLine(value: string, maxLength = 105): string[] {
+function splitPdfLine(value: string, maxLength = 96): string[] {
   const text = value.trim();
 
   if (text.length <= maxLength) {
@@ -438,29 +564,32 @@ function splitPdfLine(value: string, maxLength = 105): string[] {
 }
 
 function buildPdfLines(
-  filenameBase: string,
-  headers: string[],
+  title: string,
+  columns: ReportColumn[],
   rows: CsvRow[],
 ): string[] {
   const lines = [
-    `Room Management System — ${filenameBase.replaceAll("-", " ")}`,
-    `Generated at: ${new Date().toISOString()}`,
-    `Rows: ${rows.length}`,
+    "Room Operations Management System",
+    title,
+    `Generated: ${formatDateTime(new Date().toISOString())}`,
+    `Total records: ${rows.length}`,
     "",
   ];
 
-  for (const row of rows) {
-    const line = headers
-      .map((header) => `${header}: ${toText(row[header])}`)
-      .join(" | ");
-
-    lines.push(...splitPdfLine(line));
-    lines.push("");
-  }
-
   if (rows.length === 0) {
     lines.push("No records found for the selected filters.");
+    return lines;
   }
+
+  rows.forEach((row, index) => {
+    lines.push(`Record ${index + 1}`);
+
+    for (const column of columns) {
+      lines.push(`${column.label}: ${formatCellValue(column, row)}`);
+    }
+
+    lines.push("");
+  });
 
   return lines;
 }
@@ -480,8 +609,8 @@ function buildPdfPageContent(lines: string[]): Buffer {
   return Buffer.from(content, "utf8");
 }
 
-function buildPdf(filenameBase: string, headers: string[], rows: CsvRow[]): Buffer {
-  const allLines = buildPdfLines(filenameBase, headers, rows);
+function buildPdf(title: string, columns: ReportColumn[], rows: CsvRow[]): Buffer {
+  const allLines = buildPdfLines(title, columns, rows);
   const linesPerPage = 60;
   const pages: string[][] = [];
 
@@ -581,313 +710,463 @@ function buildPdf(filenameBase: string, headers: string[], rows: CsvRow[]): Buff
   return Buffer.concat(chunks);
 }
 
-async function buildReportRows(
+const occupancyColumns: ReportColumn[] = [
+  { key: "camp_name", label: "Camp" },
+  { key: "total_rooms", label: "Total Rooms" },
+  { key: "occupied_rooms", label: "Occupied Rooms" },
+  { key: "vacant_ready_rooms", label: "Vacant Ready Rooms" },
+  { key: "reserved_rooms", label: "Reserved Rooms" },
+  { key: "pending_checkout_rooms", label: "Pending Checkout Rooms" },
+  { key: "unavailable_rooms", label: "Unavailable Rooms" },
+  { key: "occupancy_rate", label: "Occupancy Rate", format: formatPercent },
+];
+
+const roomColumns: ReportColumn[] = [
+  { key: "camp_name", label: "Camp" },
+  { key: "building_name", label: "Building" },
+  { key: "room_number", label: "Room Number" },
+  { key: "room_type", label: "Room Type", format: formatStatus },
+  { key: "current_status", label: "Room Status", format: formatStatus },
+  { key: "condition_status", label: "Condition", format: formatStatus },
+  { key: "capacity", label: "Capacity" },
+  { key: "is_vip", label: "VIP Room", format: formatBoolean },
+  {
+    key: "is_delegate_suitable",
+    label: "Delegate Suitable",
+    format: formatBoolean,
+  },
+  { key: "current_guest_name", label: "Current Guest" },
+  {
+    key: "expected_departure_at",
+    label: "Expected Departure",
+    format: formatDateTime,
+  },
+];
+
+const guestColumns: ReportColumn[] = [
+  { key: "full_name", label: "Guest Name" },
+  { key: "guest_category", label: "Category", format: formatStatus },
+  { key: "organization", label: "Organization" },
+  { key: "nationality", label: "Nationality" },
+  { key: "phone", label: "Phone" },
+  { key: "email", label: "Email" },
+  {
+    key: "security_clearance_status",
+    label: "Security Clearance",
+    format: formatStatus,
+  },
+  { key: "created_at", label: "Created", format: formatDateTime },
+];
+
+const currentStayColumns: ReportColumn[] = [
+  { key: "camp_name", label: "Camp" },
+  { key: "room_number", label: "Room" },
+  { key: "guest_name", label: "Guest" },
+  { key: "guest_category", label: "Category", format: formatStatus },
+  { key: "organization", label: "Organization" },
+  { key: "is_vip", label: "VIP Guest", format: formatBoolean },
+  { key: "stay_status", label: "Stay Status", format: formatStatus },
+  { key: "arrival_time", label: "Arrival Time", format: formatDateTime },
+  {
+    key: "expected_departure_at",
+    label: "Expected Departure",
+    format: formatDateTime,
+  },
+  {
+    key: "security_presence_status",
+    label: "Security Presence",
+    format: formatStatus,
+  },
+  {
+    key: "security_entry_at",
+    label: "Security Entry",
+    format: formatDateTime,
+  },
+  {
+    key: "security_exit_at",
+    label: "Security Exit",
+    format: formatDateTime,
+  },
+  {
+    key: "security_last_seen_at",
+    label: "Last Seen",
+    format: formatDateTime,
+  },
+];
+
+const exitedGuestColumns: ReportColumn[] = [
+  { key: "room_number", label: "Previous Room" },
+  { key: "guest_name", label: "Guest" },
+  { key: "guest_category", label: "Category", format: formatStatus },
+  { key: "organization", label: "Organization" },
+  { key: "stay_status", label: "Stay Status", format: formatStatus },
+  { key: "checked_in_at", label: "Checked In", format: formatDateTime },
+  { key: "checked_out_at", label: "Checked Out", format: formatDateTime },
+  { key: "security_exit_at", label: "Security Exit", format: formatDateTime },
+  {
+    key: "departure_or_exit_time",
+    label: "Departure / Exit Time",
+    format: formatDateTime,
+  },
+  { key: "exit_source", label: "Exit Source", format: formatStatus },
+];
+
+function applyCampFilter<QueryBuilder extends CampFilterQueryBuilder<QueryBuilder>>(
+  query: QueryBuilder,
+  campId: string | null,
+): QueryBuilder {
+  if (!campId) {
+    return query;
+  }
+
+  return query.eq("camp_id", campId);
+}
+
+function applyDateRangeFilter<
+  QueryBuilder extends DateRangeFilterQueryBuilder<QueryBuilder>,
+>(
+  query: QueryBuilder,
+  column: string,
+  dateFrom: string | null,
+  dateTo: string | null,
+): QueryBuilder {
+  let nextQuery = query;
+
+  if (dateFrom) {
+    nextQuery = nextQuery.gte(column, dateFrom);
+  }
+
+  if (dateTo) {
+    nextQuery = nextQuery.lte(column, dateTo);
+  }
+
+  return nextQuery;
+}
+
+async function buildOccupancyReport(
   input: CreateReportExportInput,
 ): Promise<ReportRowsResult> {
   const supabase = await createServerSupabaseClient();
 
-  if (input.reportType === "occupancy" || input.reportType === "rooms") {
-    let query = supabase
-      .from("room_board_view")
-      .select(
-        [
-          "camp_name",
-          "building_name",
-          "room_number",
-          "room_type",
-          "current_status",
-          "condition_status",
-          "capacity",
-          "is_vip",
-          "is_delegate_suitable",
-          "current_guest_name",
-          "expected_departure_at",
-        ].join(","),
-      )
-      .order("camp_name", { ascending: true })
-      .order("building_name", { ascending: true })
-      .order("room_number", { ascending: true });
-
-    if (input.campId) {
-      query = query.eq("camp_id", input.campId);
-    }
-
-    const { data, error } = await query.returns<RoomBoardReportRow[]>();
-
-    if (error) {
-      throw new Error(`Failed to build room report: ${error.message}`);
-    }
-
-    const rows: CsvRow[] = (data ?? []).map((room) => ({
-      camp_name: room.camp_name,
-      building_name: room.building_name,
-      room_number: room.room_number,
-      room_type: room.room_type,
-      current_status: room.current_status,
-      condition_status: room.condition_status,
-      capacity: room.capacity ?? 0,
-      is_vip: room.is_vip ?? false,
-      is_delegate_suitable: room.is_delegate_suitable ?? false,
-      current_guest_name: room.current_guest_name,
-      expected_departure_at: room.expected_departure_at,
-    }));
-
-    const headers = [
-      "camp_name",
-      "building_name",
-      "room_number",
-      "room_type",
-      "current_status",
-      "condition_status",
-      "capacity",
-      "is_vip",
-      "is_delegate_suitable",
-      "current_guest_name",
-      "expected_departure_at",
-    ];
-
-    return {
-      filenameBase: reportFilenameBase(input.reportType),
-      headers,
-      rows,
-      rowCount: rows.length,
-    };
-  }
-
-  if (input.reportType === "guests") {
-    let query = supabase
-      .from("guests")
-      .select(
-        [
-          "full_name",
-          "guest_category",
-          "organization",
-          "nationality",
-          "phone",
-          "email",
-          "security_clearance_status",
-          "created_at",
-        ].join(","),
-      )
-      .is("archived_at", null)
-      .order("created_at", { ascending: false });
-
-    if (input.campId) {
-      query = query.eq("primary_camp_id", input.campId);
-    }
-
-    if (input.dateFrom) {
-      query = query.gte("created_at", input.dateFrom);
-    }
-
-    if (input.dateTo) {
-      query = query.lte("created_at", input.dateTo);
-    }
-
-    const { data, error } = await query.returns<GuestReportRow[]>();
-
-    if (error) {
-      throw new Error(`Failed to build guests report: ${error.message}`);
-    }
-
-    const headers = [
-      "full_name",
-      "guest_category",
-      "organization",
-      "nationality",
-      "phone",
-      "email",
-      "security_clearance_status",
-      "created_at",
-    ];
-
-    const rows: CsvRow[] = (data ?? []).map((guest) => ({
-      full_name: guest.full_name,
-      guest_category: guest.guest_category,
-      organization: guest.organization,
-      nationality: guest.nationality,
-      phone: guest.phone,
-      email: guest.email,
-      security_clearance_status: guest.security_clearance_status,
-      created_at: guest.created_at,
-    }));
-
-    return {
-      filenameBase: reportFilenameBase(input.reportType),
-      headers,
-      rows,
-      rowCount: rows.length,
-    };
-  }
-
-  if (input.reportType === "maintenance") {
-    let query = supabase
-      .from("maintenance_tickets")
-      .select(
-        [
-          "issue_type",
-          "priority",
-          "status",
-          "is_room_blocking",
-          "created_at",
-          "started_at",
-          "resolved_at",
-          "verified_at",
-        ].join(","),
-      )
-      .order("created_at", { ascending: false });
-
-    if (input.campId) {
-      query = query.eq("camp_id", input.campId);
-    }
-
-    if (input.dateFrom) {
-      query = query.gte("created_at", input.dateFrom);
-    }
-
-    if (input.dateTo) {
-      query = query.lte("created_at", input.dateTo);
-    }
-
-    const { data, error } = await query.returns<MaintenanceReportRow[]>();
-
-    if (error) {
-      throw new Error(`Failed to build maintenance report: ${error.message}`);
-    }
-
-    const rows: CsvRow[] = (data ?? []).map((ticket) => ({
-      title: formatTitleFromIssueType(ticket.issue_type),
-      issue_type: ticket.issue_type,
-      severity: ticket.priority,
-      priority: ticket.priority,
-      status: ticket.status,
-      blocks_room: ticket.is_room_blocking ?? false,
-      is_room_blocking: ticket.is_room_blocking ?? false,
-      created_at: ticket.created_at,
-      started_at: ticket.started_at,
-      resolved_at: ticket.resolved_at,
-      verified_at: ticket.verified_at,
-    }));
-
-    const headers = [
-      "title",
-      "issue_type",
-      "severity",
-      "priority",
-      "status",
-      "blocks_room",
-      "is_room_blocking",
-      "created_at",
-      "started_at",
-      "resolved_at",
-      "verified_at",
-    ];
-
-    return {
-      filenameBase: reportFilenameBase(input.reportType),
-      headers,
-      rows,
-      rowCount: rows.length,
-    };
-  }
-
-  if (input.reportType === "housekeeping") {
-    let query = supabase
-      .from("housekeeping_tasks")
-      .select("task_type,priority,status,created_at,started_at,completed_at")
-      .order("created_at", { ascending: false });
-
-    if (input.campId) {
-      query = query.eq("camp_id", input.campId);
-    }
-
-    if (input.dateFrom) {
-      query = query.gte("created_at", input.dateFrom);
-    }
-
-    if (input.dateTo) {
-      query = query.lte("created_at", input.dateTo);
-    }
-
-    const { data, error } = await query.returns<TaskReportRow[]>();
-
-    if (error) {
-      throw new Error(`Failed to build housekeeping report: ${error.message}`);
-    }
-
-    const headers = [
-      "task_type",
-      "priority",
-      "status",
-      "created_at",
-      "started_at",
-      "completed_at",
-    ];
-
-    const rows: CsvRow[] = (data ?? []).map((task) => ({
-      task_type: task.task_type,
-      priority: task.priority,
-      status: task.status,
-      created_at: task.created_at,
-      started_at: task.started_at,
-      completed_at: task.completed_at,
-    }));
-
-    return {
-      filenameBase: reportFilenameBase(input.reportType),
-      headers,
-      rows,
-      rowCount: rows.length,
-    };
-  }
-
   let query = supabase
-    .from("room_service_tasks")
-    .select("task_type,priority,status,created_at,started_at,completed_at")
-    .order("created_at", { ascending: false });
+    .from("current_occupancy_view")
+    .select(
+      [
+        "camp_id",
+        "camp_name",
+        "total_rooms",
+        "occupied_rooms",
+        "vacant_ready_rooms",
+        "reserved_rooms",
+        "pending_checkout_rooms",
+        "unavailable_rooms",
+        "occupancy_rate",
+      ].join(","),
+    )
+    .order("camp_name", { ascending: true });
 
-  if (input.campId) {
-    query = query.eq("camp_id", input.campId);
-  }
+  query = applyCampFilter(query, input.campId);
 
-  if (input.dateFrom) {
-    query = query.gte("created_at", input.dateFrom);
-  }
-
-  if (input.dateTo) {
-    query = query.lte("created_at", input.dateTo);
-  }
-
-  const { data, error } = await query.returns<TaskReportRow[]>();
+  const { data, error } = await query.returns<OccupancyReportRow[]>();
 
   if (error) {
-    throw new Error(`Failed to build room service report: ${error.message}`);
+    throw new Error(`Failed to build occupancy report: ${error.message}`);
   }
 
-  const headers = [
-    "task_type",
-    "priority",
-    "status",
-    "created_at",
-    "started_at",
-    "completed_at",
-  ];
-
-  const rows: CsvRow[] = (data ?? []).map((task) => ({
-    task_type: task.task_type,
-    priority: task.priority,
-    status: task.status,
-    created_at: task.created_at,
-    started_at: task.started_at,
-    completed_at: task.completed_at,
+  const rows: CsvRow[] = (data ?? []).map((row) => ({
+    camp_name: row.camp_name,
+    total_rooms: row.total_rooms ?? 0,
+    occupied_rooms: row.occupied_rooms ?? 0,
+    vacant_ready_rooms: row.vacant_ready_rooms ?? 0,
+    reserved_rooms: row.reserved_rooms ?? 0,
+    pending_checkout_rooms: row.pending_checkout_rooms ?? 0,
+    unavailable_rooms: row.unavailable_rooms ?? 0,
+    occupancy_rate: row.occupancy_rate ?? 0,
   }));
 
   return {
+    title: "Occupancy Report",
     filenameBase: reportFilenameBase(input.reportType),
-    headers,
+    columns: occupancyColumns,
     rows,
     rowCount: rows.length,
   };
+}
+
+async function buildRoomsReport(
+  input: CreateReportExportInput,
+): Promise<ReportRowsResult> {
+  const supabase = await createServerSupabaseClient();
+
+  let query = supabase
+    .from("room_board_view")
+    .select(
+      [
+        "camp_id",
+        "camp_name",
+        "building_name",
+        "room_number",
+        "room_type",
+        "current_status",
+        "condition_status",
+        "capacity",
+        "is_vip",
+        "is_delegate_suitable",
+        "current_guest_name",
+        "expected_departure_at",
+      ].join(","),
+    )
+    .order("camp_name", { ascending: true })
+    .order("building_name", { ascending: true })
+    .order("room_number", { ascending: true });
+
+  query = applyCampFilter(query, input.campId);
+
+  const { data, error } = await query.returns<RoomBoardReportRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to build rooms report: ${error.message}`);
+  }
+
+  const rows: CsvRow[] = (data ?? []).map((room) => ({
+    camp_name: room.camp_name,
+    building_name: room.building_name,
+    room_number: room.room_number,
+    room_type: room.room_type,
+    current_status: room.current_status,
+    condition_status: room.condition_status,
+    capacity: room.capacity ?? 0,
+    is_vip: room.is_vip ?? false,
+    is_delegate_suitable: room.is_delegate_suitable ?? false,
+    current_guest_name: room.current_guest_name,
+    expected_departure_at: room.expected_departure_at,
+  }));
+
+  return {
+    title: "Rooms Report",
+    filenameBase: reportFilenameBase(input.reportType),
+    columns: roomColumns,
+    rows,
+    rowCount: rows.length,
+  };
+}
+
+async function buildGuestsReport(
+  input: CreateReportExportInput,
+): Promise<ReportRowsResult> {
+  const supabase = await createServerSupabaseClient();
+
+  let query = supabase
+    .from("guests")
+    .select(
+      [
+        "full_name",
+        "guest_category",
+        "organization",
+        "nationality",
+        "phone",
+        "email",
+        "security_clearance_status",
+        "created_at",
+      ].join(","),
+    )
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+
+  if (input.campId) {
+    query = query.eq("primary_camp_id", input.campId);
+  }
+
+  query = applyDateRangeFilter(
+    query,
+    "created_at",
+    input.dateFrom,
+    input.dateTo,
+  );
+
+  const { data, error } = await query.returns<GuestReportRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to build guests report: ${error.message}`);
+  }
+
+  const rows: CsvRow[] = (data ?? []).map((guest) => ({
+    full_name: guest.full_name,
+    guest_category: guest.guest_category,
+    organization: guest.organization,
+    nationality: guest.nationality,
+    phone: guest.phone,
+    email: guest.email,
+    security_clearance_status: guest.security_clearance_status,
+    created_at: guest.created_at,
+  }));
+
+  return {
+    title: "Guests Report",
+    filenameBase: reportFilenameBase(input.reportType),
+    columns: guestColumns,
+    rows,
+    rowCount: rows.length,
+  };
+}
+
+async function buildCurrentStaysReport(
+  input: CreateReportExportInput,
+): Promise<ReportRowsResult> {
+  const supabase = await createServerSupabaseClient();
+
+  let query = supabase
+    .from("manager_current_guests_view")
+    .select(
+      [
+        "stay_id",
+        "camp_id",
+        "camp_name",
+        "room_number",
+        "guest_id",
+        "guest_name",
+        "guest_category",
+        "organization",
+        "is_vip",
+        "stay_status",
+        "arrival_time",
+        "expected_departure_at",
+        "security_presence_status",
+        "security_entry_at",
+        "security_exit_at",
+        "security_last_seen_at",
+      ].join(","),
+    )
+    .order("arrival_time", { ascending: false, nullsFirst: false });
+
+  query = applyCampFilter(query, input.campId);
+  query = applyDateRangeFilter(
+    query,
+    "arrival_time",
+    input.dateFrom,
+    input.dateTo,
+  );
+
+  const { data, error } = await query.returns<CurrentStayReportRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to build current stays report: ${error.message}`);
+  }
+
+  const rows: CsvRow[] = (data ?? []).map((stay) => ({
+    camp_name: stay.camp_name,
+    room_number: stay.room_number,
+    guest_name: stay.guest_name,
+    guest_category: stay.guest_category,
+    organization: stay.organization,
+    is_vip: stay.is_vip ?? false,
+    stay_status: stay.stay_status,
+    arrival_time: stay.arrival_time,
+    expected_departure_at: stay.expected_departure_at,
+    security_presence_status: stay.security_presence_status,
+    security_entry_at: stay.security_entry_at,
+    security_exit_at: stay.security_exit_at,
+    security_last_seen_at: stay.security_last_seen_at,
+  }));
+
+  return {
+    title: "Current Stays Report",
+    filenameBase: reportFilenameBase(input.reportType),
+    columns: currentStayColumns,
+    rows,
+    rowCount: rows.length,
+  };
+}
+
+async function buildExitedGuestsReport(
+  input: CreateReportExportInput,
+): Promise<ReportRowsResult> {
+  const supabase = await createServerSupabaseClient();
+
+  let query = supabase
+    .from("manager_exited_guests_view")
+    .select(
+      [
+        "stay_id",
+        "camp_id",
+        "guest_id",
+        "guest_name",
+        "guest_category",
+        "organization",
+        "room_number",
+        "stay_status",
+        "checked_in_at",
+        "checked_out_at",
+        "security_exit_at",
+        "departure_or_exit_time",
+        "exit_source",
+      ].join(","),
+    )
+    .order("departure_or_exit_time", {
+      ascending: false,
+      nullsFirst: false,
+    });
+
+  query = applyCampFilter(query, input.campId);
+  query = applyDateRangeFilter(
+    query,
+    "departure_or_exit_time",
+    input.dateFrom,
+    input.dateTo,
+  );
+
+  const { data, error } = await query.returns<ExitedGuestReportRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to build exited guests report: ${error.message}`);
+  }
+
+  const rows: CsvRow[] = (data ?? []).map((guest) => ({
+    room_number: guest.room_number,
+    guest_name: guest.guest_name,
+    guest_category: guest.guest_category,
+    organization: guest.organization,
+    stay_status: guest.stay_status,
+    checked_in_at: guest.checked_in_at,
+    checked_out_at: guest.checked_out_at,
+    security_exit_at: guest.security_exit_at,
+    departure_or_exit_time: guest.departure_or_exit_time,
+    exit_source: guest.exit_source,
+  }));
+
+  return {
+    title: "Exited Guests Report",
+    filenameBase: reportFilenameBase(input.reportType),
+    columns: exitedGuestColumns,
+    rows,
+    rowCount: rows.length,
+  };
+}
+
+async function buildReportRows(
+  input: CreateReportExportInput,
+): Promise<ReportRowsResult> {
+  switch (input.reportType) {
+    case "occupancy":
+      return buildOccupancyReport(input);
+
+    case "rooms":
+      return buildRoomsReport(input);
+
+    case "guests":
+      return buildGuestsReport(input);
+
+    case "current_stays":
+      return buildCurrentStaysReport(input);
+
+    case "exited_guests":
+      return buildExitedGuestsReport(input);
+
+    default: {
+      const exhaustiveCheck: never = input.reportType;
+      throw new Error(`Unsupported report type: ${String(exhaustiveCheck)}`);
+    }
+  }
 }
 
 export async function buildReportExportCsv(
@@ -897,7 +1176,7 @@ export async function buildReportExportCsv(
 
   return {
     filename: reportFilename(input.reportType, "csv"),
-    csv: toCsv(report.headers, report.rows),
+    csv: toCsv(report.columns, report.rows),
     rowCount: report.rowCount,
   };
 }
@@ -909,19 +1188,19 @@ export async function buildReportExportFile(
   const report = await buildReportRows(input);
 
   if (format === "csv") {
-    return {
-      filename: reportFilename(input.reportType, format),
-      contentType: EXPORT_CONTENT_TYPES[format],
-      body: Buffer.from(toCsv(report.headers, report.rows), "utf8"),
-      rowCount: report.rowCount,
-    };
-  }
+  return {
+    filename: reportFilename(input.reportType, format),
+    contentType: EXPORT_CONTENT_TYPES[format],
+    body: Buffer.from(`\uFEFF${toCsv(report.columns, report.rows)}`, "utf8"),
+    rowCount: report.rowCount,
+  };
+}
 
   if (format === "xlsx") {
     return {
       filename: reportFilename(input.reportType, format),
       contentType: EXPORT_CONTENT_TYPES[format],
-      body: buildXlsx(report.headers, report.rows),
+      body: buildXlsx(report.columns, report.rows),
       rowCount: report.rowCount,
     };
   }
@@ -929,7 +1208,7 @@ export async function buildReportExportFile(
   return {
     filename: reportFilename(input.reportType, format),
     contentType: EXPORT_CONTENT_TYPES[format],
-    body: buildPdf(report.filenameBase, report.headers, report.rows),
+    body: buildPdf(report.title, report.columns, report.rows),
     rowCount: report.rowCount,
   };
 }

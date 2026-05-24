@@ -8,6 +8,7 @@ import type { RoomBoardItem } from "@/lib/queries/room-board/get-room-board";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { cn } from "@/lib/utils/cn";
 
 type RoomBoardFiltersProps = {
   rooms: RoomBoardItem[];
@@ -72,6 +73,18 @@ function uniqueOptions(
   );
 }
 
+function formatActiveFilterCount(count: number): string {
+  if (count === 0) {
+    return "No filters";
+  }
+
+  if (count === 1) {
+    return "1 filter";
+  }
+
+  return `${count} filters`;
+}
+
 export function RoomBoardFilters({
   rooms,
   selectedCamp,
@@ -107,11 +120,14 @@ export function RoomBoardFilters({
     );
   }, [rooms, selectedCamp]);
 
-  const hasActiveFilters =
-    search.trim().length > 0 ||
-    selectedCamp !== ALL_VALUE ||
-    selectedBuilding !== ALL_VALUE ||
-    selectedStatus !== ALL_VALUE;
+  const activeFilterCount = [
+    search.trim().length > 0,
+    selectedCamp !== ALL_VALUE,
+    selectedBuilding !== ALL_VALUE,
+    selectedStatus !== ALL_VALUE,
+  ].filter(Boolean).length;
+
+  const hasActiveFilters = activeFilterCount > 0;
 
   function handleCampChange(value: string): void {
     onCampChange(value);
@@ -134,90 +150,89 @@ export function RoomBoardFilters({
       className="ops-command"
       aria-label="Room board filters"
       aria-busy={loading || undefined}
+      data-active-filters={hasActiveFilters ? "true" : undefined}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal
-              className="size-4 text-muted"
-              aria-hidden="true"
-            />
-            <h2 className="text-sm font-semibold text-foreground">
-              Room board controls
-            </h2>
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(18rem,1.45fr)_11rem_11rem_12rem]">
+          <Input
+            aria-label="Search rooms"
+            id="room-board-search"
+            value={search}
+            disabled={loading}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search room, guest, building, camp, type..."
+            autoComplete="off"
+            leftIcon={<Search className="size-4" aria-hidden="true" />}
+            wrapperClassName="min-w-0"
+          />
+
+          <Select
+            aria-label="Filter by camp"
+            id="room-board-camp"
+            value={selectedCamp}
+            disabled={loading}
+            onChange={(event) => handleCampChange(event.target.value)}
+            options={[
+              { value: ALL_VALUE, label: "All camps" },
+              ...campOptions.map((camp) => ({
+                value: camp.id,
+                label: camp.label,
+              })),
+            ]}
+          />
+
+          <Select
+            aria-label="Filter by building"
+            id="room-board-building"
+            value={selectedBuilding}
+            disabled={loading || buildingOptions.length === 0}
+            onChange={(event) => onBuildingChange(event.target.value)}
+            options={[
+              { value: ALL_VALUE, label: "All buildings" },
+              ...buildingOptions.map((building) => ({
+                value: building.id,
+                label: building.label,
+              })),
+            ]}
+          />
+
+          <Select
+            aria-label="Filter by room status"
+            id="room-board-status"
+            value={selectedStatus}
+            disabled={loading}
+            onChange={(event) => onStatusChange(event.target.value)}
+            options={statusOptions}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-2 xl:justify-end">
+          <div
+            className={cn(
+              "inline-flex min-h-9 items-center gap-2 border px-3 text-xs font-bold uppercase tracking-[0.12em]",
+              "rounded-md",
+              hasActiveFilters
+                ? "border-brand-600/25 bg-brand-50 text-brand-700"
+                : "border-border bg-surface-2 text-muted",
+            )}
+          >
+            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+            <span>{formatActiveFilterCount(activeFilterCount)}</span>
           </div>
 
-          <p className="mt-1 text-xs leading-5 text-muted">
-            Filter by camp, building, status, or search by room, guest, type, or
-            location.
-          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters || loading}
+            loading={loading}
+            loadingText="Updating"
+            leftIcon={<RotateCcw className="size-4" aria-hidden="true" />}
+            className="whitespace-nowrap"
+          >
+            Clear
+          </Button>
         </div>
-      </div>
-
-      <div className="ops-command-inner">
-        <Input
-          aria-label="Search rooms"
-          id="room-board-search"
-          value={search}
-          disabled={loading}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search room, guest, building, camp, type..."
-          autoComplete="off"
-          leftIcon={<Search className="size-4" aria-hidden="true" />}
-          wrapperClassName="min-w-0"
-        />
-
-        <Select
-          aria-label="Filter by camp"
-          id="room-board-camp"
-          value={selectedCamp}
-          disabled={loading}
-          onChange={(event) => handleCampChange(event.target.value)}
-          options={[
-            { value: ALL_VALUE, label: "All camps" },
-            ...campOptions.map((camp) => ({
-              value: camp.id,
-              label: camp.label,
-            })),
-          ]}
-        />
-
-        <Select
-          aria-label="Filter by building"
-          id="room-board-building"
-          value={selectedBuilding}
-          disabled={loading || buildingOptions.length === 0}
-          onChange={(event) => onBuildingChange(event.target.value)}
-          options={[
-            { value: ALL_VALUE, label: "All buildings" },
-            ...buildingOptions.map((building) => ({
-              value: building.id,
-              label: building.label,
-            })),
-          ]}
-        />
-
-        <Select
-          aria-label="Filter by room status"
-          id="room-board-status"
-          value={selectedStatus}
-          disabled={loading}
-          onChange={(event) => onStatusChange(event.target.value)}
-          options={statusOptions}
-        />
-
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={clearFilters}
-          disabled={!hasActiveFilters || loading}
-          loading={loading}
-          loadingText="Updating"
-          leftIcon={<RotateCcw className="size-4" aria-hidden="true" />}
-          className="whitespace-nowrap"
-        >
-          Clear
-        </Button>
       </div>
     </section>
   );

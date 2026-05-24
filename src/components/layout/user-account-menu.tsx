@@ -47,7 +47,11 @@ function SignOutButton(): JSX.Element {
       type="submit"
       disabled={pending}
       aria-busy={pending || undefined}
-      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-danger-700 outline-none transition hover:bg-danger-50 focus-visible:ring-2 focus-visible:ring-danger-600/25 disabled:pointer-events-none disabled:opacity-60"
+      className={cn(
+        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-danger-700 outline-none transition",
+        "rounded-md hover:bg-danger-50 focus-visible:ring-2 focus-visible:ring-danger-600/25",
+        "disabled:pointer-events-none disabled:opacity-60",
+      )}
     >
       {pending ? (
         <span className="inline-spinner size-4 shrink-0" aria-hidden="true" />
@@ -132,13 +136,16 @@ export function UserAccountMenu({
         ref={buttonRef}
         type="button"
         aria-label={open ? "Close account menu" : "Open account menu"}
-        aria-haspopup="dialog"
+        aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={toggleMenu}
-        className="flex min-h-10 cursor-pointer items-center gap-2 rounded-2xl border border-topbar-border bg-surface/65 px-2 py-1.5 shadow-xs backdrop-blur-xl outline-none transition hover:bg-surface focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        className={cn(
+          "flex min-h-10 cursor-pointer items-center gap-2 border border-topbar-border bg-surface/65 px-2 py-1.5 shadow-xs backdrop-blur-xl outline-none transition",
+          "rounded-md hover:bg-surface focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+        )}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-xs font-bold tracking-[-0.02em] text-white shadow-xs">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-brand-700 text-xs font-bold tracking-[-0.02em] text-white shadow-xs">
           {initials}
         </span>
 
@@ -162,11 +169,12 @@ export function UserAccountMenu({
       {open ? (
         <div
           id={panelId}
+          role="menu"
           className="dropdown-panel absolute right-0 z-[80] mt-2 w-72 overflow-hidden p-0"
         >
           <div className="border-b border-border bg-surface-2 px-4 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-700 text-sm font-bold text-white shadow-xs">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-brand-700 text-sm font-bold text-white shadow-xs">
                 {initials}
               </div>
 
@@ -187,7 +195,7 @@ export function UserAccountMenu({
               </div>
             </div>
 
-            <div className="mt-4 inline-flex max-w-full rounded-full border border-brand-600/20 bg-brand-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-brand-700">
+            <div className="mt-4 inline-flex max-w-full rounded-sm border border-brand-600/20 bg-brand-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-brand-700">
               <span className="truncate" title={displayRoleName}>
                 {displayRoleName}
               </span>
@@ -197,6 +205,7 @@ export function UserAccountMenu({
           <div className="p-2">
             <Link
               href={profileHref}
+              role="menuitem"
               className="dropdown-item"
               onClick={closeMenu}
             >
@@ -206,6 +215,7 @@ export function UserAccountMenu({
 
             <Link
               href={settingsHref}
+              role="menuitem"
               className="dropdown-item"
               onClick={closeMenu}
             >

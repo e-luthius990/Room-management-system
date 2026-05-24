@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+
 import { requirePermission } from "@/lib/auth/require-permission";
-import { PageHeader } from "@/components/layout/page-header";
+import { APP_ROUTES } from "@/lib/auth/routes";
 import { getReservationDetail } from "@/lib/queries/reservations/get-reservation-detail";
 import {
   cancelReservationAction,
@@ -27,8 +29,10 @@ type ReservationDetailPageProps = {
   }>;
 };
 
-function formatDateTime(value: string | null): string {
-  if (!value) return "—";
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) {
+    return "—";
+  }
 
   const date = new Date(value);
 
@@ -39,10 +43,11 @@ function formatDateTime(value: string | null): string {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Africa/Kampala",
   }).format(date);
 }
 
-function formatLabel(value: string | null): string {
+function formatLabel(value: string | null | undefined): string {
   if (!value) {
     return "—";
   }
@@ -50,6 +55,8 @@ function formatLabel(value: string | null): string {
   return value
     .replaceAll("_", " ")
     .replaceAll("-", " ")
+    .replace(/\s+/g, " ")
+    .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
@@ -89,7 +96,9 @@ function canCheckInReservation(status: string): boolean {
 }
 
 function getErrorMessage(error?: string): string | null {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
 
   const messages: Record<string, string> = {
     invalid_input: "Check the form and try again.",
@@ -107,10 +116,11 @@ function getErrorMessage(error?: string): string | null {
 }
 
 function getSuccessMessage(success?: string): string | null {
-  if (!success) return null;
+  if (!success) {
+    return null;
+  }
 
   const messages: Record<string, string> = {
-    reservation_created: "Reservation created successfully.",
     reservation_cancelled: "Reservation cancelled successfully.",
     reservation_no_show: "Reservation marked as no-show.",
     reservation_checked_in: "Reservation checked in successfully.",
@@ -120,22 +130,21 @@ function getSuccessMessage(success?: string): string | null {
   return messages[success] ?? null;
 }
 
-function DetailItem({
+function InfoRow({
   label,
-  children,
-  wide = false,
+  value,
 }: {
   label: string;
-  children: React.ReactNode;
-  wide?: boolean;
+  value: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className={wide ? "md:col-span-2" : undefined}>
-      <dt className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+    <div className="grid gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[10rem_minmax(0,1fr)]">
+      <dt className="text-[10px] font-bold uppercase tracking-[0.13em] text-muted">
         {label}
       </dt>
-      <dd className="mt-1 text-sm font-medium leading-6 text-foreground">
-        {children}
+
+      <dd className="min-w-0 text-sm font-semibold leading-6 text-foreground">
+        {value}
       </dd>
     </div>
   );
@@ -152,6 +161,10 @@ export default async function ReservationDetailPage({
 
   const reservation = await getReservationDetail(reservationId);
 
+  if (!reservation) {
+    notFound();
+  }
+
   const errorMessage = getErrorMessage(query?.error);
   const successMessage = getSuccessMessage(query?.success);
 
@@ -162,15 +175,39 @@ export default async function ReservationDetailPage({
 
   return (
     <div className="page-stack">
-      <PageHeader
-        title={`Reservation · Room ${reservation.room_number}`}
-        description="Reservation details, expected arrival and departure, room hold status, check-in, cancellation, and no-show controls."
-        actions={
-          <Link href="/reservations" className="btn-secondary">
+      <section className="surface-panel overflow-hidden">
+        <div className="grid gap-5 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+          <div className="min-w-0">
+            <div className="page-kicker">Reception reservation detail</div>
+
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                  Room
+                </div>
+
+                <h1 className="mt-1 text-4xl font-semibold leading-none tracking-[-0.065em] text-foreground sm:text-5xl">
+                  {reservation.room_number}
+                </h1>
+              </div>
+
+              <div className="min-w-0 pb-1">
+                <div className="truncate text-lg font-semibold tracking-[-0.03em] text-foreground">
+                  {reservation.guest_name ?? "Guest not assigned"}
+                </div>
+
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  {reservation.building_name} · {reservation.camp_name}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Link href={APP_ROUTES.reservations.list} className="btn-secondary">
             Back to reservations
           </Link>
-        }
-      />
+        </div>
+      </section>
 
       {errorMessage ? (
         <div className="alert alert-danger">{errorMessage}</div>
@@ -180,80 +217,132 @@ export default async function ReservationDetailPage({
         <div className="alert alert-success">{successMessage}</div>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <Card variant="card">
-          <CardHeader>
-            <CardTitle>Reservation details</CardTitle>
-            <CardDescription>
-              Guest, room, schedule, and reservation status.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent>
-            <dl className="grid gap-5 md:grid-cols-2">
-              <DetailItem label="Guest">
-                {reservation.guest_name ?? "Guest not assigned"}
-              </DetailItem>
-
-              <DetailItem label="Guest category">
-                {formatLabel(reservation.guest_category)}
-              </DetailItem>
-
-              <DetailItem label="Camp">{reservation.camp_name}</DetailItem>
-
-              <DetailItem label="Room">
-                {reservation.building_name} / Room {reservation.room_number}
-              </DetailItem>
-
-              <DetailItem label="Expected arrival">
-                {formatDateTime(reservation.expected_arrival_at)}
-              </DetailItem>
-
-              <DetailItem label="Expected departure">
-                {formatDateTime(reservation.expected_departure_at)}
-              </DetailItem>
-
-              <DetailItem label="Status">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <main className="min-w-0 space-y-4">
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="metadata-item">
+              <div className="metadata-label">Status</div>
+              <div className="metadata-value">
                 <StatusIndicator
+                  compact
                   label={formatLabel(reservation.status)}
                   statusClassName={reservationStatusClass(reservation.status)}
                 />
-              </DetailItem>
+              </div>
+            </div>
 
-              <DetailItem label="VIP hold">
+            <div className="metadata-item">
+              <div className="metadata-label">Arrival</div>
+              <div className="metadata-value">
+                {formatDateTime(reservation.expected_arrival_at)}
+              </div>
+            </div>
+
+            <div className="metadata-item">
+              <div className="metadata-label">Departure</div>
+              <div className="metadata-value">
+                {formatDateTime(reservation.expected_departure_at)}
+              </div>
+            </div>
+
+            <div className="metadata-item">
+              <div className="metadata-label">VIP hold</div>
+              <div className="metadata-value">
                 {reservation.is_vip_hold ? "Yes" : "No"}
-              </DetailItem>
+              </div>
+            </div>
+          </section>
 
-              {reservation.group_id ? (
-                <DetailItem label="Group">Group reservation</DetailItem>
-              ) : null}
-
-              <DetailItem label="Notes" wide>
-                <span className="whitespace-pre-wrap text-foreground-soft">
-                  {reservation.notes ?? "No notes."}
-                </span>
-              </DetailItem>
-
-              <DetailItem label="Created">
-                {formatDateTime(reservation.created_at)}
-              </DetailItem>
-            </dl>
-          </CardContent>
-        </Card>
-
-        <aside className="space-y-5">
-          <Card variant="card">
-            <CardHeader>
-              <CardTitle>Workflow actions</CardTitle>
-              <CardDescription>
-                Actions available for the current reservation status.
+          <Card variant="console">
+            <CardHeader dense>
+              <CardTitle className="text-sm">Reservation record</CardTitle>
+              <CardDescription className="text-xs leading-5">
+                Guest, room, schedule, and reservation notes.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-5">
+            <CardContent dense>
+              <dl className="divide-y divide-border">
+                <InfoRow
+                  label="Guest"
+                  value={reservation.guest_name ?? "Guest not assigned"}
+                />
+
+                <InfoRow
+                  label="Guest category"
+                  value={formatLabel(reservation.guest_category)}
+                />
+
+                <InfoRow label="Camp" value={reservation.camp_name} />
+
+                <InfoRow
+                  label="Room"
+                  value={`${reservation.building_name} / Room ${reservation.room_number}`}
+                />
+
+                <InfoRow
+                  label="Expected arrival"
+                  value={formatDateTime(reservation.expected_arrival_at)}
+                />
+
+                <InfoRow
+                  label="Expected departure"
+                  value={formatDateTime(reservation.expected_departure_at)}
+                />
+
+                <InfoRow
+                  label="Status"
+                  value={
+                    <StatusIndicator
+                      compact
+                      label={formatLabel(reservation.status)}
+                      statusClassName={reservationStatusClass(
+                        reservation.status,
+                      )}
+                    />
+                  }
+                />
+
+                <InfoRow
+                  label="VIP hold"
+                  value={reservation.is_vip_hold ? "Yes" : "No"}
+                />
+
+                {reservation.group_id ? (
+                  <InfoRow label="Group" value="Group reservation" />
+                ) : null}
+
+                <InfoRow
+                  label="Notes"
+                  value={
+                    <span className="whitespace-pre-wrap text-foreground-soft">
+                      {reservation.notes ?? "No notes."}
+                    </span>
+                  }
+                />
+
+                <InfoRow
+                  label="Created"
+                  value={formatDateTime(reservation.created_at)}
+                />
+              </dl>
+            </CardContent>
+          </Card>
+        </main>
+
+        <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
+          <Card variant="inspector">
+            <CardHeader dense>
+              <CardTitle className="text-sm">Reservation actions</CardTitle>
+              <CardDescription className="text-xs leading-5">
+                Available workflow actions for this room hold.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent dense className="space-y-4">
               {checkInAllowed ? (
-                <div className="rounded-2xl border border-border bg-surface-2 p-4">
-                  <div className="mb-4 text-sm font-semibold text-foreground">
+                <div className="border border-border bg-surface-2 p-3">
+                  <div className="mb-3 text-sm font-semibold text-foreground">
                     Check in this reservation
                   </div>
 
@@ -334,7 +423,7 @@ export default async function ReservationDetailPage({
             </div>
           ) : null}
         </aside>
-      </div>
+      </section>
     </div>
   );
 }

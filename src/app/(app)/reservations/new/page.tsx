@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth/require-permission";
-import { PageHeader } from "@/components/layout/page-header";
+import { APP_ROUTES } from "@/lib/auth/routes";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import {
   getReservationGuestOptions,
   getReservationRoomOptions,
 } from "@/lib/queries/reservations/options";
-import { Card, CardContent } from "@/components/ui/Card";
 
 type NewReservationPageProps = {
   searchParams?: Promise<{
@@ -15,7 +14,9 @@ type NewReservationPageProps = {
 };
 
 function getErrorMessage(error?: string): string | null {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
 
   const messages: Record<string, string> = {
     invalid_input: "Check the form and try again.",
@@ -48,15 +49,25 @@ export default async function NewReservationPage({
 
   return (
     <div className="page-stack">
-      <PageHeader
-        title="New reservation"
-        description="Create a future reservation or same-day room hold. The database prevents overlapping reservations and unsafe room use."
-        actions={
-          <Link href="/reservations" className="btn-secondary">
+      <section className="surface-panel overflow-hidden">
+        <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+          <div className="min-w-0">
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-[1.65rem]">
+              New reservation
+            </h1>
+
+            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted">
+              Hold a room for an expected guest before check-in. Use this for
+              planned arrivals, same-day room holds, and protected delegate
+              reservations.
+            </p>
+          </div>
+
+          <Link href={APP_ROUTES.reservations.list} className="btn-secondary">
             Back to reservations
           </Link>
-        }
-      />
+        </div>
+      </section>
 
       {errorMessage ? (
         <div className="alert alert-danger">{errorMessage}</div>
@@ -73,11 +84,7 @@ export default async function NewReservationPage({
           service, or on manager hold are excluded.
         </div>
       ) : (
-        <Card variant="card">
-          <CardContent>
-            <ReservationForm guests={guests} rooms={rooms} />
-          </CardContent>
-        </Card>
+        <ReservationForm guests={guests} rooms={rooms} />
       )}
     </div>
   );

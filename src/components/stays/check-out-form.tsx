@@ -8,27 +8,27 @@ type CheckOutFormProps = {
 
 export function CheckOutForm({ stayId }: CheckOutFormProps): React.JSX.Element {
   return (
-    <form action={checkOutStayAction} className="space-y-4">
+    <form action={checkOutStayAction} className="space-y-3">
       <input type="hidden" name="stayId" value={stayId} />
 
       <Textarea
         id="check-out-notes"
         name="notes"
-        label="Check-out notes"
-        hint="This note is saved on the stay record after check-out."
+        label="Reception note"
+        hint="Optional note saved on the completed stay."
         rows={3}
         maxLength={700}
-        placeholder="Optional front-desk note for this check-out..."
-        className="min-h-28 resize-none"
+        placeholder="Add checkout note, returned items, or handover detail..."
+        className="min-h-24 resize-none"
       />
 
-      <div className="alert alert-success">
-        Checking out this guest will complete the stay, close the room
-        allocation, and return the room to the normal room workflow.
+      <div className="alert alert-warning">
+        Check-out completes the stay, closes the active allocation, and releases
+        the room back to the room workflow.
       </div>
 
-      <PendingSubmitButton pendingLabel="Checking out guest..." fullWidth>
-        Check out guest
+      <PendingSubmitButton pendingLabel="Checking out..." fullWidth>
+        Confirm check-out
       </PendingSubmitButton>
     </form>
   );

@@ -10,22 +10,22 @@ export function ReservationCheckInForm({
   reservationId,
 }: ReservationCheckInFormProps): React.JSX.Element {
   return (
-    <form action={checkInReservationAction} className="space-y-4">
+    <form action={checkInReservationAction} className="space-y-3">
       <input type="hidden" name="reservationId" value={reservationId} />
 
       <Textarea
         id="reservation-check-in-notes"
         name="notes"
-        label="Check-in notes"
-        hint="This note is saved on the stay record after the reservation is checked in."
+        label="Reception note"
+        hint="Optional note saved on the new stay record."
         rows={3}
         maxLength={700}
-        placeholder="Optional front-desk note for this reservation check-in..."
-        className="min-h-28 resize-none"
+        placeholder="Add arrival condition, handover note, or reception detail..."
+        className="min-h-24 resize-none"
       />
 
-      <PendingSubmitButton pendingLabel="Checking in reservation..." fullWidth>
-        Check in reservation
+      <PendingSubmitButton pendingLabel="Checking in..." fullWidth>
+        Confirm check-in
       </PendingSubmitButton>
     </form>
   );

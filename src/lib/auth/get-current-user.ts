@@ -17,41 +17,27 @@ import type {
 import { SYSTEM_ROLES } from "@/lib/auth/permissions";
 
 type AdminClient = SupabaseClient<Database>;
-
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
-type RolePermissionJoinRow = {
-  permissions: {
-    key: string;
-  } | null;
+type RpcError = {
+  message: string;
 };
 
-type RoleWithPermissionsRow = {
-  id: string;
-  key: string;
-  name: string;
-  can_access_system: boolean | null;
-  role_permissions: RolePermissionJoinRow[] | null;
+type UntypedRpcClient = {
+  rpc(
+    fn: "get_current_user_context_snapshot",
+    args: { p_user_id: string },
+  ): Promise<{
+    data: unknown;
+    error: RpcError | null;
+  }>;
 };
 
-type UserRoleWithRoleRow = {
-  role_id: string | null;
-  roles: RoleWithPermissionsRow | RoleWithPermissionsRow[] | null;
-};
-
-type CampAccessJoinRow = {
-  id: string;
-  camp_id: string;
-  access_level: CampAccessLevel;
-  camps: {
-    name: string;
-    code: string;
-  } | null;
-};
-
-type ActiveRoleResult = {
+type CurrentUserContextSnapshot = {
+  profile: ProfileRow;
   role: CurrentRole;
   permissions: string[];
+  campAccess: CurrentCampAccess[];
 };
 
 const APP_ACCESS_ROLE_KEYS = new Set<string>([
@@ -62,6 +48,32 @@ const APP_ACCESS_ROLE_KEYS = new Set<string>([
   "security",
   "executive_viewer",
 ]);
+
+const CAMP_ACCESS_LEVEL_KEYS = new Set<string>([
+  "viewer",
+  "operator",
+  "supervisor",
+  "manager",
+  "admin",
+]);
+
+const AUTH_CONTEXT_TIMING_ENABLED =
+  process.env.NODE_ENV !== "production" ||
+  process.env.AUTH_DEBUG_TIMING === "true";
+
+function createAuthContextTimer(scope: string): (label: string) => void {
+  const startedAt = performance.now();
+
+  return (label: string): void => {
+    if (!AUTH_CONTEXT_TIMING_ENABLED) {
+      return;
+    }
+
+    console.info(
+      `[${scope}] ${label}: ${Math.round(performance.now() - startedAt)}ms`,
+    );
+  };
+}
 
 export function isActiveAccountStatus(status: AccountStatus | null): boolean {
   return status === "active";
@@ -79,165 +91,184 @@ export function isBlockedAccountStatus(status: AccountStatus | null): boolean {
   return status === "suspended" || status === "disabled";
 }
 
-function normalizeRoleRow(
-  value: RoleWithPermissionsRow | RoleWithPermissionsRow[] | null,
-): RoleWithPermissionsRow | null {
-  if (!value) {
-    return null;
-  }
-
-  return Array.isArray(value) ? value[0] ?? null : value;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isAppAccessRoleKey(value: string | null | undefined): value is RoleKey {
+function isAppAccessRoleKey(value: unknown): value is RoleKey {
   return typeof value === "string" && APP_ACCESS_ROLE_KEYS.has(value);
 }
 
-function normalizePermissions(
-  rolePermissions: RolePermissionJoinRow[] | null,
-): string[] {
-  const permissions = (rolePermissions ?? [])
-    .map((row) => row.permissions?.key)
-    .filter((key): key is string => Boolean(key));
-
-  return Array.from(new Set(permissions)).sort();
+function isCampAccessLevel(value: unknown): value is CampAccessLevel {
+  return typeof value === "string" && CAMP_ACCESS_LEVEL_KEYS.has(value);
 }
 
-async function loadProfile(
-  admin: AdminClient,
-  userId: string,
-): Promise<ProfileRow | null> {
-  const { data, error } = await admin
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to load profile: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function loadActiveRoleWithPermissions(
-  admin: AdminClient,
-  userId: string,
-): Promise<ActiveRoleResult | null> {
-  const { data, error } = await admin
-    .from("user_roles")
-    .select(
-      `
-        role_id,
-        roles!inner (
-          id,
-          key,
-          name,
-          can_access_system,
-          role_permissions (
-            permissions!inner (
-              key
-            )
-          )
-        )
-      `,
-    )
-    .eq("user_id", userId)
-    .is("revoked_at", null)
-    .order("assigned_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to load active role: ${error.message}`);
-  }
-
-  const userRole = data as UserRoleWithRoleRow | null;
-  const roleRow = normalizeRoleRow(userRole?.roles ?? null);
-
-  if (!roleRow?.id) {
+function parseProfile(value: unknown): ProfileRow | null {
+  if (!isRecord(value)) {
     return null;
   }
 
-  if (roleRow.can_access_system !== true) {
+  if (typeof value.id !== "string") {
     return null;
   }
 
-  if (!isAppAccessRoleKey(roleRow.key)) {
+  return value as ProfileRow;
+}
+
+function parseRole(value: unknown): CurrentRole | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const { id, key, name, canAccessSystem } = value;
+
+  if (
+    typeof id !== "string" ||
+    typeof name !== "string" ||
+    canAccessSystem !== true ||
+    !isAppAccessRoleKey(key)
+  ) {
     return null;
   }
 
   return {
-    role: {
-      id: roleRow.id,
-      key: roleRow.key,
-      name: roleRow.name,
-      canAccessSystem: true,
-    },
-    permissions: normalizePermissions(roleRow.role_permissions),
+    id,
+    key,
+    name,
+    canAccessSystem: true,
   };
 }
 
-async function loadCampAccess(
-  admin: AdminClient,
-  userId: string,
-): Promise<CurrentCampAccess[]> {
-  const { data, error } = await admin
-    .from("user_camp_access")
-    .select("id,camp_id,access_level,camps!inner(name,code)")
-    .eq("user_id", userId)
-    .is("revoked_at", null)
-    .order("granted_at", { ascending: true });
-
-  if (error) {
-    throw new Error(`Failed to load camp access: ${error.message}`);
+function parsePermissions(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  return ((data ?? []) as CampAccessJoinRow[]).map((row) => ({
-    id: row.id,
-    camp_id: row.camp_id,
-    access_level: row.access_level,
-    camp_name: row.camps?.name ?? "Unknown camp",
-    camp_code: row.camps?.code ?? "UNKNOWN",
-  }));
+  return Array.from(
+    new Set(value.filter((permission): permission is string => typeof permission === "string")),
+  ).sort();
+}
+
+function parseCampAccess(value: unknown): CurrentCampAccess[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item): CurrentCampAccess[] => {
+    if (!isRecord(item)) {
+      return [];
+    }
+
+    const {
+      id,
+      camp_id: campId,
+      access_level: accessLevel,
+      camp_name: campName,
+      camp_code: campCode,
+    } = item;
+
+    if (
+      typeof id !== "string" ||
+      typeof campId !== "string" ||
+      !isCampAccessLevel(accessLevel) ||
+      typeof campName !== "string" ||
+      typeof campCode !== "string"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        id,
+        camp_id: campId,
+        access_level: accessLevel,
+        camp_name: campName,
+        camp_code: campCode,
+      },
+    ];
+  });
+}
+
+function parseCurrentUserContextSnapshot(
+  value: unknown,
+): CurrentUserContextSnapshot | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const profile = parseProfile(value.profile);
+  const role = parseRole(value.role);
+
+  if (!profile || !role) {
+    return null;
+  }
+
+  return {
+    profile,
+    role,
+    permissions: parsePermissions(value.permissions),
+    campAccess: parseCampAccess(value.campAccess),
+  };
+}
+
+async function loadCurrentUserContextSnapshot(
+  admin: AdminClient,
+  userId: string,
+): Promise<CurrentUserContextSnapshot | null> {
+  const rpcClient = admin as unknown as UntypedRpcClient;
+
+  const { data, error } = await rpcClient.rpc(
+    "get_current_user_context_snapshot",
+    {
+      p_user_id: userId,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Failed to load current user context: ${error.message}`);
+  }
+
+  return parseCurrentUserContextSnapshot(data);
 }
 
 export const getCurrentUser = cache(
   async (): Promise<CurrentUserContext | null> => {
+    const mark = createAuthContextTimer("auth:getCurrentUser");
+
     const supabase = await createServerSupabaseClient();
+    mark("server supabase client created");
 
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
+    mark("auth.getUser completed");
 
     if (userError || !user) {
       return null;
     }
 
     const admin = createSupabaseAdminClient();
+    mark("admin client created");
 
-    const [profile, activeRole, campAccess] = await Promise.all([
-      loadProfile(admin, user.id),
-      loadActiveRoleWithPermissions(admin, user.id),
-      loadCampAccess(admin, user.id),
-    ]);
+    const snapshot = await loadCurrentUserContextSnapshot(admin, user.id);
+    mark("current user context snapshot loaded");
 
-    if (!profile) {
+    if (!snapshot?.profile || !snapshot.role.canAccessSystem) {
       return null;
     }
 
-    if (!activeRole?.role.canAccessSystem) {
-      return null;
-    }
-
-    return {
+    const currentUser: CurrentUserContext = {
       authUser: user,
-      profile,
-      role: activeRole.role,
-      permissions: activeRole.permissions,
-      campAccess,
-      isSystemActor: SYSTEM_ROLES.has(activeRole.role.key),
+      profile: snapshot.profile,
+      role: snapshot.role,
+      permissions: snapshot.permissions,
+      campAccess: snapshot.campAccess,
+      isSystemActor: SYSTEM_ROLES.has(snapshot.role.key),
     };
+
+    mark("current user context prepared");
+
+    return currentUser;
   },
 );

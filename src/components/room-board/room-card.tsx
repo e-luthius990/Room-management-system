@@ -2,10 +2,13 @@
 
 import type { JSX } from "react";
 import Link from "next/link";
-import { BedDouble, CalendarClock, Crown, Eye, UserRound } from "lucide-react";
+import { CalendarClock, Crown, Eye, MapPin, UserRound } from "lucide-react";
 import type { RoomBoardItem } from "@/lib/queries/room-board/get-room-board";
 import { APP_ROUTES } from "@/lib/auth/routes";
-import { AutoStatusIndicator } from "@/components/ui/StatusIndicator";
+import {
+  AutoStatusIndicator,
+  StatusIndicator,
+} from "@/components/ui/StatusIndicator";
 import { cn } from "@/lib/utils/cn";
 
 type RoomCardProps = {
@@ -35,6 +38,7 @@ function formatLabel(value: unknown): string {
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
+    .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
@@ -42,7 +46,7 @@ function formatRoomStatus(status: string): OperationalStatus {
   switch (status) {
     case "vacant_ready":
       return {
-        label: "Vacant ready",
+        label: "Vacant Ready",
         statusClassName: "status-vacant-ready",
       };
 
@@ -54,7 +58,7 @@ function formatRoomStatus(status: string): OperationalStatus {
 
     case "pending_check_in":
       return {
-        label: "Pending check-in",
+        label: "Pending Check-in",
         statusClassName: "status-pending-check-in",
       };
 
@@ -66,7 +70,7 @@ function formatRoomStatus(status: string): OperationalStatus {
 
     case "pending_checkout":
       return {
-        label: "Pending checkout",
+        label: "Pending Checkout",
         statusClassName: "status-pending-checkout",
       };
 
@@ -75,7 +79,7 @@ function formatRoomStatus(status: string): OperationalStatus {
     case "under_maintenance":
       return {
         label: "Unavailable",
-        statusClassName: "status-muted",
+        statusClassName: "status-under-maintenance",
       };
 
     default:
@@ -100,6 +104,7 @@ function formatDateTime(value: string | null | undefined): string {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Africa/Kampala",
   }).format(date);
 }
 
@@ -108,40 +113,188 @@ function getRoomDetailHref(roomId: string): string {
 }
 
 function getRoomTitle(room: RoomBoardItem): string {
-  return room.room_number?.trim() || "Unnamed room";
+  return room.room_number?.trim() || "Unnamed";
 }
 
 function getBuildingLabel(room: RoomBoardItem): string {
   return room.building_name?.trim() || "No building assigned";
 }
 
-function getRoomContext(room: RoomBoardItem): string {
-  return [room.camp_name, room.room_type].filter(Boolean).join(" · ");
+function getRoomTypeLabel(room: RoomBoardItem): string {
+  return room.room_type?.trim() || "Room type not set";
+}
+
+function getCampLabel(room: RoomBoardItem): string {
+  return room.camp_name?.trim() || "No camp assigned";
 }
 
 function isUnavailable(room: RoomBoardItem): boolean {
   return UNAVAILABLE_STATUSES.has(room.current_status);
 }
 
-function Info({
+function DetailLine({
   label,
   value,
-  icon,
 }: {
   label: string;
-  value: string | number | null | undefined;
-  icon?: JSX.Element;
+  value: React.ReactNode;
 }): JSX.Element {
   return (
-    <div className="min-w-0 rounded-xl border border-border bg-surface-2 px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted">
-        {icon ? <span className="shrink-0">{icon}</span> : null}
-        <span>{label}</span>
+    <div className="grid grid-cols-[5.75rem_minmax(0,1fr)] gap-3 border-b border-border py-2 last:border-b-0">
+      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
+        {label}
       </div>
 
-      <p className="mt-1 truncate text-sm font-semibold text-foreground">
-        {value ?? "—"}
-      </p>
+      <div className="min-w-0 truncate text-xs font-semibold text-foreground">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function FieldAbsenceBadge({
+  room,
+}: {
+  room: RoomBoardItem;
+}): JSX.Element | null {
+  if (!room.is_field_absent) {
+    return null;
+  }
+
+  return (
+    <StatusIndicator
+      compact
+      statusClassName={
+        room.field_absence_is_overdue
+          ? "status-under-maintenance"
+          : "status-reserved"
+      }
+      label={room.field_absence_is_overdue ? "Field Overdue" : "Away In Field"}
+      title={
+        room.field_absence_is_overdue
+          ? "Field absence return is overdue"
+          : "Occupant is away in field"
+      }
+    />
+  );
+}
+
+function RoomCardFlags({
+  room,
+  unavailable,
+}: {
+  room: RoomBoardItem;
+  unavailable: boolean;
+}): JSX.Element | null {
+  if (
+    !room.is_vip &&
+    !room.is_delegate_suitable &&
+    !room.is_field_absent &&
+    !unavailable
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {room.is_vip ? (
+        <StatusIndicator
+          compact
+          withDot={false}
+          statusClassName="status-reserved"
+          label={
+            <span className="inline-flex items-center gap-1">
+              <Crown className="size-3" aria-hidden="true" />
+              VIP
+            </span>
+          }
+        />
+      ) : null}
+
+      {room.is_delegate_suitable ? (
+        <StatusIndicator
+          compact
+          withDot={false}
+          statusClassName="status-occupied"
+          label="Delegate"
+        />
+      ) : null}
+
+      {room.is_field_absent ? <FieldAbsenceBadge room={room} /> : null}
+
+      {unavailable ? (
+        <StatusIndicator
+          compact
+          statusClassName="status-muted"
+          label="Not Allocatable"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function FieldAbsencePanel({
+  room,
+}: {
+  room: RoomBoardItem;
+}): JSX.Element | null {
+  if (!room.is_field_absent) {
+    return null;
+  }
+
+  return (
+    <div
+      className={cn(
+        "mt-3 border px-3 py-2.5",
+        room.field_absence_is_overdue
+          ? "border-danger-600/25 bg-danger-50"
+          : "border-warning-700/25 bg-warning-50",
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <FieldAbsenceBadge room={room} />
+
+        <span
+          className={cn(
+            "text-xs font-bold",
+            room.field_absence_is_overdue
+              ? "text-danger-700"
+              : "text-warning-700",
+          )}
+        >
+          {room.field_absence_is_overdue
+            ? "Return overdue"
+            : `${room.field_absence_days_away} days away`}
+        </span>
+      </div>
+
+      <div className="mt-2 grid gap-1.5 text-xs leading-5 text-muted">
+        <div>
+          <span className="font-semibold text-foreground">
+            Expected return:
+          </span>{" "}
+          {formatDateTime(room.field_absence_expected_return_at)}
+        </div>
+
+        <div>
+          <span className="font-semibold text-foreground">
+            Days until return:
+          </span>{" "}
+          {room.field_absence_is_overdue
+            ? "Overdue"
+            : room.field_absence_days_until_return}
+        </div>
+
+        {room.field_absence_destination ? (
+          <div>
+            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+              <MapPin className="size-3.5" aria-hidden="true" />
+              Destination:
+            </span>{" "}
+            {room.field_absence_destination}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -153,55 +306,68 @@ export function RoomCard({ room, className }: RoomCardProps): JSX.Element {
 
   return (
     <article
-      className={cn("room-card", unavailable && "opacity-90", className)}
+      className={cn("room-card", "p-0", unavailable && "opacity-90", className)}
       data-room-id={room.room_id}
       data-room-status={room.current_status}
     >
-      <div className="room-card-header">
-        <div className="min-w-0">
-          <p className="room-card-subtitle">{getBuildingLabel(room)}</p>
+      <div className="border-b border-border px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+              {getBuildingLabel(room)} · {getCampLabel(room)}
+            </div>
 
-          <h3 className="room-card-title">Room {getRoomTitle(room)}</h3>
+            <h3 className="mt-2 text-3xl font-semibold leading-none tracking-[-0.06em] text-foreground">
+              {getRoomTitle(room)}
+            </h3>
 
-          <p className="room-card-subtitle">{getRoomContext(room)}</p>
+            <div className="mt-2 truncate text-xs font-semibold text-muted">
+              {getRoomTypeLabel(room)}
+            </div>
+          </div>
+
+          <StatusIndicator
+            compact
+            label={status.label}
+            statusClassName={status.statusClassName}
+            title={status.label}
+          />
         </div>
 
-        <span
-          className={cn(
-            "status-indicator max-w-[11rem] shrink-0",
-            status.statusClassName,
-          )}
-          title={status.label}
-        >
-          <span className="status-dot" aria-hidden="true" />
-          <span className="min-w-0 truncate">{status.label}</span>
-        </span>
+        <RoomCardFlags room={room} unavailable={unavailable} />
       </div>
 
-      <div className="room-card-body">
-        <div className="grid grid-cols-2 gap-3">
-          <Info
-            label="Type"
-            value={room.room_type || "Not set"}
-            icon={<BedDouble className="size-3.5" aria-hidden="true" />}
+      <div className="px-4 py-3">
+        <div className="divide-y divide-border">
+          <DetailLine label="Capacity" value={room.capacity ?? "—"} />
+
+          <DetailLine
+            label="Condition"
+            value={formatLabel(room.condition_status)}
           />
 
-          <Info label="Capacity" value={room.capacity} />
-
-          <Info label="Condition" value={formatLabel(room.condition_status)} />
-
-          <Info
+          <DetailLine
             label="Guest"
-            value={room.current_guest_name || "No active guest"}
-            icon={<UserRound className="size-3.5" aria-hidden="true" />}
+            value={
+              room.current_guest_name ? (
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <UserRound className="size-3.5 shrink-0 text-muted" />
+                  <span className="truncate">{room.current_guest_name}</span>
+                </span>
+              ) : (
+                "No active guest"
+              )
+            }
           />
         </div>
 
+        <FieldAbsencePanel room={room} />
+
         {room.expected_departure_at ? (
-          <div className="muted-panel mt-4 px-4 py-3">
+          <div className="mt-3 border border-border bg-surface-2 px-3 py-2.5">
             <div className="flex items-center gap-2">
               <CalendarClock className="size-4 text-muted" aria-hidden="true" />
-              <p className="text-xs font-medium text-muted">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">
                 Expected departure
               </p>
             </div>
@@ -211,38 +377,14 @@ export function RoomCard({ room, className }: RoomCardProps): JSX.Element {
             </p>
           </div>
         ) : null}
-
-        {room.is_vip || room.is_delegate_suitable || unavailable ? (
-          <div className="room-alert-row">
-            {room.is_vip ? (
-              <span className="status-indicator status-reserved">
-                <Crown className="size-3.5" aria-hidden="true" />
-                VIP
-              </span>
-            ) : null}
-
-            {room.is_delegate_suitable ? (
-              <span className="status-indicator status-occupied">
-                <span className="status-dot" aria-hidden="true" />
-                Delegate suitable
-              </span>
-            ) : null}
-
-            {unavailable ? (
-              <span className="status-indicator status-muted">
-                <span className="status-dot" aria-hidden="true" />
-                Not allocatable
-              </span>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
-      <div className="room-card-actions">
+      <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
         <div className="min-w-0">
           <AutoStatusIndicator
+            compact
             status={hasGuest ? "occupied" : room.current_status}
-            label={hasGuest ? "Guest assigned" : undefined}
+            label={hasGuest ? "Guest Assigned" : undefined}
             withDot
           />
         </div>
@@ -252,7 +394,7 @@ export function RoomCard({ room, className }: RoomCardProps): JSX.Element {
           className="room-secondary-action"
         >
           <Eye className="size-4" aria-hidden="true" />
-          View room
+          View
         </Link>
       </div>
     </article>

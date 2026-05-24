@@ -1,4 +1,5 @@
 // src/components/layout/nav-icon.tsx
+
 import type { JSX } from "react";
 import {
   BarChart3,
@@ -6,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardCheck,
+  FileDown,
   FileUp,
   LayoutDashboard,
   ScrollText,
@@ -15,6 +17,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+
 import type { AppNavIcon } from "@/lib/navigation/app-nav";
 import { cn } from "@/lib/utils/cn";
 
@@ -35,6 +38,7 @@ const NAV_ICON_REGISTRY = {
   "user-cog": UserCog,
   "scroll-text": ScrollText,
   "file-up": FileUp,
+  "file-down": FileDown,
   "building-2": Building2,
 } satisfies Record<AppNavIcon, LucideIcon>;
 

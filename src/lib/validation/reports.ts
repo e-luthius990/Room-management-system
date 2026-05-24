@@ -71,9 +71,8 @@ export const reportTypeSchema = z.enum([
   "occupancy",
   "guests",
   "rooms",
-  "maintenance",
-  "housekeeping",
-  "room_service",
+  "current_stays",
+  "exited_guests",
 ]);
 
 export const exportFormatSchema = z.preprocess(
@@ -89,9 +88,8 @@ export const reportTypeLabels: Record<ReportType, string> = {
   occupancy: "Occupancy",
   guests: "Guests",
   rooms: "Rooms",
-  maintenance: "Maintenance",
-  housekeeping: "Housekeeping",
-  room_service: "Room service",
+  current_stays: "Current stays",
+  exited_guests: "Exited guests",
 };
 
 export const exportFormatLabels: Record<ExportFormat, string> = {

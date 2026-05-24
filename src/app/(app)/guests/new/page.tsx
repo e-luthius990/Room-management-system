@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
+
 import { requirePermission } from "@/lib/auth/require-permission";
-import { PageHeader } from "@/components/layout/page-header";
 import { GuestForm } from "@/components/guests/guest-form";
 import { getCampOptions } from "@/lib/queries/setup/options";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type NewGuestPageProps = {
   searchParams?: Promise<{
@@ -27,41 +31,74 @@ function getErrorMessage(error?: string): string | null {
 export default async function NewGuestPage({
   searchParams,
 }: NewGuestPageProps): Promise<React.JSX.Element> {
+  noStore();
+
   await requirePermission("guests.create");
 
   const params = searchParams ? await searchParams : undefined;
-  const camps = await getCampOptions();
+
+  const [camps] = await Promise.all([getCampOptions()]);
+
   const errorMessage = getErrorMessage(params?.error);
 
   return (
-    <div>
-      <PageHeader
-        title="Add Guest"
-        description="Create a guest profile before reservation, room allocation, or check-in."
-        actions={
-          <Link
-            href="/guests"
-            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-          >
+    <main className="page-stack">
+      <section className="surface-panel overflow-hidden">
+        <div className="grid gap-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+              Reception registry
+            </p>
+
+            <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
+              Add guest
+            </h1>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+              Create a guest identity before reservation, room allocation,
+              security handoff, or check-in.
+            </p>
+          </div>
+
+          <Link href="/guests" className="btn-secondary">
             Back to guests
           </Link>
-        }
-      />
+        </div>
+      </section>
 
       {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {errorMessage}
-        </div>
+        <div className="alert alert-danger">{errorMessage}</div>
       ) : null}
 
       {camps.length === 0 ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-          No accessible camps were found. You need operator access to at least
-          one active camp before creating a guest.
-        </div>
+        <section className="surface-panel px-4 py-4">
+          <p className="text-sm font-semibold text-foreground">
+            No accessible camps found
+          </p>
+
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+            You need operator access to at least one active camp before creating
+            a guest.
+          </p>
+        </section>
       ) : (
-        <GuestForm camps={camps} />
+        <section className="surface-panel overflow-hidden">
+          <div className="border-b border-border px-4 py-4">
+            <h2 className="text-sm font-semibold tracking-[-0.015em] text-foreground">
+              Guest record
+            </h2>
+
+            <p className="mt-1 text-xs leading-5 text-muted">
+              Capture identity, camp, organization, contact, and classification
+              details used across reception and security workflows.
+            </p>
+          </div>
+
+          <div className="p-4">
+            <GuestForm camps={camps} />
+          </div>
+        </section>
       )}
-    </div>
+    </main>
   );
 }

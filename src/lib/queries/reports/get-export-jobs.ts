@@ -6,6 +6,16 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type ExportStatus = Enums<"export_status">;
 
+const ACTIVE_REPORT_TYPES = [
+  "occupancy",
+  "guests",
+  "rooms",
+  "current_stays",
+  "exited_guests",
+] as const;
+
+type ActiveReportType = (typeof ACTIVE_REPORT_TYPES)[number];
+
 export type ExportJobListItem = {
   id: string;
   camp_id: string | null;
@@ -134,6 +144,19 @@ function normalizeExportFormat(row: {
   return normalizeText(row.export_format, normalizeText(row.format, "csv"));
 }
 
+function isActiveReportType(value: string): value is ActiveReportType {
+  return ACTIVE_REPORT_TYPES.includes(value as ActiveReportType);
+}
+
+function activeReportTypeFilter(): string {
+  const values = ACTIVE_REPORT_TYPES.join(",");
+
+  return [
+    `report_type.in.(${values})`,
+    `export_type.in.(${values})`,
+  ].join(",");
+}
+
 export async function getExportJobs(): Promise<ExportJobListItem[]> {
   const supabase = await createServerSupabaseClient();
 
@@ -164,6 +187,7 @@ export async function getExportJobs(): Promise<ExportJobListItem[]> {
       ].join(","),
     )
     .is("archived_at", null)
+    .or(activeReportTypeFilter())
     .order("created_at", { ascending: false })
     .limit(200)
     .returns<ExportJobRow[]>();
@@ -236,12 +260,18 @@ export async function getCompletedExportJob(
     notFound();
   }
 
+  const reportType = normalizeReportType(data);
+
+  if (!isActiveReportType(reportType)) {
+    notFound();
+  }
+
   return {
     id: data.id,
     status: data.status,
     storage_bucket: data.storage_bucket,
     storage_path: data.storage_path,
-    report_type: normalizeReportType(data),
+    report_type: reportType,
     export_type: normalizeExportType(data),
     export_format: normalizeExportFormat(data),
     format: normalizeFormat(data),

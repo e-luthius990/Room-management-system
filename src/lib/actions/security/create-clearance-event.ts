@@ -4,6 +4,7 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+
 import { requirePermission } from "@/lib/auth/require-permission";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/lib/validation/security";
 
 const SECURITY_PATH = "/security";
+const RECEPTION_HANDOFFS_PATH = "/reception/security-handoffs";
 
 type CreateSecurityClearanceEventResult = string | { id: string };
 
@@ -22,6 +24,7 @@ type SecurityClearanceEventResult =
   | {
       id: string;
       guest_id?: string | null;
+      camp_id?: string | null;
     };
 
 function getFormString(formData: FormData, key: string): string | null {
@@ -75,22 +78,31 @@ function getResultGuestId(
 function mapSecurityError(message: string): string {
   const normalized = message.toLowerCase();
 
-  if (normalized.includes("guest not found")) {
+  if (
+    normalized.includes("guest_not_found") ||
+    normalized.includes("guest not found")
+  ) {
     return "guest_not_found";
   }
 
-  if (normalized.includes("security event not found")) {
+  if (
+    normalized.includes("security_event_not_found") ||
+    normalized.includes("security event not found")
+  ) {
     return "security_event_not_found";
   }
 
   if (
+    normalized.includes("guest_already_inside") ||
     normalized.includes("already has an open gate entry") ||
-    normalized.includes("open gate entry")
+    normalized.includes("open gate entry") ||
+    normalized.includes("already inside")
   ) {
     return "guest_already_inside";
   }
 
   if (
+    normalized.includes("guest_already_departed") ||
     normalized.includes("already been marked as left") ||
     normalized.includes("already exited") ||
     normalized.includes("already been marked")
@@ -99,25 +111,63 @@ function mapSecurityError(message: string): string {
   }
 
   if (
+    normalized.includes("guest is not currently inside") ||
+    normalized.includes("not currently inside") ||
+    normalized.includes("must have an active gate entry") ||
+    normalized.includes("active gate entry")
+  ) {
+    return "guest_not_inside";
+  }
+
+  if (
+    normalized.includes("already pending reception") ||
+    normalized.includes("already pending")
+  ) {
+    return "already_pending_reception";
+  }
+
+  if (normalized.includes("can be sent to reception")) {
+    return "not_reception_eligible";
+  }
+
+  if (
+    normalized.includes("invalid_guest_camp") ||
+    normalized.includes("invalid guest camp")
+  ) {
+    return "invalid_guest_camp";
+  }
+
+  if (
+    normalized.includes("invalid_clearance_status") ||
     normalized.includes("invalid security clearance") ||
     normalized.includes("clearance status")
   ) {
     return "invalid_clearance_status";
   }
 
-  if (normalized.includes("invalid visit type")) {
+  if (
+    normalized.includes("invalid_visit_type") ||
+    normalized.includes("invalid visit type")
+  ) {
     return "invalid_visit_type";
   }
 
-  if (normalized.includes("risk")) {
+  if (
+    normalized.includes("invalid_risk_level") ||
+    normalized.includes("risk level")
+  ) {
     return "invalid_risk_level";
   }
 
-  if (normalized.includes("notes are required")) {
+  if (
+    normalized.includes("notes are required") ||
+    normalized.includes("security notes are required")
+  ) {
     return "security_notes_required";
   }
 
   if (
+    normalized.includes("access_denied") ||
     normalized.includes("access") ||
     normalized.includes("permission") ||
     normalized.includes("not authorized")
@@ -133,6 +183,11 @@ function revalidateSecurityPaths(guestId?: string | null): void {
   revalidatePath(`${SECURITY_PATH}/gate`);
   revalidatePath(`${SECURITY_PATH}/pending-reception`);
   revalidatePath("/dashboard/security");
+
+  revalidatePath(RECEPTION_HANDOFFS_PATH);
+  revalidatePath("/dashboard/reception");
+  revalidatePath("/dashboard/camp-manager");
+
   revalidatePath("/guest-operations");
   revalidatePath("/reports");
 
@@ -245,17 +300,9 @@ export async function recordSecurityGateEntryAction(
 
   revalidateSecurityPaths(parsed.data.guestId);
 
-  if (
-    parsed.data.visitType === "overnight_guest" ||
-    parsed.data.visitType === "delegate" ||
-    parsed.data.visitType === "vip"
-  ) {
-    redirect(
-      `${SECURITY_PATH}/guests/${parsed.data.guestId}?success=gate_entry_recorded&securityEventId=${eventId}`,
-    );
-  }
-
-  redirect(`${SECURITY_PATH}/gate?success=gate_entry_recorded`);
+  redirect(
+    `${SECURITY_PATH}/guests/${parsed.data.guestId}?success=gate_entry_recorded&securityEventId=${eventId}`,
+  );
 }
 
 export async function sendGuestToReceptionAction(

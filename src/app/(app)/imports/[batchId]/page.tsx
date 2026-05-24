@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requirePermission } from "@/lib/auth/require-permission";
+
+import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { PageHeader } from "@/components/layout/page-header";
 import { getImportDetail } from "@/lib/queries/imports/get-import-detail";
 import {
@@ -7,6 +8,10 @@ import {
   formatImportType,
   importStatusTone,
 } from "@/components/imports/status";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type ImportDetailPageProps = {
   params: Promise<{
@@ -17,6 +22,13 @@ type ImportDetailPageProps = {
     success?: string;
   }>;
 };
+
+const IMPORT_DETAIL_PAGE_PERMISSIONS = [
+  "data.import",
+  "imports.rooms",
+  "imports.guests",
+  "imports.review",
+] as const;
 
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
@@ -30,6 +42,7 @@ function formatDateTime(value: string | null): string {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Africa/Kampala",
   }).format(date);
 }
 
@@ -76,7 +89,7 @@ function rowStatusTone(status: string): string {
       return "border-red-200 bg-red-50 text-red-700";
 
     case "pending":
-      return "border-blue-200 bg-blue-50 text-blue-700";
+      return "border-sky-200 bg-sky-50 text-sky-700";
 
     default:
       return "border-neutral-200 bg-neutral-50 text-neutral-700";
@@ -100,56 +113,58 @@ export default async function ImportDetailPage({
   params,
   searchParams,
 }: ImportDetailPageProps): Promise<React.JSX.Element> {
-  await requirePermission("imports.review");
+  await requireAnyPermission([...IMPORT_DETAIL_PAGE_PERMISSIONS]);
 
   const { batchId } = await params;
-  const query = searchParams ? await searchParams : undefined;
 
-  const { batch, rows } = await getImportDetail(batchId);
+  const [query, detail] = await Promise.all([
+    searchParams ?? Promise.resolve(undefined),
+    getImportDetail(batchId),
+  ]);
+
+  const { batch, rows } = detail;
 
   const successMessage = getSuccessMessage(query?.success);
   const errorMessage = getErrorMessage(query?.error);
   const applyReady = canApplyImport(batch.status, batch.valid_rows);
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
-        title={`${formatImportType(batch.import_type)} Review`}
+        title={`${formatImportType(batch.import_type)} review`}
         description="Review parsed rows, normalized values, and validation errors before applying valid records."
         actions={
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/imports"
-              className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-            >
-              Back to imports
-            </Link>
-          </div>
+          <Link
+            href="/imports"
+            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-sky-200 hover:bg-sky-50"
+          >
+            Back to imports
+          </Link>
         }
       />
 
       {successMessage ? (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
           {successMessage}
         </div>
       ) : null}
 
       {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {errorMessage}
         </div>
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-4">
-        <Metric title="Total Rows" value={batch.total_rows} />
-        <Metric title="Valid Rows" value={batch.valid_rows} />
-        <Metric title="Invalid Rows" value={batch.invalid_rows} />
+        <Metric title="Total rows" value={batch.total_rows} />
+        <Metric title="Valid rows" value={batch.valid_rows} />
+        <Metric title="Invalid rows" value={batch.invalid_rows} />
 
         <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div>
             <span
               className={[
-                "rounded-full border px-3 py-1 text-xs font-medium",
+                "rounded-full border px-3 py-1 text-xs font-semibold",
                 importStatusTone(batch.status),
               ].join(" ")}
             >
@@ -163,7 +178,7 @@ export default async function ImportDetailPage({
         </div>
       </section>
 
-      <section className="mt-6 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+      <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-base font-semibold text-neutral-950">
@@ -178,7 +193,7 @@ export default async function ImportDetailPage({
           {applyReady ? (
             <Link
               href={`/imports/${batch.id}/apply`}
-              className="rounded-2xl bg-neutral-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              className="rounded-2xl bg-neutral-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
             >
               Apply valid rows
             </Link>
@@ -186,41 +201,25 @@ export default async function ImportDetailPage({
         </div>
 
         <dl className="mt-5 grid gap-5 md:grid-cols-2">
-          <div>
-            <dt className="text-sm text-neutral-500">Camp</dt>
-            <dd className="mt-1 font-medium text-neutral-950">
-              {batch.camp_name}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-sm text-neutral-500">Filename</dt>
-            <dd className="mt-1 font-medium text-neutral-950">
-              {batch.original_filename ?? "CSV import"}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-sm text-neutral-500">Created</dt>
-            <dd className="mt-1 font-medium text-neutral-950">
-              {formatDateTime(batch.created_at)}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-sm text-neutral-500">Completed</dt>
-            <dd className="mt-1 font-medium text-neutral-950">
-              {formatDateTime(batch.completed_at)}
-            </dd>
-          </div>
+          <DetailItem label="Camp" value={batch.camp_name} />
+          <DetailItem
+            label="Filename"
+            value={batch.original_filename ?? "CSV import"}
+          />
+          <DetailItem
+            label="Created"
+            value={formatDateTime(batch.created_at)}
+          />
+          <DetailItem
+            label="Completed"
+            value={formatDateTime(batch.completed_at)}
+          />
 
           {batch.failed_at ? (
-            <div>
-              <dt className="text-sm text-neutral-500">Failed</dt>
-              <dd className="mt-1 font-medium text-neutral-950">
-                {formatDateTime(batch.failed_at)}
-              </dd>
-            </div>
+            <DetailItem
+              label="Failed"
+              value={formatDateTime(batch.failed_at)}
+            />
           ) : null}
 
           {batch.storage_path ? (
@@ -243,40 +242,51 @@ export default async function ImportDetailPage({
         </dl>
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1200px] text-left text-sm">
-            <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3">Row</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Errors</th>
-                <th className="px-4 py-3">Normalized Payload</th>
-                <th className="px-4 py-3">Raw Payload</th>
-              </tr>
-            </thead>
+      <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 p-5">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-950">
+              Row validation
+            </h2>
+            <p className="mt-1 text-sm text-neutral-500">
+              Showing {rows.length} parsed row{rows.length === 1 ? "" : "s"}.
+            </p>
+          </div>
+        </div>
 
-            <tbody className="divide-y divide-neutral-100">
-              {rows.length === 0 ? (
+        {rows.length === 0 ? (
+          <div className="p-8 text-sm text-neutral-500">
+            No import rows found.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1200px] text-left text-sm">
+              <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-10 text-center text-sm text-neutral-500"
-                  >
-                    No import rows found.
-                  </td>
+                  <th className="px-4 py-3 font-semibold">Row</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Errors</th>
+                  <th className="px-4 py-3 font-semibold">
+                    Normalized payload
+                  </th>
+                  <th className="px-4 py-3 font-semibold">Raw payload</th>
                 </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id} className="align-top">
-                    <td className="px-4 py-4 font-medium text-neutral-950">
+              </thead>
+
+              <tbody className="divide-y divide-neutral-100">
+                {rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="align-top transition hover:bg-neutral-50/70"
+                  >
+                    <td className="px-4 py-4 font-semibold text-neutral-950">
                       {row.row_number}
                     </td>
 
                     <td className="px-4 py-4">
                       <span
                         className={[
-                          "rounded-full border px-3 py-1 text-xs font-medium",
+                          "rounded-full border px-3 py-1 text-xs font-semibold",
                           rowStatusTone(row.validation_status),
                         ].join(" ")}
                       >
@@ -308,12 +318,27 @@ export default async function ImportDetailPage({
                       </pre>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
+    </div>
+  );
+}
+
+function DetailItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  return (
+    <div>
+      <dt className="text-sm text-neutral-500">{label}</dt>
+      <dd className="mt-1 font-medium text-neutral-950">{value}</dd>
     </div>
   );
 }

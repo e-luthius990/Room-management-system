@@ -51,18 +51,31 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       children,
       type = "button",
       "aria-label": ariaLabel,
+      onClick,
       ...props
     },
     ref,
   ): React.JSX.Element {
     const isDisabled = disabled || loading;
-    const renderedChildren = loading && loadingText ? loadingText : children;
+    const hasVisibleText =
+      React.Children.count(children) > 0 || Boolean(loadingText);
+
+    if (
+      process.env.NODE_ENV !== "production" &&
+      !hasVisibleText &&
+      !ariaLabel
+    ) {
+      console.warn(
+        "Icon-only Button requires an aria-label for accessibility.",
+      );
+    }
 
     return (
       <button
         ref={ref}
         type={type}
         disabled={isDisabled}
+        aria-disabled={isDisabled || undefined}
         aria-busy={loading || undefined}
         aria-label={ariaLabel}
         data-variant={variant}
@@ -75,6 +88,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           fullWidth && "w-full",
           className,
         )}
+        onClick={isDisabled ? undefined : onClick}
         {...props}
       >
         {loading ? (
@@ -85,10 +99,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           </span>
         ) : null}
 
-        {renderedChildren ? (
-          <span className={cn("min-w-0 truncate", loading && "opacity-85")}>
-            {renderedChildren}
-          </span>
+        {loading && loadingText ? (
+          <span className="min-w-0 truncate opacity-85">{loadingText}</span>
+        ) : children ? (
+          <span className="min-w-0 truncate">{children}</span>
         ) : null}
 
         {!loading && rightIcon ? (

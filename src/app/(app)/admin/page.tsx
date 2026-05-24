@@ -1,173 +1,292 @@
-import Link from "next/link";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
-import { PageHeader } from "@/components/layout/page-header";
 import { hasAnyPermission } from "@/lib/auth/permissions";
 
-const adminCards = [
+type AdminCapabilityArea =
+  | "Identity"
+  | "Camp setup"
+  | "Operations"
+  | "Security"
+  | "Data"
+  | "System";
+
+type AdminCapability = {
+  label: string;
+  description: string;
+  permissions: readonly string[];
+  area: AdminCapabilityArea;
+};
+
+const adminCapabilities = [
   {
-    title: "Users",
-    description: "Invite staff, review account status, roles, and camp access.",
-    href: "/admin/users",
+    label: "User administration",
+    description: "Invite users, review account status, and manage access.",
     permissions: ["users.view"],
+    area: "Identity",
   },
   {
-    title: "Camps",
-    description:
-      "Manage International Camp, Airport Camp, and future camp setup.",
-    href: "/admin/camps",
+    label: "Role administration",
+    description: "Review roles and permission assignments.",
+    permissions: ["roles.view", "roles.update", "roles.assign_permissions"],
+    area: "Identity",
+  },
+  {
+    label: "Camp setup",
+    description: "Manage active camps and camp-level operational scope.",
     permissions: ["camps.view"],
+    area: "Camp setup",
   },
   {
-    title: "Rooms",
-    description: "Manage buildings, room inventory, room types, and amenities.",
-    href: "/admin/rooms",
-    permissions: ["rooms.view"],
-  },
-  {
-    title: "Buildings",
-    description: "Create building blocks under each camp.",
-    href: "/admin/buildings",
+    label: "Building setup",
+    description: "Maintain camp building blocks used by room inventory.",
     permissions: ["buildings.view"],
+    area: "Camp setup",
   },
   {
-    title: "Room Types",
-    description:
-      "Manage classifications like single, shared, VIP, and delegate rooms.",
-    href: "/admin/room-types",
-    permissions: ["settings.update_room_types"],
-  },
-  {
-    title: "Amenities",
-    description: "Manage amenities that can be attached to rooms.",
-    href: "/admin/amenities",
-    permissions: ["rooms.manage_amenities"],
-  },
-  {
-    title: "Room Board",
-    description:
-      "Open the live operational room board used by reception and managers.",
-    href: "/room-board",
+    label: "Room inventory",
+    description: "Maintain rooms, statuses, room types, and amenities.",
     permissions: ["rooms.view"],
+    area: "Camp setup",
   },
   {
-    title: "Guest Documents",
-    description: "Review private guest documents through signed access links.",
-    href: "/guest-documents/review",
+    label: "Guest documents",
+    description: "Review protected guest documents through signed access.",
     permissions: ["guest_documents.view"],
+    area: "Security",
   },
   {
-    title: "Security Review",
-    description:
-      "Review guest clearance status, risk notes, and gate-facing access visibility.",
-    href: "/security",
+    label: "Security clearance",
+    description: "Review security-facing guest clearance and risk visibility.",
     permissions: ["security.view_clearance"],
+    area: "Security",
   },
   {
-    title: "Gate Dashboard",
-    description: "View today’s arrivals and active stays for gate security.",
-    href: "/security/gate",
+    label: "Gate operations",
+    description: "Monitor gate movement and active camp presence.",
     permissions: ["security.view_gate_dashboard"],
+    area: "Security",
   },
   {
-    title: "Notifications",
-    description: "Send and review internal operational alerts.",
-    href: "/notifications",
+    label: "Notifications",
+    description: "Review operational alerts and internal messages.",
     permissions: ["notifications.view"],
+    area: "Operations",
   },
   {
-    title: "Housekeeping",
-    description: "Review cleaning tasks and inspection handoff after turnover.",
-    href: "/housekeeping",
-    permissions: ["housekeeping.view"],
+    label: "Imports",
+    description: "Validate bulk upload access for rooms, guests, or users.",
+    permissions: [
+      "imports.view",
+      "imports.rooms",
+      "imports.guests",
+      "imports.users",
+    ],
+    area: "Data",
   },
   {
-    title: "Inspections",
-    description: "Approve room readiness after cleaning or maintenance.",
-    href: "/housekeeping/inspections",
-    permissions: ["inspections.view"],
+    label: "Exports",
+    description: "Review access to private operational report exports.",
+    permissions: [
+      "reports.view_exports",
+      "exports.reports",
+      "reports.export_csv",
+      "reports.export_excel",
+      "reports.export_pdf",
+    ],
+    area: "Data",
   },
   {
-    title: "Maintenance",
-    description:
-      "Review maintenance tickets, blocked rooms, repairs, and verification.",
-    href: "/maintenance",
-    permissions: ["maintenance.view"],
-  },
-  {
-    title: "Keys & Access Cards",
-    description:
-      "Manage inventory, issuing, returns, and lost key/card events.",
-    href: "/keys",
-    permissions: ["keys.view"],
-  },
-  {
-    title: "Room Service",
-    description:
-      "Manage in-stay service requests, room refreshes, linen, towels, water, and VIP service.",
-    href: "/room-service",
-    permissions: ["room_service.view"],
-  },
-  {
-    title: "Audit Logs",
-    description: "Review sensitive operational and access history.",
-    href: "/admin/audit-logs",
+    label: "Audit logs",
+    description: "Review access to sensitive operational history.",
     permissions: ["audit_logs.view"],
+    area: "Data",
   },
   {
-    title: "Data Imports",
-    description: "Upload and validate bulk room or guest CSV imports.",
-    href: "/imports",
-    permissions: ["imports.view"],
+    label: "System settings",
+    description: "Review system-level configuration access.",
+    permissions: ["settings.view", "system_settings.update"],
+    area: "System",
   },
-  {
-    title: "Report Exports",
-    description: "Generate and download private operational CSV exports.",
-    href: "/reports/exports",
-    permissions: ["reports.view_exports"],
-  },
-] as const;
+] as const satisfies readonly AdminCapability[];
 
 const adminPagePermissions = Array.from(
-  new Set(adminCards.flatMap((card) => card.permissions)),
+  new Set(adminCapabilities.flatMap((capability) => capability.permissions)),
 );
 
-export default async function AdminPage() {
+const capabilityAreas: readonly AdminCapabilityArea[] = [
+  "Identity",
+  "Camp setup",
+  "Operations",
+  "Security",
+  "Data",
+  "System",
+];
+
+function getCapabilityState(
+  capability: AdminCapability,
+  currentUser: Awaited<ReturnType<typeof requireAnyPermission>>,
+): "available" | "restricted" {
+  return hasAnyPermission(currentUser, [...capability.permissions])
+    ? "available"
+    : "restricted";
+}
+
+function getStateLabel(state: "available" | "restricted"): string {
+  return state === "available" ? "Available" : "Restricted";
+}
+
+function getStateClassName(state: "available" | "restricted"): string {
+  return state === "available"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+    : "border-border bg-muted/40 text-muted-foreground";
+}
+
+export default async function AdminPage(): Promise<React.JSX.Element> {
   const currentUser = await requireAnyPermission(adminPagePermissions);
 
-  const visibleCards = adminCards.filter((card) => {
-    return hasAnyPermission(currentUser, [...card.permissions]);
-  });
+  const capabilityRows = adminCapabilities.map((capability) => ({
+    ...capability,
+    state: getCapabilityState(capability, currentUser),
+  }));
+
+  const availableCount = capabilityRows.filter(
+    (capability) => capability.state === "available",
+  ).length;
+
+  const restrictedCount = capabilityRows.length - availableCount;
+
+  const visibleByArea = capabilityAreas
+    .map((area) => ({
+      area,
+      capabilities: capabilityRows.filter(
+        (capability) => capability.area === area,
+      ),
+    }))
+    .filter((group) => group.capabilities.length > 0);
 
   return (
-    <div>
-      <PageHeader
-        title="Administration"
-        description="Manage users, camp access, room inventory, workflows, security, notifications, private documents, and audit visibility."
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {visibleCards.map((card) => (
-          <Link
-            key={card.href}
-            href={card.href}
-            className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="text-base font-semibold text-neutral-950">
-              {card.title}
-            </div>
-
-            <p className="mt-2 text-sm leading-6 text-neutral-600">
-              {card.description}
+    <main className="page-stack">
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border bg-surface px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              System overview
             </p>
-          </Link>
-        ))}
 
-        {visibleCards.length === 0 ? (
-          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm leading-6 text-amber-800 md:col-span-2 xl:col-span-4">
-            You do not currently have access to any administration modules.
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+              Administration
+            </h1>
+
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+              Administrative access summary for identity, camp setup, security,
+              data movement, audit visibility, and system configuration.
+            </p>
           </div>
-        ) : null}
-      </div>
-    </div>
+        </div>
+
+        <div className="grid border-b border-border bg-muted/30 sm:grid-cols-4">
+          <div className="metadata-item border-b border-border px-4 py-3 sm:border-b-0 sm:border-r sm:px-5">
+            <p className="metadata-label">Available areas</p>
+            <p className="metadata-value">{availableCount}</p>
+          </div>
+
+          <div className="metadata-item border-b border-border px-4 py-3 sm:border-b-0 sm:border-r sm:px-5">
+            <p className="metadata-label">Restricted areas</p>
+            <p className="metadata-value">{restrictedCount}</p>
+          </div>
+
+          <div className="metadata-item border-b border-border px-4 py-3 sm:border-b-0 sm:border-r sm:px-5">
+            <p className="metadata-label">Access mode</p>
+            <p className="metadata-value">Permission scoped</p>
+          </div>
+
+          <div className="metadata-item px-4 py-3 sm:px-5">
+            <p className="metadata-label">Setup links</p>
+            <p className="metadata-value">Navigation only</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[17rem_minmax(0,1fr)]">
+        <aside className="border border-border bg-surface">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="text-sm font-semibold text-foreground">
+              Admin scope
+            </h2>
+
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              This page summarizes access only. Admin destinations now live in
+              the sidebar navigation.
+            </p>
+          </div>
+
+          <div className="divide-y divide-border">
+            {visibleByArea.map((group) => {
+              const availableInArea = group.capabilities.filter(
+                (capability) => capability.state === "available",
+              ).length;
+
+              return (
+                <div key={group.area} className="px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    {group.area}
+                  </p>
+
+                  <p className="mt-1 text-sm font-semibold text-foreground">
+                    {availableInArea} / {group.capabilities.length} available
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+
+        <section className="surface-panel min-w-0 overflow-hidden">
+          <div className="border-b border-border bg-surface px-4 py-3 sm:px-5">
+            <h2 className="text-sm font-semibold text-foreground">
+              Capability matrix
+            </h2>
+
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Operational visibility by permission group. Use the sidebar to
+              open the actual admin tools.
+            </p>
+          </div>
+
+          <div className="divide-y divide-border">
+            {capabilityRows.map((capability) => (
+              <div
+                key={capability.label}
+                className="grid gap-3 px-4 py-4 sm:grid-cols-[12rem_minmax(0,1fr)_8rem] sm:items-center sm:px-5"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    {capability.area}
+                  </p>
+
+                  <p className="mt-1 text-sm font-semibold text-foreground">
+                    {capability.label}
+                  </p>
+                </div>
+
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {capability.description}
+                </p>
+
+                <div className="sm:text-right">
+                  <span
+                    className={[
+                      "inline-flex border px-2.5 py-1 text-xs font-semibold",
+                      getStateClassName(capability.state),
+                    ].join(" ")}
+                  >
+                    {getStateLabel(capability.state)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </section>
+    </main>
   );
 }

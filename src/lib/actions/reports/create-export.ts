@@ -5,6 +5,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -96,6 +97,7 @@ function mapExportError(message: string): string {
 
 async function requireExportPermission(format: ExportFormat): Promise<void> {
   await requireAnyPermission([
+    "data.export",
     "exports.reports",
     EXPORT_PERMISSION_BY_FORMAT[format],
   ]);
@@ -178,15 +180,12 @@ export async function createReportExportAction(
       throw new Error(uploadError.message);
     }
 
-    const { error: completeError } = await supabase.rpc(
-      "complete_export_job",
-      {
-        p_export_job_id: exportJobId,
-        p_storage_bucket: EXPORT_BUCKET,
-        p_storage_path: storagePath,
-        p_row_count: exportResult.rowCount,
-      },
-    );
+    const { error: completeError } = await supabase.rpc("complete_export_job", {
+      p_export_job_id: exportJobId,
+      p_storage_bucket: EXPORT_BUCKET,
+      p_storage_path: storagePath,
+      p_row_count: exportResult.rowCount,
+    });
 
     if (completeError) {
       throw new Error(completeError.message);

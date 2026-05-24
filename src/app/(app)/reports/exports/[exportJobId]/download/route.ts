@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
+
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCompletedExportJob } from "@/lib/queries/reports/get-export-jobs";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type ExportDownloadRouteProps = {
   params: Promise<{
@@ -9,21 +14,25 @@ type ExportDownloadRouteProps = {
   }>;
 };
 
-const EXPORT_PERMISSION_BY_FORMAT: Record<string, string> = {
+const EXPORT_PERMISSION_BY_FORMAT = {
   csv: "reports.export_csv",
   xlsx: "reports.export_excel",
   pdf: "reports.export_pdf",
-};
+} as const;
+
+type SupportedExportFormat = keyof typeof EXPORT_PERMISSION_BY_FORMAT;
 
 function safeFilenameSegment(value: string): string {
-  return value
+  const normalized = value
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase();
+
+  return normalized.length > 0 ? normalized : "report";
 }
 
-function normalizeExportFormat(value: string): "csv" | "xlsx" | "pdf" {
+function normalizeExportFormat(value: string): SupportedExportFormat {
   const normalized = value.trim().toLowerCase();
 
   if (normalized === "xlsx" || normalized === "pdf") {
@@ -39,29 +48,34 @@ function buildDownloadFilename(job: {
   export_format: string;
 }): string {
   const format = normalizeExportFormat(job.export_format);
-  const reportType = safeFilenameSegment(job.report_type || "report");
+  const reportType = safeFilenameSegment(job.report_type);
 
   return `${reportType}-${job.id}.${format}`;
+}
+
+function redirectToExports(request: Request, error: string): NextResponse {
+  return NextResponse.redirect(
+    new URL(`/reports/exports?error=${encodeURIComponent(error)}`, request.url),
+  );
 }
 
 export async function GET(
   request: Request,
   { params }: ExportDownloadRouteProps,
 ): Promise<NextResponse> {
+  const { exportJobId } = await params;
+
   await requireAnyPermission([
+    "data.export",
     "reports.view_exports",
     "exports.reports",
-    "reports.export_csv",
-    "reports.export_excel",
-    "reports.export_pdf",
   ]);
 
-  const { exportJobId } = await params;
   const job = await getCompletedExportJob(exportJobId);
   const exportFormat = normalizeExportFormat(job.export_format);
 
   await requireAnyPermission([
-    "reports.view_exports",
+    "data.export",
     "exports.reports",
     EXPORT_PERMISSION_BY_FORMAT[exportFormat],
   ]);
@@ -75,9 +89,7 @@ export async function GET(
     });
 
   if (error || !data?.signedUrl) {
-    return NextResponse.redirect(
-      new URL("/reports/exports?error=download_failed", request.url),
-    );
+    return redirectToExports(request, "download_failed");
   }
 
   return NextResponse.redirect(data.signedUrl);

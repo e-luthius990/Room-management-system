@@ -168,7 +168,7 @@ export async function checkInReservationAction(
   revalidatePath("/dashboard/camp-manager");
   revalidatePath("/reports");
 
-  redirect(`/stays/${checkedInStayId}?success=checked_in`);
+  redirect(`/stays/${checkedInStayId}`);
 }
 
 export async function checkInStayAction(formData: FormData): Promise<never> {
@@ -217,7 +217,7 @@ export async function checkInStayAction(formData: FormData): Promise<never> {
   revalidatePath("/dashboard/camp-manager");
   revalidatePath("/reports");
 
-  redirect(`/stays/${checkedInStayId}?success=checked_in`);
+  redirect(`/stays/${checkedInStayId}`);
 }
 
 export async function checkOutStayAction(formData: FormData): Promise<never> {
@@ -266,5 +266,5 @@ export async function checkOutStayAction(formData: FormData): Promise<never> {
   revalidatePath("/dashboard/camp-manager");
   revalidatePath("/reports");
 
-  redirect(`/stays/${checkedOutStayId}?success=checked_out`);
+  redirect(`/stays/${checkedOutStayId}`);
 }

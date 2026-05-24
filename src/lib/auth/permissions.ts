@@ -19,8 +19,8 @@ export const ACCESS_LEVEL_RANK: Record<CampAccessLevel, number> = {
 };
 
 /**
- * Manager is read-only operational oversight.
- * Do not add workflow/action permissions here.
+ * Camp manager has operational oversight plus controlled data import/export access.
+ * Avoid workflow mutation permissions here unless the business explicitly approves them.
  */
 export const CAMP_MANAGER_PERMISSIONS = [
   "dashboard.view",
@@ -32,7 +32,31 @@ export const CAMP_MANAGER_PERMISSIONS = [
   "stays.view_current",
   "stays.view_history",
 
+  "expected_arrivals.view",
+  "expected_arrivals.create",
+  "expected_arrivals.update",
+  "expected_arrivals.cancel",
+  "expected_arrivals.mark_no_show",
+  "expected_arrivals.allocate",
+
+  "field_absences.view",
+  "field_absences.create",
+  "field_absences.update",
+  "field_absences.mark_returned",
+  "field_absences.cancel",
+
   "security.view_presence",
+
+  "data.import",
+  "data.export",
+
+  "imports.rooms",
+  "imports.guests",
+
+  "exports.reports",
+  "reports.export_csv",
+  "reports.export_excel",
+  "reports.export_pdf",
 ] as const;
 
 function canUseSystem(user: CurrentUserContext): boolean {
@@ -138,12 +162,22 @@ export const ROUTE_PERMISSIONS = {
     "rooms.view_board",
     "stays.view_current",
     "stays.view_history",
+    "security.view_presence",
   ],
 
   roomBoard: ["rooms.view", "rooms.view_board"],
   rooms: ["rooms.view"],
   availableRooms: ["rooms.view", "rooms.view_board"],
   occupiedRooms: ["rooms.view", "rooms.view_board"],
+
+  managerImports: ["data.import", "imports.rooms", "imports.guests"],
+  managerExports: [
+    "data.export",
+    "exports.reports",
+    "reports.export_csv",
+    "reports.export_excel",
+    "reports.export_pdf",
+  ],
 
   createRoom: ["rooms.create"],
   updateRoom: ["rooms.update"],
@@ -170,6 +204,13 @@ export const ROUTE_PERMISSIONS = {
   reservationArrivals: ["reservations.view_arrivals"],
   reservationDepartures: ["reservations.view_departures"],
 
+  expectedArrivals: ["expected_arrivals.view"],
+  createExpectedArrival: ["expected_arrivals.create"],
+  updateExpectedArrival: ["expected_arrivals.update"],
+  cancelExpectedArrival: ["expected_arrivals.cancel"],
+  markExpectedArrivalNoShow: ["expected_arrivals.mark_no_show"],
+  allocateExpectedArrival: ["expected_arrivals.allocate"],
+
   allocations: ["allocations.view"],
   createAllocation: ["allocations.create"],
   cancelAllocation: ["allocations.cancel"],
@@ -182,6 +223,12 @@ export const ROUTE_PERMISSIONS = {
   updateStay: ["stays.update", "stays.check_in", "stays.check_out"],
   checkInStay: ["stays.check_in"],
   checkOutStay: ["stays.check_out"],
+
+  fieldAbsences: ["field_absences.view"],
+  createFieldAbsence: ["field_absences.create"],
+  updateFieldAbsence: ["field_absences.update"],
+  markFieldAbsenceReturned: ["field_absences.mark_returned"],
+  cancelFieldAbsence: ["field_absences.cancel"],
 
   securityPresence: ["security.view_presence"],
 

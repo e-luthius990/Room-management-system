@@ -56,6 +56,10 @@ function getRoleName(currentUser: CurrentUserContext): string {
   );
 }
 
+function getRoleKey(currentUser: CurrentUserContext): string {
+  return getTrimmedValue(currentUser.role.key) ?? "unknown";
+}
+
 export function AppShell({
   currentUser,
   children,
@@ -70,18 +74,23 @@ export function AppShell({
   const fullName = getUserDisplayName(currentUser);
   const email = getUserEmail(currentUser);
   const roleName = getRoleName(currentUser);
+  const roleKey = getRoleKey(currentUser);
 
   return (
     <div
       className={cn("app-shell", className)}
       data-app-shell="true"
       data-container={container}
-      data-role={currentUser.role.key}
+      data-role={roleKey}
       data-system-actor={currentUser.isSystemActor ? "true" : undefined}
     >
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-xl focus:bg-foreground focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-background focus:shadow-floating"
+        className={cn(
+          "sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80]",
+          "focus:border focus:border-border focus:bg-foreground focus:px-4 focus:py-2",
+          "focus:text-sm focus:font-semibold focus:text-background focus:shadow-floating",
+        )}
       >
         Skip to main content
       </a>

@@ -1,13 +1,12 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import type { Database } from "@/lib/db/types";
 import { AUTH_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
 
 const PUBLIC_PATHS = new Set<string>([
   AUTH_ROUTES.callback,
   AUTH_ROUTES.acceptInvite,
   AUTH_ROUTES.resetPassword,
+  AUTH_ROUTES.signOut,
   SYSTEM_ROUTES.accessPending,
   SYSTEM_ROUTES.accountSuspended,
 ]);
@@ -22,26 +21,6 @@ const PUBLIC_FILE_PATTERN =
 
 const API_PREFIX = "/api/";
 const BLOCKED_NEXT_PREFIXES = ["/auth/", "/api/", "/_next/"] as const;
-
-function getPublicSupabaseUrl(): string {
-  const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  if (!value) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL.");
-  }
-
-  return value;
-}
-
-function getPublicSupabaseKey(): string {
-  const value = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!value) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.");
-  }
-
-  return value;
-}
 
 function isStaticAsset(pathname: string): boolean {
   return (
@@ -105,16 +84,6 @@ function createPassThroughResponse(request: NextRequest): NextResponse {
   return response;
 }
 
-function copyCookies(source: NextResponse, target: NextResponse): NextResponse {
-  source.cookies.getAll().forEach((cookie) => {
-    const { name, value, ...options } = cookie;
-
-    target.cookies.set(name, value, options);
-  });
-
-  return target;
-}
-
 function redirectToLogin(request: NextRequest): NextResponse {
   const redirectUrl = request.nextUrl.clone();
   const safeNextPath = getSafeNextPath(
@@ -127,18 +96,6 @@ function redirectToLogin(request: NextRequest): NextResponse {
   if (safeNextPath) {
     redirectUrl.searchParams.set("next", safeNextPath);
   }
-
-  const response = NextResponse.redirect(redirectUrl);
-  response.headers.set("Cache-Control", "no-store");
-
-  return response;
-}
-
-function redirectToDashboard(request: NextRequest): NextResponse {
-  const redirectUrl = request.nextUrl.clone();
-
-  redirectUrl.pathname = SYSTEM_ROUTES.dashboard;
-  redirectUrl.search = "";
 
   const response = NextResponse.redirect(redirectUrl);
   response.headers.set("Cache-Control", "no-store");
@@ -175,58 +132,19 @@ export async function updateSession(
     return createPassThroughResponse(request);
   }
 
-  if (isAuthEntryPath(pathname) && !hasLikelySupabaseAuthCookie(request)) {
+  if (isAuthEntryPath(pathname)) {
     return createPassThroughResponse(request);
   }
 
-  let response = createPassThroughResponse(request);
+  const hasAuthCookie = hasLikelySupabaseAuthCookie(request);
 
-  const supabase = createServerClient<Database>(
-    getPublicSupabaseUrl(),
-    getPublicSupabaseKey(),
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => {
-            request.cookies.set(name, value);
-          });
-
-          response = createPassThroughResponse(request);
-
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    },
-  );
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  const hasValidSession = !error && Boolean(user);
-
-  if (isAuthEntryPath(pathname)) {
-    if (hasValidSession) {
-      return copyCookies(response, redirectToDashboard(request));
-    }
-
-    return response;
-  }
-
-  if (!hasValidSession) {
+  if (!hasAuthCookie) {
     if (isApiPath(pathname)) {
-      return copyCookies(response, unauthorizedJson());
+      return unauthorizedJson();
     }
 
-    return copyCookies(response, redirectToLogin(request));
+    return redirectToLogin(request);
   }
 
-  return response;
+  return createPassThroughResponse(request);
 }

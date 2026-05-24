@@ -33,28 +33,42 @@ export function GateExitForm({
   entryAt,
   compact = false,
 }: GateExitFormProps): React.JSX.Element {
+  if (compact) {
+    return (
+      <form action={markSecurityGateExitAction} className="inline-flex">
+        <input type="hidden" name="securityEventId" value={securityEventId} />
+        <input type="hidden" name="exitNotes" value="" />
+
+        <PendingSubmitButton
+          pendingLabel="Marking as left..."
+          className="btn-warning btn-sm"
+        >
+          Mark as left
+        </PendingSubmitButton>
+      </form>
+    );
+  }
+
   return (
     <form action={markSecurityGateExitAction} className="space-y-3">
       <input type="hidden" name="securityEventId" value={securityEventId} />
 
-      {!compact ? (
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">
-            Confirm gate exit
-          </h3>
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">
+          Confirm gate exit
+        </h3>
 
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Mark {guestName} as physically left. Entry recorded at{" "}
-            {formatDateTime(entryAt)}.
-          </p>
-        </div>
-      ) : null}
+        <p className="mt-1 text-sm leading-6 text-muted">
+          Mark {guestName} as physically left. Entry recorded at{" "}
+          {formatDateTime(entryAt)}.
+        </p>
+      </div>
 
       <Textarea
         id={`exit-notes-${securityEventId}`}
         name="exitNotes"
         label="Exit notes"
-        rows={compact ? 2 : 3}
+        rows={3}
         maxLength={1000}
         placeholder="Optional. Example: Left with company transport, visitor badge returned..."
         className="resize-y"
@@ -62,8 +76,8 @@ export function GateExitForm({
 
       <PendingSubmitButton
         pendingLabel="Marking as left..."
-        fullWidth={!compact}
-        className={compact ? "btn-warning btn-sm" : "btn-warning"}
+        fullWidth
+        className="btn-warning"
       >
         Mark as left
       </PendingSubmitButton>

@@ -1,6 +1,7 @@
 export const AUTH_ROUTES = {
   login: "/auth/login",
   callback: "/auth/callback",
+  signOut: "/auth/sign-out",
   acceptInvite: "/auth/accept-invite",
   forgotPassword: "/auth/forgot-password",
   resetPassword: "/auth/reset-password",
@@ -36,21 +37,32 @@ export const APP_ROUTES = {
 
     rooms: {
       board: "/room-board",
-      available: "/room-board?status=vacant_ready",
-      occupied: "/room-board?status=occupied",
+      available: "/dashboard/camp-manager/available-rooms",
+      occupied: "/dashboard/camp-manager/occupied-rooms",
     },
 
     guests: {
-      current: "/stays?view=current",
-      exited: "/stays?view=exited",
+      current: "/dashboard/camp-manager/current-guests",
+      exited: "/dashboard/camp-manager/exited-guests",
+    },
+
+    data: {
+      imports: "/imports",
+      exports: "/reports/exports",
     },
   },
 
   reception: {
     home: "/dashboard/reception",
+
     securityHandoffs: "/reception/security-handoffs",
     securityHandoffDetail: (securityEventId: string) =>
       `/reception/security-handoffs/${routeSegment(securityEventId)}`,
+
+    expectedArrivals: "/reception/expected-arrivals",
+    createExpectedArrival: "/reception/expected-arrivals/new",
+    expectedArrivalDetail: (expectedArrivalId: string) =>
+      `/reception/expected-arrivals/${routeSegment(expectedArrivalId)}`,
   },
 
   rooms: {
@@ -97,6 +109,14 @@ export const APP_ROUTES = {
     checkInFromSecurityHandoff: (securityEventId: string) =>
       `/stays/check-in?securityEventId=${queryValue(securityEventId)}`,
     checkOut: (stayId: string) => `/stays/${routeSegment(stayId)}/check-out`,
+    createFieldAbsence: (stayId: string) =>
+      `/stays/${routeSegment(stayId)}/field-absence/new`,
+  },
+
+  fieldAbsences: {
+    list: "/field-absences",
+    detail: (fieldAbsenceId: string) =>
+      `/field-absences/${routeSegment(fieldAbsenceId)}`,
   },
 
   guests: {

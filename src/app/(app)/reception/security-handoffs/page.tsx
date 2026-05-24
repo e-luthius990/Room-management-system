@@ -1,7 +1,14 @@
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
+
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  ClearanceStatusBadge,
+  RiskLevelBadge,
+  VisitTypeBadge,
+} from "@/components/security/security-status-badge";
 import {
   Card,
   CardContent,
@@ -12,12 +19,12 @@ import {
 import { EmptyState as UiEmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import {
-  ClearanceStatusBadge,
-  RiskLevelBadge,
-  VisitTypeBadge,
-} from "@/components/security/security-status-badge";
 import { cn } from "@/lib/utils/cn";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const RECEPTION_HANDOFFS_PATH = "/reception/security-handoffs";
 
 type PageSearchParams = {
   q?: string | string[];
@@ -45,11 +52,19 @@ type SecurityHandoffEventRow = {
   entry_at: string | null;
   exit_at: string | null;
   sent_to_reception_at: string | null;
+  reception_received_at: string | null;
+  reception_status: string | null;
   related_reservation_id: string | null;
   related_stay_id: string | null;
   note: string | null;
   notes: string | null;
   created_at: string;
+};
+
+type HandoffExitRow = {
+  guest_id: string;
+  camp_id: string;
+  exit_at: string;
 };
 
 type GuestRow = {
@@ -90,7 +105,6 @@ const visitTypeOptions = [
   { value: "vip", label: "VIPs" },
   { value: "delivery", label: "Deliveries" },
   { value: "staff_visit", label: "Staff visits" },
-  { value: "other", label: "Other" },
 ] as const;
 
 const riskOptions = [
@@ -102,14 +116,14 @@ const riskOptions = [
   { value: "critical", label: "Critical" },
 ] as const;
 
+function handoffDetailPath(securityEventId: string): string {
+  return `${RECEPTION_HANDOFFS_PATH}/${securityEventId}`;
+}
+
 function getFirstParam(
   value: string | string[] | undefined,
 ): string | undefined {
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-
-  return value;
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function normalizeFilterValue(value: string | undefined): string {
@@ -126,17 +140,6 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
   );
 }
 
-function formatLabel(value: string | null | undefined): string {
-  if (!value) {
-    return "—";
-  }
-
-  return value
-    .replaceAll("_", " ")
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
 function formatDateTime(value: string | null | undefined): string {
   if (!value) {
     return "—";
@@ -149,8 +152,11 @@ function formatDateTime(value: string | null | undefined): string {
   }
 
   return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
     timeZone: "Africa/Kampala",
   }).format(date);
 }
@@ -183,11 +189,9 @@ function formatWaitingTime(value: string | null | undefined): string {
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
 
-  if (remainingMinutes === 0) {
-    return `${hours} hr`;
-  }
-
-  return `${hours} hr ${remainingMinutes} min`;
+  return remainingMinutes === 0
+    ? `${hours} hr`
+    : `${hours} hr ${remainingMinutes} min`;
 }
 
 function getGuestName(item: ReceptionHandoffItem): string {
@@ -251,7 +255,7 @@ function getPriorityLabel(item: ReceptionHandoffItem): {
   }
 
   if (isVipOrDelegate(item)) {
-    return { label: "Priority guest", tone: "warning" };
+    return { label: "Priority", tone: "warning" };
   }
 
   if (isStaleHandoff(item)) {
@@ -326,6 +330,31 @@ function applyFilters({
   });
 }
 
+function hasExitAfterHandoff(
+  event: SecurityHandoffEventRow,
+  exits: HandoffExitRow[],
+): boolean {
+  if (!event.sent_to_reception_at) {
+    return false;
+  }
+
+  const handoffTime = new Date(event.sent_to_reception_at).getTime();
+
+  if (!Number.isFinite(handoffTime)) {
+    return false;
+  }
+
+  return exits.some((exit) => {
+    if (exit.guest_id !== event.guest_id || exit.camp_id !== event.camp_id) {
+      return false;
+    }
+
+    const exitTime = new Date(exit.exit_at).getTime();
+
+    return Number.isFinite(exitTime) && exitTime >= handoffTime;
+  });
+}
+
 async function getReceptionSecurityHandoffs(): Promise<ReceptionHandoffItem[]> {
   const supabase = await createServerSupabaseClient();
 
@@ -348,6 +377,8 @@ async function getReceptionSecurityHandoffs(): Promise<ReceptionHandoffItem[]> {
         "entry_at",
         "exit_at",
         "sent_to_reception_at",
+        "reception_received_at",
+        "reception_status",
         "related_reservation_id",
         "related_stay_id",
         "note",
@@ -355,8 +386,10 @@ async function getReceptionSecurityHandoffs(): Promise<ReceptionHandoffItem[]> {
         "created_at",
       ].join(","),
     )
+    .eq("event_type", "sent_to_reception")
     .not("sent_to_reception_at", "is", null)
-    .is("exit_at", null)
+    .is("reception_received_at", null)
+    .or("reception_status.is.null,reception_status.eq.pending")
     .is("related_reservation_id", null)
     .is("related_stay_id", null)
     .order("sent_to_reception_at", { ascending: true })
@@ -376,71 +409,90 @@ async function getReceptionSecurityHandoffs(): Promise<ReceptionHandoffItem[]> {
   const guestIds = uniqueStrings(eventRows.map((event) => event.guest_id));
   const campIds = uniqueStrings(eventRows.map((event) => event.camp_id));
 
-  const [guestsResult, campsResult] = await Promise.all([
-    guestIds.length > 0
-      ? supabase
-          .from("guests")
-          .select(
-            [
-              "id",
-              "full_name",
-              "guest_category",
-              "organization",
-              "department_or_project",
-              "nationality",
-              "phone",
-              "email",
-              "id_or_passport_number",
-              "is_vip",
-              "security_clearance_status",
-            ].join(","),
-          )
-          .in("id", guestIds)
-          .is("archived_at", null)
-          .returns<GuestRow[]>()
-      : Promise.resolve({ data: [], error: null }),
+  let guestRows: GuestRow[] = [];
+  let campRows: CampRow[] = [];
+  let exitRows: HandoffExitRow[] = [];
 
-    campIds.length > 0
-      ? supabase
-          .from("camps")
-          .select("id,name,code,location")
-          .in("id", campIds)
-          .is("deleted_at", null)
-          .returns<CampRow[]>()
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  if (guestIds.length > 0) {
+    const { data, error } = await supabase
+      .from("guests")
+      .select(
+        [
+          "id",
+          "full_name",
+          "guest_category",
+          "organization",
+          "department_or_project",
+          "nationality",
+          "phone",
+          "email",
+          "id_or_passport_number",
+          "is_vip",
+          "security_clearance_status",
+        ].join(","),
+      )
+      .in("id", guestIds)
+      .is("archived_at", null)
+      .returns<GuestRow[]>();
 
-  if (guestsResult.error) {
-    throw new Error(
-      `Failed to load handoff guest records: ${guestsResult.error.message}`,
-    );
+    if (error) {
+      throw new Error(`Failed to load handoff guests: ${error.message}`);
+    }
+
+    guestRows = data ?? [];
   }
 
-  if (campsResult.error) {
-    throw new Error(
-      `Failed to load handoff camp records: ${campsResult.error.message}`,
-    );
+  if (campIds.length > 0) {
+    const { data, error } = await supabase
+      .from("camps")
+      .select("id,name,code,location")
+      .in("id", campIds)
+      .is("deleted_at", null)
+      .returns<CampRow[]>();
+
+    if (error) {
+      throw new Error(`Failed to load handoff camps: ${error.message}`);
+    }
+
+    campRows = data ?? [];
+  }
+
+  if (guestIds.length > 0) {
+    const { data, error } = await supabase
+      .from("security_clearance_events")
+      .select("guest_id,camp_id,exit_at")
+      .in("guest_id", guestIds)
+      .not("exit_at", "is", null)
+      .returns<HandoffExitRow[]>();
+
+    if (error) {
+      throw new Error(`Failed to validate handoff exits: ${error.message}`);
+    }
+
+    exitRows = data ?? [];
   }
 
   const guestsById = new Map<string, GuestRow>();
   const campsById = new Map<string, CampRow>();
 
-  for (const guest of guestsResult.data ?? []) {
+  for (const guest of guestRows) {
     guestsById.set(guest.id, guest);
   }
 
-  for (const camp of campsResult.data ?? []) {
+  for (const camp of campRows) {
     campsById.set(camp.id, camp);
   }
 
-  return eventRows.map((event) => ({
-    event,
-    guest: guestsById.get(event.guest_id) ?? null,
-    camp: campsById.get(event.camp_id) ?? null,
-  }));
+  return eventRows
+    .filter((event) => !hasExitAfterHandoff(event, exitRows))
+    .map((event) => ({
+      event,
+      guest: guestsById.get(event.guest_id) ?? null,
+      camp: campsById.get(event.camp_id) ?? null,
+    }));
 }
 
-function CompactSummary({
+function PressureCell({
   label,
   value,
   hint,
@@ -449,26 +501,29 @@ function CompactSummary({
   label: string;
   value: number;
   hint: string;
-  tone?: "default" | "warning" | "danger";
+  tone?: "default" | "warning" | "danger" | "info";
 }): React.JSX.Element {
   const toneClass = {
-    default: "border-border bg-surface",
-    warning: "border-warning-700/25 bg-warning-50",
-    danger: "border-danger-600/25 bg-danger-50",
+    default: "bg-surface",
+    warning: "bg-warning-50/70",
+    danger: "bg-danger-50/60",
+    info: "bg-info-50/60",
   }[tone];
 
   return (
-    <div className={cn("rounded-2xl border px-4 py-3", toneClass)}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-        {label}
+    <article className={cn("px-4 py-3", toneClass)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+          {label}
+        </p>
+
+        <p className="text-xl font-semibold tracking-[-0.04em] text-foreground">
+          {value}
+        </p>
       </div>
 
-      <div className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground">
-        {value}
-      </div>
-
-      <div className="mt-0.5 text-xs leading-5 text-muted">{hint}</div>
-    </div>
+      <p className="mt-1 truncate text-xs text-muted">{hint}</p>
+    </article>
   );
 }
 
@@ -490,7 +545,7 @@ function PriorityBadge({
   return (
     <span
       className={cn(
-        "inline-flex rounded-full border px-2.5 py-1 text-xs font-bold",
+        "inline-flex border px-2 py-0.5 text-[11px] font-bold",
         className,
       )}
     >
@@ -509,10 +564,11 @@ function FilterPanel({
   risk: string;
 }): React.JSX.Element {
   return (
-    <Card variant="card">
-      <CardContent className="p-4">
+    <Card variant="console" className="min-w-0">
+      <CardContent className="p-3">
         <form
           action={APP_ROUTES.reception.securityHandoffs}
+          method="get"
           className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px_auto_auto] lg:items-end"
         >
           <Input
@@ -563,7 +619,14 @@ function HandoffActionLinks({
   const guestId = item.guest?.id ?? item.event.guest_id;
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+    <div className="grid gap-2">
+      <Link
+        href={handoffDetailPath(item.event.id)}
+        className="btn-primary btn-sm"
+      >
+        View handoff
+      </Link>
+
       {guestId ? (
         <Link
           href={APP_ROUTES.guests.detail(guestId)}
@@ -589,7 +652,7 @@ function HandoffActionLinks({
 
       <Link
         href={APP_ROUTES.stays.checkInFromSecurityHandoff(item.event.id)}
-        className="btn-primary btn-sm"
+        className="btn-secondary btn-sm"
       >
         Start check-in
       </Link>
@@ -600,6 +663,8 @@ function HandoffActionLinks({
 function HandoffEmptyState(): React.JSX.Element {
   return (
     <UiEmptyState
+      operational
+      align="left"
       title="No security handoffs waiting"
       description="Guests sent by security will appear here after gate handoff. Once reception creates a reservation, starts check-in, or links the handoff to a stay, the record leaves this queue."
     />
@@ -612,21 +677,25 @@ function HandoffQueue({
   handoffs: ReceptionHandoffItem[];
 }): React.JSX.Element {
   if (handoffs.length === 0) {
-    return <HandoffEmptyState />;
+    return (
+      <div className="p-4">
+        <HandoffEmptyState />
+      </div>
+    );
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-3 p-3">
       {handoffs.map((item) => {
         const event = item.event;
         const guest = item.guest;
         const securityNote = getSecurityNote(event);
 
         return (
-          <Card key={event.id} variant="card">
-            <CardContent className="p-4">
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-                <div className="min-w-0">
+          <Card key={event.id} variant="console" className="min-w-0">
+            <CardContent className="p-0">
+              <div className="grid xl:grid-cols-[minmax(0,1fr)_13rem]">
+                <div className="min-w-0 px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <PriorityBadge item={item} />
                     <VisitTypeBadge visitType={event.visit_type} />
@@ -634,18 +703,18 @@ function HandoffQueue({
                     <RiskLevelBadge riskLevel={event.risk_level} />
                   </div>
 
-                  <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.35fr)]">
+                  <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
                     <div className="min-w-0">
                       <h2 className="truncate text-base font-semibold tracking-[-0.025em] text-foreground">
                         {getGuestName(item)}
                       </h2>
 
-                      <p className="mt-1 text-sm leading-6 text-muted">
+                      <p className="mt-1 line-clamp-1 text-sm text-muted">
                         {getGuestContext(item)}
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-border bg-surface-2 px-4 py-3">
+                    <div className="text-left md:text-right">
                       <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
                         Waiting
                       </div>
@@ -656,78 +725,74 @@ function HandoffQueue({
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-2xl bg-surface-2 px-4 py-3">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                  <dl className="mt-4 grid gap-x-6 gap-y-2 border-t border-border pt-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
                         Camp
-                      </div>
-
-                      <div className="mt-1 truncate text-sm font-medium text-foreground">
+                      </dt>
+                      <dd className="mt-1 truncate text-foreground">
                         {item.camp
                           ? `${item.camp.name} (${item.camp.code})`
                           : "Unknown camp"}
-                      </div>
+                      </dd>
                     </div>
 
-                    <div className="rounded-2xl bg-surface-2 px-4 py-3">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
                         Sent
-                      </div>
-
-                      <div className="mt-1 text-sm font-medium text-foreground">
+                      </dt>
+                      <dd className="mt-1 text-foreground">
                         {formatDateTime(event.sent_to_reception_at)}
-                      </div>
+                      </dd>
                     </div>
 
-                    <div className="rounded-2xl bg-surface-2 px-4 py-3">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
                         Host
-                      </div>
-
-                      <div className="mt-1 truncate text-sm font-medium text-foreground">
+                      </dt>
+                      <dd className="mt-1 truncate text-foreground">
                         {event.host_name ?? "Not recorded"}
-                      </div>
+                      </dd>
                     </div>
 
-                    <div className="rounded-2xl bg-surface-2 px-4 py-3">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
                         Contact
-                      </div>
-
-                      <div className="mt-1 truncate text-sm font-medium text-foreground">
+                      </dt>
+                      <dd className="mt-1 truncate text-foreground">
                         {guest?.phone ?? guest?.email ?? "Not recorded"}
-                      </div>
+                      </dd>
                     </div>
-                  </div>
+                  </dl>
 
                   {event.purpose ? (
-                    <div className="mt-3 rounded-2xl border border-border px-4 py-3">
+                    <div className="mt-3 border-t border-border pt-3">
                       <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
                         Purpose
                       </div>
 
-                      <div className="mt-1 text-sm leading-6 text-foreground-soft">
+                      <div className="mt-1 line-clamp-2 text-sm leading-6 text-foreground">
                         {event.purpose}
                       </div>
                     </div>
                   ) : null}
 
                   {securityNote ? (
-                    <div className="mt-3 rounded-2xl border border-warning-700/20 bg-warning-50 px-4 py-3">
+                    <div className="mt-3 border-t border-warning-700/25 pt-3">
                       <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-warning-700">
                         Security note
                       </div>
 
-                      <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-warning-700">
+                      <div className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-warning-700">
                         {securityNote}
                       </div>
                     </div>
                   ) : null}
                 </div>
 
-                <div className="border-t border-border pt-4 xl:min-w-[30rem] xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
+                <aside className="border-t border-border bg-surface-2/45 p-3 xl:border-l xl:border-t-0">
                   <HandoffActionLinks item={item} />
-                </div>
+                </aside>
               </div>
             </CardContent>
           </Card>
@@ -740,12 +805,12 @@ function HandoffQueue({
 export default async function ReceptionSecurityHandoffsPage({
   searchParams,
 }: ReceptionSecurityHandoffsPageProps): Promise<React.JSX.Element> {
+  noStore();
+
   await requirePermission("reception.handle_security_handoffs");
   await requirePermission("guests.view");
 
-  const resolvedSearchParams: PageSearchParams = searchParams
-    ? await searchParams
-    : {};
+  const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const q = normalizeFilterValue(getFirstParam(resolvedSearchParams.q));
   const visitType =
@@ -755,12 +820,7 @@ export default async function ReceptionSecurityHandoffsPage({
     normalizeFilterValue(getFirstParam(resolvedSearchParams.risk)) || "all";
 
   const handoffs = await getReceptionSecurityHandoffs();
-  const filteredHandoffs = applyFilters({
-    handoffs,
-    q,
-    visitType,
-    risk,
-  });
+  const filteredHandoffs = applyFilters({ handoffs, q, visitType, risk });
 
   const highRiskCount = handoffs.filter(isHighRisk).length;
   const priorityCount = handoffs.filter(isVipOrDelegate).length;
@@ -768,46 +828,49 @@ export default async function ReceptionSecurityHandoffsPage({
 
   return (
     <div className="page-stack">
-      <section className="surface-panel p-4 sm:p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0">
-            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-3xl">
-              Security handoffs
-            </h1>
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border px-4 py-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+            Reception handoff control
+          </p>
 
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-              Guests cleared and sent forward by security, waiting for reception
-              handling.
-            </p>
-          </div>
+          <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
+            Security handoffs
+          </h1>
 
-          <div className="grid gap-2 sm:grid-cols-4 xl:min-w-[34rem]">
-            <CompactSummary
-              label="Waiting"
-              value={handoffs.length}
-              hint="Unlinked handoffs"
-            />
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+            Guests cleared and sent forward by security, waiting for reception
+            handling.
+          </p>
+        </div>
 
-            <CompactSummary
-              label="Filtered"
-              value={filteredHandoffs.length}
-              hint="Current view"
-            />
+        <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+          <PressureCell
+            label="Waiting"
+            value={handoffs.length}
+            hint="Unlinked handoffs"
+          />
 
-            <CompactSummary
-              label="Priority"
-              value={priorityCount}
-              hint="VIP / delegates"
-              tone={priorityCount > 0 ? "warning" : "default"}
-            />
+          <PressureCell
+            label="Filtered"
+            value={filteredHandoffs.length}
+            hint="Current view"
+            tone="info"
+          />
 
-            <CompactSummary
-              label="High risk"
-              value={highRiskCount}
-              hint="Needs care"
-              tone={highRiskCount > 0 ? "danger" : "default"}
-            />
-          </div>
+          <PressureCell
+            label="Priority"
+            value={priorityCount}
+            hint="VIP / delegates"
+            tone={priorityCount > 0 ? "warning" : "default"}
+          />
+
+          <PressureCell
+            label="High risk"
+            value={highRiskCount}
+            hint="Needs care"
+            tone={highRiskCount > 0 ? "danger" : "default"}
+          />
         </div>
       </section>
 
@@ -820,15 +883,16 @@ export default async function ReceptionSecurityHandoffsPage({
 
       <FilterPanel q={q} visitType={visitType} risk={risk} />
 
-      <Card variant="card">
-        <CardHeader>
-          <CardTitle>Reception handling queue</CardTitle>
-          <CardDescription>
+      <Card variant="console" className="min-w-0">
+        <CardHeader className="border-b border-border px-4 py-3">
+          <CardTitle className="text-sm">Reception handling queue</CardTitle>
+
+          <CardDescription className="mt-1 text-xs leading-5">
             Start the correct receptionist workflow from each security handoff.
           </CardDescription>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="p-0">
           <HandoffQueue handoffs={filteredHandoffs} />
         </CardContent>
       </Card>

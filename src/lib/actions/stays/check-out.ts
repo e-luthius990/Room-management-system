@@ -109,5 +109,5 @@ export async function checkOutStayAction(formData: FormData): Promise<never> {
   revalidatePath("/dashboard/camp-manager");
   revalidatePath("/reports");
 
-  redirect(`/stays/${checkedOutStayId}?success=checked_out`);
+  redirect(`/stays/${checkedOutStayId}`);
 }
