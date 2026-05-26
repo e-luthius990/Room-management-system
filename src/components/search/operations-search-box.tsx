@@ -4,7 +4,10 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 import { AsyncEntityCombobox } from "@/components/search/async-entity-combobox";
-import { StatusIndicator } from "@/components/ui/StatusIndicator";
+import {
+  StatusIndicator,
+  type StatusTone,
+} from "@/components/ui/StatusIndicator";
 import { cn } from "@/lib/utils/cn";
 
 export type OperationsSearchScope =
@@ -12,8 +15,6 @@ export type OperationsSearchScope =
   | "reception"
   | "manager"
   | "executive";
-
-type SearchResultTone = "default" | "success" | "warning" | "danger" | "info";
 
 type OperationSearchResult = {
   id: string;
@@ -23,7 +24,7 @@ type OperationSearchResult = {
   meta: string | null;
   href: string;
   statusLabel: string | null;
-  statusTone: SearchResultTone;
+  statusTone: StatusTone;
 };
 
 type OperationSearchResponse = {
@@ -37,11 +38,63 @@ type OperationsSearchBoxProps = {
 };
 
 function getTypeLabel(type: OperationSearchResult["type"]): string {
-  if (type === "room") {
-    return "Room";
-  }
+  return type === "room" ? "Room" : "Guest";
+}
 
-  return "Guest";
+function getTypeMarkerClass(type: OperationSearchResult["type"]): string {
+  return type === "room" ? "border-l-sky-600" : "border-l-emerald-600";
+}
+
+function OperationSearchResultRow({
+  item,
+}: {
+  item: OperationSearchResult;
+}): React.JSX.Element {
+  const isRoom = item.type === "room";
+
+  return (
+    <div
+      className={cn(
+        "grid min-w-0 gap-3 border-l-2 pl-3 sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:items-center",
+        getTypeMarkerClass(item.type),
+      )}
+    >
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+          {getTypeLabel(item.type)}
+        </div>
+
+        {isRoom ? (
+          <div className="mt-1 text-xl font-semibold tracking-[-0.045em] text-foreground">
+            {item.title}
+          </div>
+        ) : (
+          <div className="mt-1 truncate text-sm font-semibold text-foreground">
+            {item.title}
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <div className="truncate text-sm text-foreground">{item.subtitle}</div>
+
+        {item.meta ? (
+          <div className="mt-1 truncate text-xs text-muted">{item.meta}</div>
+        ) : null}
+      </div>
+
+      {item.statusLabel ? (
+        <div className="shrink-0 sm:flex sm:justify-end">
+          <StatusIndicator
+            compact
+            withDot
+            tone={item.statusTone}
+            label={item.statusLabel}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function OperationsSearchBox({
@@ -90,7 +143,7 @@ export function OperationsSearchBox({
       placeholder={placeholder}
       minQueryLength={2}
       debounceMs={180}
-      className={cn("min-w-0", className)}
+      className={cn("w-full min-w-0", className)}
       loadItems={loadItems}
       getItemKey={(item) => `${item.type}:${item.id}`}
       onSelect={(item) => {
@@ -98,40 +151,7 @@ export function OperationsSearchBox({
       }}
       emptyTitle="No matching records"
       emptyDescription="Try a guest name, phone number, ID/passport number, organization, or room number."
-      renderItem={(item) => (
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="shrink-0 border border-border bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
-                {getTypeLabel(item.type)}
-              </span>
-
-              <span className="truncate text-sm font-semibold text-foreground">
-                {item.title}
-              </span>
-            </div>
-
-            <div className="mt-1 truncate text-xs text-muted">
-              {item.subtitle}
-            </div>
-
-            {item.meta ? (
-              <div className="mt-1 truncate text-xs text-muted">
-                {item.meta}
-              </div>
-            ) : null}
-          </div>
-
-          {item.statusLabel ? (
-            <StatusIndicator
-              compact
-              withDot
-              tone={item.statusTone}
-              label={item.statusLabel}
-            />
-          ) : null}
-        </div>
-      )}
+      renderItem={(item) => <OperationSearchResultRow item={item} />}
     />
   );
 }

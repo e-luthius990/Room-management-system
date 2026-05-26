@@ -9,7 +9,13 @@ export const revalidate = 0;
 
 type SearchScope = "security" | "reception" | "manager" | "executive";
 
-type SearchResultTone = "default" | "success" | "warning" | "danger" | "info";
+type SearchResultTone =
+  | "success"
+  | "info"
+  | "warning"
+  | "danger"
+  | "brand"
+  | "muted";
 
 type OperationSearchResult = {
   id: string;
@@ -61,7 +67,6 @@ type QueryResult<T> = {
 type LimitBuilder<T> = {
   limit(count: number): Promise<QueryResult<T>>;
 };
-
 
 type FilterBuilder<T> = {
   is(column: string, value: null): FilterBuilder<T>;
@@ -252,7 +257,7 @@ function getGuestStatusTone(status: string | null): SearchResultTone {
     return "warning";
   }
 
-  return "default";
+  return "muted";
 }
 
 function getRoomStatusTone(status: string | null): SearchResultTone {
@@ -277,7 +282,7 @@ function getRoomStatusTone(status: string | null): SearchResultTone {
     return "danger";
   }
 
-  return "default";
+  return "muted";
 }
 
 function guestHref(scope: SearchScope, guestId: string): string {
