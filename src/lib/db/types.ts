@@ -1,6 +1,4 @@
-Need to install the following packages:
-supabase@2.101.0
-Ok to proceed? (y) export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -9020,6 +9018,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       start_housekeeping_task: {
         Args: { p_task_id: string }
         Returns: {
