@@ -1,9 +1,6 @@
 import type { JSX } from "react";
-import Link from "next/link";
 
-import { PageHeader } from "@/components/layout/page-header";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
-import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils/cn";
 
@@ -12,6 +9,10 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const AVAILABLE_ROOMS_PERMISSIONS = ["rooms.view", "rooms.view_board"] as const;
+
+type PageSearchParams = {
+  q?: string | string[];
+};
 
 type AvailableRoomRow = {
   room_id: string | null;
@@ -28,6 +29,36 @@ type AvailableRoomRow = {
   is_delegate_suitable: boolean | null;
 };
 
+type ManagerAvailableRoomsPageProps = {
+  searchParams?: Promise<PageSearchParams> | PageSearchParams;
+};
+
+function getSearchValue(searchParams?: PageSearchParams): string {
+  const value = searchParams?.q;
+
+  if (Array.isArray(value)) {
+    return value[0]?.trim() ?? "";
+  }
+
+  return value?.trim() ?? "";
+}
+
+function roomMatchesSearch(room: AvailableRoomRow, query: string): boolean {
+  if (!query) return true;
+
+  const normalizedQuery = query.toLowerCase();
+
+  return [
+    room.room_number,
+    room.camp_name,
+    room.building_name,
+    room.room_type,
+    room.current_status,
+    room.condition_status,
+    room.capacity?.toString() ?? null,
+  ].some((value) => value?.toLowerCase().includes(normalizedQuery));
+}
+
 function formatLabel(value: string | null): string {
   if (!value) return "—";
 
@@ -36,19 +67,95 @@ function formatLabel(value: string | null): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function statusTone(value: string | null): string {
+function statusMarkerClass(value: string | null): string {
   switch (value) {
     case "vacant_ready":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+      return "bg-emerald-600";
     case "reserved":
-      return "border-amber-200 bg-amber-50 text-amber-800";
+      return "bg-amber-500";
     case "manager_hold":
-      return "border-neutral-200 bg-neutral-100 text-neutral-700";
+      return "bg-neutral-500";
     case "out_of_service":
-      return "border-red-200 bg-red-50 text-red-700";
+      return "bg-red-600";
     default:
-      return "border-neutral-200 bg-neutral-50 text-neutral-700";
+      return "bg-neutral-400";
   }
+}
+
+function StatusCell({ status }: { status: string | null }): JSX.Element {
+  return (
+    <div className="inline-flex items-center gap-2 border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-foreground">
+      <span
+        aria-hidden="true"
+        className={cn(
+          "h-2 w-2 border border-background",
+          statusMarkerClass(status),
+        )}
+      />
+      <span>{formatLabel(status)}</span>
+    </div>
+  );
+}
+
+function SuitabilityFlags({
+  isVip,
+  isDelegateSuitable,
+}: {
+  isVip: boolean | null;
+  isDelegateSuitable: boolean | null;
+}): JSX.Element {
+  if (!isVip && !isDelegateSuitable) {
+    return <span className="text-sm text-muted">Standard room</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {isVip ? (
+        <span className="border border-border bg-surface px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground">
+          VIP
+        </span>
+      ) : null}
+
+      {isDelegateSuitable ? (
+        <span className="border border-border bg-surface px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground">
+          Delegate
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function RoomSearchRail({
+  query,
+  visibleCount,
+  totalCount,
+}: {
+  query: string;
+  visibleCount: number;
+  totalCount: number;
+}): JSX.Element {
+  return (
+    <form action="" className="ops-command">
+      <label htmlFor="room-search" className="sr-only">
+        Search available rooms
+      </label>
+
+      <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <input
+          id="room-search"
+          name="q"
+          type="search"
+          defaultValue={query}
+          placeholder="Search room number"
+          className="h-10 w-full border border-border bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-foreground"
+        />
+
+        <div className="shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+          {visibleCount} / {totalCount} rooms
+        </div>
+      </div>
+    </form>
+  );
 }
 
 async function getAvailableRooms(): Promise<AvailableRoomRow[]> {
@@ -83,137 +190,104 @@ async function getAvailableRooms(): Promise<AvailableRoomRow[]> {
   return data ?? [];
 }
 
-export default async function ManagerAvailableRoomsPage(): Promise<JSX.Element> {
+export default async function ManagerAvailableRoomsPage({
+  searchParams,
+}: ManagerAvailableRoomsPageProps): Promise<JSX.Element> {
   await requireAnyPermission([...AVAILABLE_ROOMS_PERMISSIONS]);
 
+  const resolvedSearchParams = await searchParams;
+  const query = getSearchValue(resolvedSearchParams);
   const rooms = await getAvailableRooms();
+  const filteredRooms = rooms.filter((room) => roomMatchesSearch(room, query));
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        kicker="Camp manager"
-        title="Available rooms"
-        description="Vacant rooms ready for allocation, including camp, building, room type, capacity, and suitability indicators."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={APP_ROUTES.manager.home}
-              className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-sky-200 hover:bg-sky-50"
-            >
-              Back to dashboard
-            </Link>
-
-            <Link
-              href={APP_ROUTES.manager.rooms.board}
-              className="rounded-2xl bg-neutral-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
-            >
-              Room board
-            </Link>
-          </div>
-        }
+    <div className="page-stack">
+      <RoomSearchRail
+        query={query}
+        visibleCount={filteredRooms.length}
+        totalCount={rooms.length}
       />
 
-      <section className="rounded-[1.75rem] border border-neutral-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 p-5">
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-950">
-              Available room register
-            </h2>
-            <p className="mt-1 text-sm text-neutral-500">
-              Showing {rooms.length} vacant ready room
-              {rooms.length === 1 ? "" : "s"}.
-            </p>
-          </div>
-
-          <Link
-            href={APP_ROUTES.allocations.new}
-            className="rounded-2xl border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-          >
-            Allocate room
-          </Link>
+      <section className="surface-panel overflow-hidden">
+        <div className="grid border-b border-border bg-surface px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:grid-cols-[8.5rem_minmax(0,1.1fr)_minmax(0,0.9fr)_10rem_14rem_11rem]">
+          <div>Room</div>
+          <div className="hidden xl:block">Camp</div>
+          <div className="hidden xl:block">Building</div>
+          <div className="hidden xl:block">Capacity</div>
+          <div className="hidden xl:block">Suitability</div>
+          <div className="hidden xl:block">Status</div>
         </div>
 
-        {rooms.length === 0 ? (
-          <div className="p-8 text-sm text-neutral-500">
-            No rooms are currently available.
+        {filteredRooms.length === 0 ? (
+          <div className="p-6 text-sm text-muted">
+            {query
+              ? "No available rooms match this search."
+              : "No rooms are currently available."}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Room</th>
-                  <th className="px-5 py-3 font-semibold">Camp</th>
-                  <th className="px-5 py-3 font-semibold">Building</th>
-                  <th className="px-5 py-3 font-semibold">Type</th>
-                  <th className="px-5 py-3 font-semibold">Capacity</th>
-                  <th className="px-5 py-3 font-semibold">Suitability</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                </tr>
-              </thead>
+          <div className="divide-y divide-border">
+            {filteredRooms.map((room) => (
+              <div
+                key={room.room_id ?? room.room_number}
+                className="grid gap-3 px-4 py-4 transition hover:bg-surface xl:grid-cols-[8.5rem_minmax(0,1.1fr)_minmax(0,0.9fr)_10rem_14rem_11rem] xl:items-center"
+              >
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Room
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-foreground xl:mt-0">
+                    {room.room_number ?? "—"}
+                  </div>
+                  <div className="mt-1 text-xs text-muted">
+                    {room.room_type ?? "Room"}
+                  </div>
+                </div>
 
-              <tbody className="divide-y divide-neutral-100">
-                {rooms.map((room) => (
-                  <tr
-                    key={room.room_id ?? room.room_number}
-                    className="transition hover:bg-neutral-50/70"
-                  >
-                    <td className="px-5 py-4">
-                      <span className="rounded-xl bg-neutral-100 px-2.5 py-1 text-sm font-semibold text-neutral-950">
-                        {room.room_number ?? "—"}
-                      </span>
-                    </td>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Camp
+                  </div>
+                  <div className="truncate text-sm font-medium text-foreground">
+                    {room.camp_name ?? "—"}
+                  </div>
+                </div>
 
-                    <td className="px-5 py-4 text-neutral-700">
-                      {room.camp_name ?? "—"}
-                    </td>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Building
+                  </div>
+                  <div className="truncate text-sm text-muted">
+                    {room.building_name ?? "—"}
+                  </div>
+                </div>
 
-                    <td className="px-5 py-4 text-neutral-700">
-                      {room.building_name ?? "—"}
-                    </td>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Capacity
+                  </div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {room.capacity ?? "—"}
+                  </div>
+                </div>
 
-                    <td className="px-5 py-4 text-neutral-700">
-                      {room.room_type ?? "—"}
-                    </td>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Suitability
+                  </div>
+                  <SuitabilityFlags
+                    isVip={room.is_vip}
+                    isDelegateSuitable={room.is_delegate_suitable}
+                  />
+                </div>
 
-                    <td className="px-5 py-4 text-neutral-700">
-                      {room.capacity ?? "—"}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-1.5">
-                        {room.is_vip ? (
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                            VIP
-                          </span>
-                        ) : null}
-
-                        {room.is_delegate_suitable ? (
-                          <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
-                            Delegate suitable
-                          </span>
-                        ) : null}
-
-                        {!room.is_vip && !room.is_delegate_suitable ? (
-                          <span className="text-sm text-neutral-500">—</span>
-                        ) : null}
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-xs font-semibold",
-                          statusTone(room.current_status),
-                        )}
-                      >
-                        {formatLabel(room.current_status)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                <div className="xl:flex xl:justify-end">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Status
+                  </div>
+                  <StatusCell status={room.current_status} />
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>

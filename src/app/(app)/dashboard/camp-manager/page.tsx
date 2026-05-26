@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 
-import { PageHeader } from "@/components/layout/page-header";
 import { LiveCampManagerDashboard } from "@/components/manager/live-camp-manager-dashboard";
+import { OperationsSearchBox } from "@/components/search/operations-search-box";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { getManagerDashboardData } from "@/lib/queries/manager/get-manager-dashboard";
 
@@ -37,6 +37,19 @@ function createManagerDashboardTimer(scope: string): (label: string) => void {
   };
 }
 
+function ManagerDashboardTopRail(): JSX.Element {
+  return (
+    <section className="ops-command">
+      <div className="min-w-0 flex-1">
+        <OperationsSearchBox
+          scope="manager"
+          placeholder="Search guests, rooms, phone, ID..."
+        />
+      </div>
+    </section>
+  );
+}
+
 export default async function CampManagerDashboardPage(): Promise<JSX.Element> {
   const mark = createManagerDashboardTimer("dashboard:camp-manager");
 
@@ -49,12 +62,8 @@ export default async function CampManagerDashboardPage(): Promise<JSX.Element> {
   mark("manager dashboard data loaded");
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        kicker="Camp manager"
-        title="Operations dashboard"
-        description="Live camp-level visibility across room availability, occupancy, current guests, departures, and security presence."
-      />
+    <div className="page-stack">
+      <ManagerDashboardTopRail />
 
       <LiveCampManagerDashboard initialData={dashboard} />
     </div>

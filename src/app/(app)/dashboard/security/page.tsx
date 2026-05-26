@@ -5,7 +5,7 @@ import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import type { CurrentUserContext } from "@/lib/auth/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { SecurityPresenceCard } from "@/components/security/security-presence-card";
+import { OperationsSearchBox } from "@/components/search/operations-search-box";
 import {
   ClearanceStatusBadge,
   PresenceBadge,
@@ -94,6 +94,28 @@ type GatePresenceItem = {
   exit_at: string | null;
 };
 
+type ReceptionHandoffStatusItem = {
+  security_event_id: string;
+  guest_id: string;
+  guest_full_name: string;
+  camp_id: string;
+  camp_name: string;
+  camp_code: string | null;
+  visit_type: string | null;
+  clearance_status: string | null;
+  risk_level: string | null;
+  purpose: string | null;
+  host_name: string | null;
+  host_department: string | null;
+  sent_to_reception_at: string | null;
+  reception_status: string;
+  reception_status_label: string;
+  reception_received_at: string | null;
+  reception_notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 type SecurityExpectedArrivalRow = {
   expected_arrival_id: string | null;
   guest_id: string | null;
@@ -164,6 +186,33 @@ type SecurityDashboardRpcClient = {
     data: unknown;
     error: RpcError | null;
   }>;
+};
+
+type ReceptionHandoffStatusQueryResult = {
+  data: unknown[] | null;
+  error: RpcError | null;
+};
+
+type ReceptionHandoffStatusLimitBuilder = {
+  limit(count: number): Promise<ReceptionHandoffStatusQueryResult>;
+};
+
+type ReceptionHandoffStatusFilterBuilder = {
+  in(column: string, values: string[]): ReceptionHandoffStatusFilterBuilder;
+  order(
+    column: string,
+    options: { ascending: boolean },
+  ): ReceptionHandoffStatusLimitBuilder;
+};
+
+type ReceptionHandoffStatusSelectBuilder = {
+  select(columns: string): ReceptionHandoffStatusFilterBuilder;
+};
+
+type ReceptionHandoffStatusClient = {
+  from(
+    table: "security_reception_handoff_status_view",
+  ): ReceptionHandoffStatusSelectBuilder;
 };
 
 const SECURITY_ROUTES = {
@@ -488,6 +537,43 @@ function parsePresenceItem(value: unknown): GatePresenceItem | null {
   };
 }
 
+function parseReceptionHandoffStatusItem(
+  value: unknown,
+): ReceptionHandoffStatusItem | null {
+  const item = asRecord(value);
+  const securityEventId = textValue(item.security_event_id);
+  const guestId = textValue(item.guest_id);
+
+  if (!securityEventId || !guestId) {
+    return null;
+  }
+
+  return {
+    security_event_id: securityEventId,
+    guest_id: guestId,
+    guest_full_name: textValue(item.guest_full_name, "Unknown guest"),
+    camp_id: textValue(item.camp_id),
+    camp_name: textValue(item.camp_name, "Unknown camp"),
+    camp_code: nullableTextValue(item.camp_code),
+    visit_type: nullableTextValue(item.visit_type),
+    clearance_status: nullableTextValue(item.clearance_status),
+    risk_level: nullableTextValue(item.risk_level),
+    purpose: nullableTextValue(item.purpose),
+    host_name: nullableTextValue(item.host_name),
+    host_department: nullableTextValue(item.host_department),
+    sent_to_reception_at: nullableTextValue(item.sent_to_reception_at),
+    reception_status: textValue(item.reception_status, "pending"),
+    reception_status_label: textValue(
+      item.reception_status_label,
+      "Sent to reception",
+    ),
+    reception_received_at: nullableTextValue(item.reception_received_at),
+    reception_notes: nullableTextValue(item.reception_notes),
+    created_at: nullableTextValue(item.created_at),
+    updated_at: nullableTextValue(item.updated_at),
+  };
+}
+
 function parseReviewItem(value: unknown): SecurityReviewItem | null {
   const item = asRecord(value);
   const id = textValue(item.id);
@@ -654,6 +740,66 @@ async function getSecurityDashboardData(
   return parseSecurityDashboardData(data);
 }
 
+async function getRecentReceptionHandoffStatuses(
+  currentUser: CurrentUserContext,
+): Promise<ReceptionHandoffStatusItem[]> {
+  const campIds = getSecurityCampIds(currentUser);
+
+  if (campIds !== null && campIds.length === 0) {
+    return [];
+  }
+
+  const admin =
+    createSupabaseAdminClient() as unknown as ReceptionHandoffStatusClient;
+
+  let query = admin
+    .from("security_reception_handoff_status_view")
+    .select(
+      [
+        "security_event_id",
+        "guest_id",
+        "guest_full_name",
+        "camp_id",
+        "camp_name",
+        "camp_code",
+        "visit_type",
+        "clearance_status",
+        "risk_level",
+        "purpose",
+        "host_name",
+        "host_department",
+        "sent_to_reception_at",
+        "reception_status",
+        "reception_status_label",
+        "reception_received_at",
+        "reception_notes",
+        "created_at",
+        "updated_at",
+      ].join(","),
+    );
+
+  if (campIds !== null) {
+    query = query.in("camp_id", campIds);
+  }
+
+  const { data, error } = await query
+    .order("sent_to_reception_at", { ascending: false })
+    .limit(8);
+
+  if (error) {
+    console.error(
+      "Failed to load reception handoff status feed:",
+      error.message,
+    );
+    return [];
+  }
+
+  return (data ?? []).flatMap((item) => {
+    const parsed = parseReceptionHandoffStatusItem(item);
+    return parsed ? [parsed] : [];
+  });
+}
+
 function SummaryCard({
   title,
   value,
@@ -690,55 +836,21 @@ function SummaryCard({
   );
 }
 
-function SecurityHeader({
-  data,
-}: {
-  data: SecurityDashboardData;
-}): React.JSX.Element {
-  const hasOverdueExpected = data.expectedArrivals.some(
-    (item) => item.is_overdue,
-  );
-
+function SecurityDashboardTopRail(): React.JSX.Element {
   return (
-    <section className="surface-panel overflow-hidden">
-      <div className="grid gap-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
-            Live security operations
-          </p>
-
-          <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
-            Security dashboard
-          </h1>
-
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Live command view for gate presence, clearance posture, reception
-            handoff, expected arrivals, and confirmed exits.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          {hasOverdueExpected ? (
-            <StatusIndicator
-              compact
-              tone="danger"
-              label="Overdue expected guests"
-              withDot
-            />
-          ) : null}
-
-          <Link href={SECURITY_ROUTES.gate} className="btn-primary">
-            Gate operations
-          </Link>
-
-          <Link
-            href={SECURITY_ROUTES.pendingReception}
-            className="btn-secondary"
-          >
-            Pending reception
-          </Link>
-        </div>
+    <section className="grid gap-3 lg:grid-cols-[minmax(12rem,16rem)_minmax(18rem,42rem)_minmax(12rem,1fr)] lg:items-center">
+      <div className="min-w-0 ">
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          Security Dashboard
+        </p>
       </div>
+
+      <OperationsSearchBox
+        scope="security"
+        placeholder="Search guests by name, phone, ID..."
+      />
+
+      <div aria-hidden="true" className="hidden lg:block" />
     </section>
   );
 }
@@ -870,22 +982,146 @@ function SmallGuestLink({
       href={href}
       className="block border border-border bg-surface px-3 py-2.5 transition hover:bg-surface-2"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-foreground">
+      <div className="grid gap-1.5">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0 truncate text-sm font-semibold text-foreground">
             {title}
           </div>
 
-          <div className="mt-1 truncate text-xs text-muted">{subtitle}</div>
-
-          {meta ? (
-            <div className="mt-1.5 truncate text-xs text-muted">{meta}</div>
-          ) : null}
+          {children ? <div className="shrink-0">{children}</div> : null}
         </div>
 
-        {children ? <div className="shrink-0">{children}</div> : null}
+        <div className="truncate text-xs leading-5 text-muted">{subtitle}</div>
+
+        {meta ? (
+          <div className="truncate text-xs leading-5 text-muted">{meta}</div>
+        ) : null}
       </div>
     </Link>
+  );
+}
+
+function CompactGatePresenceRow({
+  item,
+}: {
+  item: GatePresenceItem;
+}): React.JSX.Element {
+  const isPendingReception = Boolean(item.latest_sent_to_reception_at);
+
+  return (
+    <Link
+      href={SECURITY_ROUTES.guestProfile(item.guest_id)}
+      className="block border border-border bg-surface px-3 py-2.5 transition hover:bg-surface-2"
+    >
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <span className="truncate text-sm font-semibold text-foreground">
+              {item.guest_name}
+            </span>
+
+            <PresenceBadge
+              isInside={Boolean(item.entry_at && !item.exit_at)}
+              isPendingReception={isPendingReception}
+            />
+          </div>
+
+          <div className="mt-1 truncate text-xs text-muted">
+            {[
+              item.organization_name,
+              formatLabel(item.visit_type),
+              item.camp_name,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        </div>
+
+        <div className="shrink-0 text-right text-xs text-muted">
+          {item.latest_sent_to_reception_at ? (
+            <span>Sent reception</span>
+          ) : item.entry_at ? (
+            <span>{formatDateTime(item.entry_at)}</span>
+          ) : (
+            <span>Inside</span>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function ReceptionHandoffStatusBadge({
+  status,
+}: {
+  status: string | null;
+}): React.JSX.Element {
+  const normalized = status ?? "pending";
+
+  const label =
+    normalized === "received"
+      ? "Received"
+      : normalized === "not_received"
+        ? "Not received"
+        : normalized === "reservation_created"
+          ? "Reserved"
+          : normalized === "stay_created"
+            ? "Checked in"
+            : normalized === "no_room_required"
+              ? "No room"
+              : normalized === "cancelled"
+                ? "Cancelled"
+                : "Sent";
+
+  const tone =
+    normalized === "received" ||
+    normalized === "reservation_created" ||
+    normalized === "stay_created"
+      ? "success"
+      : normalized === "not_received" || normalized === "cancelled"
+        ? "warning"
+        : "info";
+
+  return <StatusIndicator compact withDot tone={tone} label={label} />;
+}
+
+function ReceptionHandoffStatusPanel({
+  items,
+}: {
+  items: ReceptionHandoffStatusItem[];
+}): React.JSX.Element {
+  return (
+    <CompactListPanel
+      title="Reception status"
+      description="Latest handoff outcomes confirmed by reception."
+      value={items.length}
+      tone="info"
+    >
+      <div className="grid gap-2">
+        {items.map((item) => (
+          <SmallGuestLink
+            key={item.security_event_id}
+            href={SECURITY_ROUTES.guestProfile(item.guest_id)}
+            title={item.guest_full_name}
+            subtitle={`${item.camp_name} · ${formatLabel(item.visit_type)}`}
+            meta={`Sent: ${formatDateTime(item.sent_to_reception_at)}`}
+          >
+            <ReceptionHandoffStatusBadge status={item.reception_status} />
+          </SmallGuestLink>
+        ))}
+
+        {items.length === 0 ? (
+          <EmptyState
+            operational
+            align="left"
+            size="sm"
+            tone="success"
+            title="No reception handoff status yet"
+            description="Security handoff outcomes will appear here after guests are sent to reception."
+          />
+        ) : null}
+      </div>
+    </CompactListPanel>
   );
 }
 
@@ -1105,6 +1341,10 @@ export default async function SecurityDashboardPage({
   const data = await getSecurityDashboardData(currentUser, mark);
   mark("security dashboard data prepared");
 
+  const receptionHandoffStatusItems =
+    await getRecentReceptionHandoffStatuses(currentUser);
+  mark("reception handoff status feed prepared");
+
   const errorMessage = getErrorMessage(
     getFirstSearchParam(resolvedSearchParams.error),
   );
@@ -1115,7 +1355,7 @@ export default async function SecurityDashboardPage({
 
   return (
     <div className="page-stack">
-      <SecurityHeader data={data} />
+      <SecurityDashboardTopRail />
 
       {errorMessage ? (
         <div className="alert alert-danger">{errorMessage}</div>
@@ -1164,33 +1404,22 @@ export default async function SecurityDashboardPage({
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18.5rem] xl:items-start">
-        <div className="grid min-w-0 gap-5">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+        <div className="grid min-w-0 gap-4">
           <Card variant="console" className="min-w-0">
             <CardHeader className="border-b border-border px-4 py-3">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0">
-                  <CardTitle className="text-sm">Live gate presence</CardTitle>
+              <CardTitle className="text-sm">Live gate presence</CardTitle>
 
-                  <CardDescription className="mt-1 text-xs leading-5">
-                    Latest people recorded inside. Security confirms physical
-                    exit when they leave.
-                  </CardDescription>
-                </div>
-
-                <Link
-                  href={SECURITY_ROUTES.gate}
-                  className="btn-secondary btn-sm"
-                >
-                  Open gate
-                </Link>
-              </div>
+              <CardDescription className="mt-1 text-xs leading-5">
+                Latest people recorded inside. Security confirms physical exit
+                when they leave.
+              </CardDescription>
             </CardHeader>
 
-            <CardContent className="p-3">
+            <CardContent className="p-2.5">
               <div className="grid gap-2">
-                {data.latestInsideItems.map((item) => (
-                  <SecurityPresenceCard
+                {data.latestInsideItems.slice(0, 6).map((item) => (
+                  <CompactGatePresenceRow
                     key={item.security_event_id}
                     item={item}
                   />
@@ -1227,23 +1456,12 @@ export default async function SecurityDashboardPage({
 
           <Card variant="console" className="min-w-0">
             <CardHeader className="border-b border-border px-4 py-3">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0">
-                  <CardTitle className="text-sm">Security register</CardTitle>
+              <CardTitle className="text-sm">Security register</CardTitle>
 
-                  <CardDescription className="mt-1 text-xs leading-5">
-                    Prioritized by handoff, restriction, active presence,
-                    pending clearance, and latest movement.
-                  </CardDescription>
-                </div>
-
-                <Link
-                  href={SECURITY_ROUTES.gate}
-                  className="btn-secondary btn-sm"
-                >
-                  Manage gate
-                </Link>
-              </div>
+              <CardDescription className="mt-1 text-xs leading-5">
+                Prioritized by handoff, restriction, active presence, pending
+                clearance, and latest movement.
+              </CardDescription>
             </CardHeader>
 
             <CardContent className="min-w-0 p-0">
@@ -1252,7 +1470,9 @@ export default async function SecurityDashboardPage({
           </Card>
         </div>
 
-        <aside className="grid min-w-0 gap-4 xl:sticky xl:top-4">
+        <aside className="grid min-w-0 content-start gap-3 xl:sticky xl:top-4">
+          <ReceptionHandoffStatusPanel items={receptionHandoffStatusItems} />
+
           <ExpectedGuestsPanel
             expectedArrivals={data.expectedArrivals}
             value={data.summary.expectedArrivals}

@@ -1,9 +1,6 @@
-import type { JSX } from "react";
-import Link from "next/link";
+import type { JSX, ReactNode } from "react";
 
-import { PageHeader } from "@/components/layout/page-header";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
-import { APP_ROUTES } from "@/lib/auth/routes";
 import { getManagerCurrentGuests } from "@/lib/queries/manager/get-manager-dashboard";
 import { cn } from "@/lib/utils/cn";
 
@@ -16,6 +13,28 @@ const CURRENT_GUESTS_PERMISSIONS = [
   "stays.view",
 ] as const;
 
+type PageSearchParams = {
+  q?: string | string[];
+};
+
+type ManagerCurrentGuestsPageProps = {
+  searchParams?: Promise<PageSearchParams> | PageSearchParams;
+};
+
+type CurrentGuestRow = Awaited<
+  ReturnType<typeof getManagerCurrentGuests>
+>[number];
+
+function getSearchValue(searchParams?: PageSearchParams): string {
+  const value = searchParams?.q;
+
+  if (Array.isArray(value)) {
+    return value[0]?.trim() ?? "";
+  }
+
+  return value?.trim() ?? "";
+}
+
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
 
@@ -23,9 +42,10 @@ function formatDateTime(value: string | null): string {
 
   if (Number.isNaN(date.getTime())) return "—";
 
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("en-UG", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Africa/Kampala",
   }).format(date);
 }
 
@@ -37,167 +57,220 @@ function formatLabel(value: string | null): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function presenceTone(value: string | null): string {
-  switch (value) {
-    case "in_camp":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    case "exited":
-      return "border-neutral-200 bg-neutral-100 text-neutral-700";
-    case "sent_to_reception":
-      return "border-sky-200 bg-sky-50 text-sky-800";
-    default:
-      return "border-amber-200 bg-amber-50 text-amber-800";
-  }
+function currentGuestMatchesSearch(
+  guest: CurrentGuestRow,
+  query: string,
+): boolean {
+  if (!query) return true;
+
+  const normalizedQuery = query.toLowerCase();
+
+  return [
+    guest.room_number,
+    guest.guest_name,
+    guest.camp_name,
+    guest.organization,
+    guest.guest_category,
+    guest.stay_status,
+    guest.security_presence_status,
+    guest.arrival_time,
+    guest.expected_departure_at,
+  ].some((value) => value?.toLowerCase().includes(normalizedQuery));
 }
 
-function stayTone(value: string | null): string {
+function statusMarkerClass(value: string | null): string {
   switch (value) {
     case "checked_in":
     case "occupied":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    case "in_camp":
+      return "bg-emerald-600";
     case "reserved":
-      return "border-sky-200 bg-sky-50 text-sky-800";
+    case "sent_to_reception":
+      return "bg-sky-600";
+    case "pending_checkout":
+      return "bg-amber-500";
     case "completed":
-      return "border-neutral-200 bg-neutral-100 text-neutral-700";
+    case "exited":
+      return "bg-neutral-500";
     case "cancelled":
     case "no_show":
-      return "border-red-200 bg-red-50 text-red-700";
+      return "bg-red-600";
     default:
-      return "border-neutral-200 bg-neutral-50 text-neutral-700";
+      return "bg-neutral-400";
   }
 }
 
-export default async function ManagerCurrentGuestsPage(): Promise<JSX.Element> {
+function StatusCell({
+  value,
+  children,
+}: {
+  value: string | null;
+  children?: ReactNode;
+}): JSX.Element {
+  return (
+    <div className="inline-flex items-center gap-2 border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-foreground">
+      <span
+        aria-hidden="true"
+        className={cn(
+          "h-2 w-2 border border-background",
+          statusMarkerClass(value),
+        )}
+      />
+      <span>{children ?? formatLabel(value)}</span>
+    </div>
+  );
+}
+
+function CurrentGuestSearchRail({
+  query,
+  visibleCount,
+  totalCount,
+}: {
+  query: string;
+  visibleCount: number;
+  totalCount: number;
+}): JSX.Element {
+  return (
+    <form action="" className="ops-command">
+      <label htmlFor="current-guest-search" className="sr-only">
+        Search current guests
+      </label>
+
+      <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <input
+          id="current-guest-search"
+          name="q"
+          type="search"
+          defaultValue={query}
+          placeholder="Search room, guest, camp, organization, status..."
+          className="h-10 w-full border border-border bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-foreground"
+        />
+
+        <div className="shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+          {visibleCount} / {totalCount} guests
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function GuestFlag({ children }: { children: ReactNode }): JSX.Element {
+  return (
+    <span className="border border-border bg-surface px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground">
+      {children}
+    </span>
+  );
+}
+
+export default async function ManagerCurrentGuestsPage({
+  searchParams,
+}: ManagerCurrentGuestsPageProps): Promise<JSX.Element> {
   await requireAnyPermission([...CURRENT_GUESTS_PERMISSIONS]);
 
+  const resolvedSearchParams = await searchParams;
+  const query = getSearchValue(resolvedSearchParams);
+
   const guests = await getManagerCurrentGuests(150);
+  const filteredGuests = guests.filter((guest) =>
+    currentGuestMatchesSearch(guest, query),
+  );
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        kicker="Camp manager"
-        title="Checked-in guests"
-        description="Guests currently checked in, with assigned rooms, camp location, stay status, security presence, and expected departure."
-        actions={
-          <Link
-            href={APP_ROUTES.manager.home}
-            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-sky-200 hover:bg-sky-50"
-          >
-            Back to dashboard
-          </Link>
-        }
+    <div className="page-stack">
+      <CurrentGuestSearchRail
+        query={query}
+        visibleCount={filteredGuests.length}
+        totalCount={guests.length}
       />
 
-      <section className="rounded-[1.75rem] border border-neutral-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 p-5">
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-950">
-              Current stays
-            </h2>
-            <p className="mt-1 text-sm text-neutral-500">
-              Showing {guests.length} active checked-in guest
-              {guests.length === 1 ? "" : "s"}.
-            </p>
-          </div>
-
-          <Link
-            href={APP_ROUTES.manager.rooms.board}
-            className="rounded-2xl border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-          >
-            Open room board
-          </Link>
+      <section className="surface-panel overflow-hidden">
+        <div className="grid border-b border-border bg-surface px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:grid-cols-[8.5rem_minmax(0,1.15fr)_minmax(0,0.9fr)_12rem_12rem_14rem]">
+          <div>Room</div>
+          <div className="hidden xl:block">Guest</div>
+          <div className="hidden xl:block">Camp</div>
+          <div className="hidden xl:block">Stay</div>
+          <div className="hidden xl:block">Presence</div>
+          <div className="hidden xl:block">Expected departure</div>
         </div>
 
-        {guests.length === 0 ? (
-          <div className="p-8 text-sm text-neutral-500">
-            No guests are currently checked in.
+        {filteredGuests.length === 0 ? (
+          <div className="p-6 text-sm text-muted">
+            {query
+              ? "No checked-in guests match this search."
+              : "No guests are currently checked in."}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Guest</th>
-                  <th className="px-5 py-3 font-semibold">Camp</th>
-                  <th className="px-5 py-3 font-semibold">Room</th>
-                  <th className="px-5 py-3 font-semibold">Stay status</th>
-                  <th className="px-5 py-3 font-semibold">Security presence</th>
-                  <th className="px-5 py-3 font-semibold">Arrival</th>
-                  <th className="px-5 py-3 font-semibold">
+          <div className="divide-y divide-border">
+            {filteredGuests.map((guest) => (
+              <div
+                key={guest.stay_id ?? guest.guest_id ?? guest.guest_name}
+                className="grid gap-3 px-4 py-4 transition hover:bg-surface xl:grid-cols-[8.5rem_minmax(0,1.15fr)_minmax(0,0.9fr)_12rem_12rem_14rem] xl:items-center"
+              >
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Room
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-foreground xl:mt-0">
+                    {guest.room_number ?? "—"}
+                  </div>
+                  <div className="mt-1 text-xs text-muted">
+                    {formatDateTime(guest.arrival_time)}
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Guest
+                  </div>
+
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <div className="truncate text-sm font-semibold text-foreground">
+                      {guest.guest_name ?? "Unnamed guest"}
+                    </div>
+
+                    {guest.is_vip ? <GuestFlag>VIP</GuestFlag> : null}
+                  </div>
+
+                  <div className="mt-1 truncate text-xs text-muted">
+                    {[guest.organization, formatLabel(guest.guest_category)]
+                      .filter((value) => value && value !== "—")
+                      .join(" · ") || "—"}
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Camp
+                  </div>
+                  <div className="truncate text-sm font-medium text-foreground">
+                    {guest.camp_name ?? "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Stay
+                  </div>
+                  <StatusCell value={guest.stay_status} />
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
+                    Presence
+                  </div>
+                  <StatusCell value={guest.security_presence_status} />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted xl:hidden">
                     Expected departure
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-neutral-100">
-                {guests.map((guest) => (
-                  <tr
-                    key={guest.stay_id ?? guest.guest_id ?? guest.guest_name}
-                    className="transition hover:bg-neutral-50/70"
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="font-semibold text-neutral-950">
-                          {guest.guest_name ?? "Unnamed guest"}
-                        </div>
-
-                        {guest.is_vip ? (
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                            VIP
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-1 text-xs text-neutral-500">
-                        {[guest.organization, formatLabel(guest.guest_category)]
-                          .filter((value) => value && value !== "—")
-                          .join(" · ") || "—"}
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4 text-neutral-700">
-                      {guest.camp_name ?? "—"}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <span className="rounded-xl bg-neutral-100 px-2.5 py-1 text-sm font-semibold text-neutral-950">
-                        {guest.room_number ?? "—"}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-xs font-semibold",
-                          stayTone(guest.stay_status),
-                        )}
-                      >
-                        {formatLabel(guest.stay_status)}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-xs font-semibold",
-                          presenceTone(guest.security_presence_status),
-                        )}
-                      >
-                        {formatLabel(guest.security_presence_status)}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4 text-neutral-700">
-                      {formatDateTime(guest.arrival_time)}
-                    </td>
-
-                    <td className="px-5 py-4 text-neutral-700">
-                      {formatDateTime(guest.expected_departure_at)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </div>
+                  <div className="text-sm text-foreground">
+                    {formatDateTime(guest.expected_departure_at)}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>

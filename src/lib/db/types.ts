@@ -1,4 +1,6 @@
-export type Json =
+Need to install the following packages:
+supabase@2.101.0
+Ok to proceed? (y) export type Json =
   | string
   | number
   | boolean
@@ -7189,6 +7191,107 @@ export type Database = {
           },
         ]
       }
+      security_reception_handoff_status_view: {
+        Row: {
+          camp_code: string | null
+          camp_id: string | null
+          camp_name: string | null
+          clearance_status: string | null
+          created_at: string | null
+          guest_document_number: string | null
+          guest_full_name: string | null
+          guest_id: string | null
+          guest_phone: string | null
+          host_department: string | null
+          host_name: string | null
+          purpose: string | null
+          reception_notes: string | null
+          reception_received_at: string | null
+          reception_received_by: string | null
+          reception_status: string | null
+          reception_status_label: string | null
+          related_reservation_id: string | null
+          related_stay_id: string | null
+          risk_level: string | null
+          security_event_id: string | null
+          sent_to_reception_at: string | null
+          sent_to_reception_by: string | null
+          updated_at: string | null
+          visit_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_clearance_events_camp_id_fkey"
+            columns: ["camp_id"]
+            isOneToOne: false
+            referencedRelation: "camps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_camp_id_fkey"
+            columns: ["camp_id"]
+            isOneToOne: false
+            referencedRelation: "current_occupancy_view"
+            referencedColumns: ["camp_id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "guests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "room_board_view"
+            referencedColumns: ["current_guest_id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "safe_guest_directory_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "sensitive_guest_operations_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_reception_received_by_fkey"
+            columns: ["reception_received_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_reception_received_by_fkey"
+            columns: ["reception_received_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_sent_to_reception_by_fkey"
+            columns: ["sent_to_reception_by"]
+            isOneToOne: false
+            referencedRelation: "my_profile_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_clearance_events_sent_to_reception_by_fkey"
+            columns: ["sent_to_reception_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sensitive_guest_operations_view: {
         Row: {
           archived_at: string | null
@@ -8791,6 +8894,52 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "room_transfers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      resolve_reception_security_handoff: {
+        Args: {
+          p_notes?: string
+          p_reception_status: string
+          p_security_event_id: string
+        }
+        Returns: {
+          camp_id: string
+          clearance_status: string
+          created_at: string
+          created_by: string | null
+          entry_at: string | null
+          event_type: string | null
+          exit_at: string | null
+          exit_notes: string | null
+          exited_by: string | null
+          expires_at: string | null
+          guest_id: string
+          host_department: string | null
+          host_name: string | null
+          id: string
+          new_status: string | null
+          note: string | null
+          notes: string | null
+          previous_status: string | null
+          purpose: string | null
+          reception_notes: string | null
+          reception_received_at: string | null
+          reception_received_by: string | null
+          reception_status: string | null
+          related_reservation_id: string | null
+          related_stay_id: string | null
+          risk_level: string | null
+          sent_to_reception_at: string | null
+          sent_to_reception_by: string | null
+          updated_at: string
+          updated_by: string | null
+          visit_type: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "security_clearance_events"
           isOneToOne: true
           isSetofReturn: false
         }

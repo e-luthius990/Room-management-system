@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import type { CurrentUserContext } from "@/lib/auth/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { OperationsSearchBox } from "@/components/search/operations-search-box";
 import {
   Card,
   CardContent,
@@ -501,13 +502,7 @@ function CompactMetric({
   }[tone];
 
   return (
-    <div
-      className={cn(
-        "min-h-[3.9rem] border px-2.5 py-2",
-        "rounded-md",
-        toneClass,
-      )}
-    >
+    <div className={cn("min-h-[4.15rem] border px-3 py-2.5", toneClass)}>
       <div className="truncate text-[9px] font-bold uppercase leading-3 tracking-[0.12em] text-muted">
         {label}
       </div>
@@ -523,67 +518,67 @@ function CompactMetric({
   );
 }
 
-function DashboardHero({
+function ReceptionDashboardTopRail(): React.JSX.Element {
+  return (
+    <section className="grid gap-3 lg:grid-cols-[minmax(12rem,16rem)_minmax(18rem,42rem)_minmax(12rem,1fr)] lg:items-center">
+      <div className="min-w-0 ">
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          Reception
+        </p>
+      </div>
+
+      <OperationsSearchBox
+        scope="reception"
+        placeholder="Search guests, rooms, phone, ID..."
+      />
+
+      <div aria-hidden="true" className="hidden lg:block" />
+    </section>
+  );
+}
+
+function ReceptionMetricsRow({
   data,
 }: {
   data: ReceptionistDashboardData;
 }): React.JSX.Element {
   return (
-    <section className="surface-panel overflow-hidden">
-      <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,0.55fr)_minmax(560px,1.45fr)] xl:items-center">
-        <div className="min-w-0">
-          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-[1.65rem]">
-            Reception desk
-          </h1>
+    <section className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+      <CompactMetric
+        label="From security"
+        value={data.pendingReception}
+        note="Pending"
+        tone={data.pendingReception > 0 ? "warning" : "default"}
+      />
 
-          <p className="mt-1.5 max-w-xl text-sm leading-6 text-muted">
-            Handoffs, arrivals, field absences, and checkout pressure for the
-            active camp.
-          </p>
-        </div>
+      <CompactMetric
+        label="Expected"
+        value={data.expectedArrivalsActive}
+        note={`${data.expectedArrivalsToday} today`}
+        tone={data.expectedArrivalsActive > 0 ? "info" : "default"}
+      />
 
-        <div className="grid gap-1.5 sm:grid-cols-3 xl:grid-cols-6">
-          <CompactMetric
-            label="From security"
-            value={data.pendingReception}
-            note="Pending"
-            tone={data.pendingReception > 0 ? "warning" : "default"}
-          />
+      <CompactMetric
+        label="Field away"
+        value={data.fieldAbsencesActive}
+        note={`${data.fieldAbsencesOverdue} overdue`}
+        tone={data.fieldAbsencesOverdue > 0 ? "danger" : "warning"}
+      />
 
-          <CompactMetric
-            label="Expected"
-            value={data.expectedArrivalsActive}
-            note={`${data.expectedArrivalsToday} today`}
-            tone={data.expectedArrivalsActive > 0 ? "info" : "default"}
-          />
+      <CompactMetric label="Arrivals" value={data.arrivalsToday} note="Today" />
 
-          <CompactMetric
-            label="Field away"
-            value={data.fieldAbsencesActive}
-            note={`${data.fieldAbsencesOverdue} overdue`}
-            tone={data.fieldAbsencesOverdue > 0 ? "danger" : "warning"}
-          />
+      <CompactMetric
+        label="Departures"
+        value={data.departuresToday}
+        note="Today"
+      />
 
-          <CompactMetric
-            label="Arrivals"
-            value={data.arrivalsToday}
-            note="Today"
-          />
-
-          <CompactMetric
-            label="Departures"
-            value={data.departuresToday}
-            note="Today"
-          />
-
-          <CompactMetric
-            label="In house"
-            value={data.activeStays}
-            note="Active"
-            tone={data.activeStays > 0 ? "success" : "default"}
-          />
-        </div>
-      </div>
+      <CompactMetric
+        label="In house"
+        value={data.activeStays}
+        note="Active"
+        tone={data.activeStays > 0 ? "success" : "default"}
+      />
     </section>
   );
 }
@@ -607,6 +602,7 @@ function QueuePanel({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="text-sm">{title}</CardTitle>
+
             {description ? (
               <CardDescription className="text-xs leading-5">
                 {description}
@@ -682,7 +678,7 @@ function LiveSideCards({
   data: ReceptionistDashboardData;
 }): React.JSX.Element {
   return (
-    <aside className="space-y-4">
+    <aside className="grid min-w-0 content-start gap-4 xl:sticky xl:top-4">
       <QueuePanel
         title="Expected arrivals"
         emptyTitle="No active expected arrivals"
@@ -707,7 +703,9 @@ function ReceptionistDashboard({
 }): React.JSX.Element {
   return (
     <div className="page-stack">
-      <DashboardHero data={data} />
+      <ReceptionDashboardTopRail />
+
+      <ReceptionMetricsRow data={data} />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="space-y-4">

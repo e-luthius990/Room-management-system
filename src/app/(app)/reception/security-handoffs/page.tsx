@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from "next/cache";
 
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
+import { resolveReceptionSecurityHandoffAction } from "@/lib/actions/security/create-clearance-event";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   ClearanceStatusBadge,
@@ -619,43 +620,65 @@ function HandoffActionLinks({
   const guestId = item.guest?.id ?? item.event.guest_id;
 
   return (
-    <div className="grid gap-2">
-      <Link
-        href={handoffDetailPath(item.event.id)}
-        className="btn-primary btn-sm"
-      >
-        View handoff
-      </Link>
+    <div className="grid gap-3">
+      <div className="grid gap-2 border-b border-border pb-3">
+        <form action={resolveReceptionSecurityHandoffAction}>
+          <input type="hidden" name="securityEventId" value={item.event.id} />
+          <input type="hidden" name="receptionStatus" value="received" />
 
-      {guestId ? (
+          <button type="submit" className="btn-primary btn-sm w-full">
+            Received guest
+          </button>
+        </form>
+
+        <form action={resolveReceptionSecurityHandoffAction}>
+          <input type="hidden" name="securityEventId" value={item.event.id} />
+          <input type="hidden" name="receptionStatus" value="not_received" />
+
+          <button type="submit" className="btn-secondary btn-sm w-full">
+            Not received
+          </button>
+        </form>
+      </div>
+
+      <div className="grid gap-2">
         <Link
-          href={APP_ROUTES.guests.detail(guestId)}
+          href={handoffDetailPath(item.event.id)}
           className="btn-secondary btn-sm"
         >
-          Open guest
+          View handoff
         </Link>
-      ) : null}
 
-      <Link
-        href={APP_ROUTES.reservations.newFromSecurityHandoff(item.event.id)}
-        className="btn-secondary btn-sm"
-      >
-        Create reservation
-      </Link>
+        {guestId ? (
+          <Link
+            href={APP_ROUTES.guests.detail(guestId)}
+            className="btn-secondary btn-sm"
+          >
+            Open guest
+          </Link>
+        ) : null}
 
-      <Link
-        href={APP_ROUTES.allocations.newFromSecurityHandoff(item.event.id)}
-        className="btn-secondary btn-sm"
-      >
-        Allocate room
-      </Link>
+        <Link
+          href={APP_ROUTES.reservations.newFromSecurityHandoff(item.event.id)}
+          className="btn-secondary btn-sm"
+        >
+          Create reservation
+        </Link>
 
-      <Link
-        href={APP_ROUTES.stays.checkInFromSecurityHandoff(item.event.id)}
-        className="btn-secondary btn-sm"
-      >
-        Start check-in
-      </Link>
+        <Link
+          href={APP_ROUTES.allocations.newFromSecurityHandoff(item.event.id)}
+          className="btn-secondary btn-sm"
+        >
+          Allocate room
+        </Link>
+
+        <Link
+          href={APP_ROUTES.stays.checkInFromSecurityHandoff(item.event.id)}
+          className="btn-secondary btn-sm"
+        >
+          Start check-in
+        </Link>
+      </div>
     </div>
   );
 }

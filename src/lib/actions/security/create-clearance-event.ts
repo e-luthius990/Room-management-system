@@ -11,6 +11,7 @@ import {
   createSecurityClearanceEventSchema,
   markSecurityGateExitSchema,
   recordSecurityGateEntrySchema,
+  resolveReceptionSecurityHandoffSchema,
   sendGuestToReceptionSchema,
 } from "@/lib/validation/security";
 
@@ -87,7 +88,8 @@ function mapSecurityError(message: string): string {
 
   if (
     normalized.includes("security_event_not_found") ||
-    normalized.includes("security event not found")
+    normalized.includes("security event not found") ||
+    normalized.includes("security handoff not found")
   ) {
     return "security_event_not_found";
   }
@@ -124,6 +126,34 @@ function mapSecurityError(message: string): string {
     normalized.includes("already pending")
   ) {
     return "already_pending_reception";
+  }
+
+  if (
+    normalized.includes("already been handled") ||
+    normalized.includes("already been resolved")
+  ) {
+    return "handoff_already_handled";
+  }
+
+  if (
+    normalized.includes("already been converted") ||
+    normalized.includes("converted into another workflow")
+  ) {
+    return "handoff_already_converted";
+  }
+
+  if (
+    normalized.includes("invalid reception status") ||
+    normalized.includes("invalid reception handoff")
+  ) {
+    return "invalid_reception_status";
+  }
+
+  if (
+    normalized.includes("not a reception handoff") ||
+    normalized.includes("has not been sent to reception")
+  ) {
+    return "invalid_reception_handoff";
   }
 
   if (normalized.includes("can be sent to reception")) {
@@ -377,4 +407,58 @@ export async function markSecurityGateExitAction(
   revalidateSecurityPaths(guestId);
 
   redirect(`${SECURITY_PATH}/gate?success=gate_exit_recorded`);
+}
+
+export async function resolveReceptionSecurityHandoffAction(
+  formData: FormData,
+): Promise<never> {
+  await requirePermission("reception.handle_security_handoffs");
+
+  const parsed = resolveReceptionSecurityHandoffSchema.safeParse({
+    securityEventId: getFormString(formData, "securityEventId"),
+    receptionStatus: getFormString(formData, "receptionStatus"),
+    notes: getFormString(formData, "notes"),
+  });
+
+  if (!parsed.success) {
+    redirect(`${RECEPTION_HANDOFFS_PATH}?error=invalid_reception_handoff`);
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  const { data, error } = await supabase
+    .rpc("resolve_reception_security_handoff", {
+      p_security_event_id: parsed.data.securityEventId,
+      p_reception_status: parsed.data.receptionStatus,
+      p_notes:
+        parsed.data.notes ??
+        (parsed.data.receptionStatus === "received"
+          ? "Guest received by reception."
+          : "Guest was not received by reception."),
+    })
+    .returns<SecurityClearanceEventResult>();
+
+  const eventId = getResultId(data);
+  const guestId = getResultGuestId(data);
+
+  if (error || !eventId) {
+    const code = mapSecurityError(
+      error?.message ?? "resolve_reception_handoff_failed",
+    );
+
+    redirect(
+      `${RECEPTION_HANDOFFS_PATH}/${parsed.data.securityEventId}?error=${code}`,
+    );
+  }
+
+  revalidatePath(`${RECEPTION_HANDOFFS_PATH}/${parsed.data.securityEventId}`);
+  revalidateSecurityPaths(guestId);
+
+  redirect(
+    `${RECEPTION_HANDOFFS_PATH}?success=${
+      parsed.data.receptionStatus === "received"
+        ? "guest_received"
+        : "guest_not_received"
+    }`,
+  );
 }

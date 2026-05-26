@@ -26,11 +26,16 @@ const SECURITY_VISIT_TYPE_VALUES = [
   "vip",
 ] as const;
 
+const RECEPTION_HANDOFF_STATUS_VALUES = ["received", "not_received"] as const;
+
 export type ClearanceStatus = (typeof CLEARANCE_STATUS_VALUES)[number];
 
 export type RiskLevel = (typeof RISK_LEVEL_VALUES)[number];
 
 export type SecurityVisitType = (typeof SECURITY_VISIT_TYPE_VALUES)[number];
+
+export type ReceptionHandoffStatus =
+  (typeof RECEPTION_HANDOFF_STATUS_VALUES)[number];
 
 function normalizeOptionalText(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -143,6 +148,11 @@ export const securityVisitTypeSchema = z.preprocess(
   z.enum(SECURITY_VISIT_TYPE_VALUES),
 );
 
+export const receptionHandoffStatusSchema = z.preprocess(
+  normalizeLowerText,
+  z.enum(RECEPTION_HANDOFF_STATUS_VALUES),
+);
+
 export const clearanceStatusLabels: Record<ClearanceStatus, string> = {
   pending: "Pending",
   cleared: "Cleared",
@@ -169,6 +179,14 @@ export const securityVisitTypeLabels: Record<SecurityVisitType, string> = {
   vip: "VIP",
 };
 
+export const receptionHandoffStatusLabels: Record<
+  ReceptionHandoffStatus,
+  string
+> = {
+  received: "Received guest",
+  not_received: "Not received",
+};
+
 export const clearanceStatusOptions: ReadonlyArray<{
   value: ClearanceStatus;
   label: string;
@@ -191,6 +209,14 @@ export const securityVisitTypeOptions: ReadonlyArray<{
 }> = SECURITY_VISIT_TYPE_VALUES.map((value) => ({
   value,
   label: securityVisitTypeLabels[value],
+}));
+
+export const receptionHandoffStatusOptions: ReadonlyArray<{
+  value: ReceptionHandoffStatus;
+  label: string;
+}> = RECEPTION_HANDOFF_STATUS_VALUES.map((value) => ({
+  value,
+  label: receptionHandoffStatusLabels[value],
 }));
 
 export const RECEPTION_HANDOFF_VISIT_TYPES = SECURITY_VISIT_TYPE_VALUES;
@@ -293,6 +319,12 @@ export const sendGuestToReceptionSchema = z.object({
   notes: optionalSecurityNotes,
 });
 
+export const resolveReceptionSecurityHandoffSchema = z.object({
+  securityEventId: requiredUuid("Invalid security handoff."),
+  receptionStatus: receptionHandoffStatusSchema,
+  notes: optionalSecurityNotes,
+});
+
 export const markSecurityGateExitSchema = z.object({
   securityEventId: requiredUuid("Invalid security event."),
   exitNotes: optionalExitNotes,
@@ -348,6 +380,14 @@ export type SendGuestToReceptionInput = z.infer<
 
 export type SendGuestToReceptionFormInput = z.input<
   typeof sendGuestToReceptionSchema
+>;
+
+export type ResolveReceptionSecurityHandoffInput = z.infer<
+  typeof resolveReceptionSecurityHandoffSchema
+>;
+
+export type ResolveReceptionSecurityHandoffFormInput = z.input<
+  typeof resolveReceptionSecurityHandoffSchema
 >;
 
 export type MarkSecurityGateExitInput = z.infer<

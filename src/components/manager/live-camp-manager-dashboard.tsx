@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Activity,
   AlertTriangle,
   BedDouble,
   Building2,
@@ -21,6 +20,7 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type JSX,
   type SVGProps,
 } from "react";
 
@@ -80,9 +80,10 @@ function formatDateTime(value: string | null): string {
 
   if (Number.isNaN(date.getTime())) return "—";
 
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("en-UG", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Africa/Kampala",
   }).format(date);
 }
 
@@ -91,10 +92,11 @@ function formatTime(value: string): string {
 
   if (Number.isNaN(date.getTime())) return "—";
 
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("en-UG", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    timeZone: "Africa/Kampala",
   }).format(date);
 }
 
@@ -114,39 +116,39 @@ function clampPercentage(value: number): number {
 function metricToneClasses(tone: MetricTone): {
   icon: string;
   value: string;
-  panel: string;
+  rail: string;
 } {
   switch (tone) {
     case "emerald":
       return {
-        icon: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+        icon: "bg-emerald-50 text-emerald-700",
         value: "text-emerald-700",
-        panel: "hover:border-emerald-200",
+        rail: "border-l-emerald-500",
       };
     case "amber":
       return {
-        icon: "bg-amber-50 text-amber-700 ring-amber-100",
+        icon: "bg-amber-50 text-amber-700",
         value: "text-amber-700",
-        panel: "hover:border-amber-200",
+        rail: "border-l-amber-500",
       };
     case "red":
       return {
-        icon: "bg-red-50 text-red-700 ring-red-100",
+        icon: "bg-red-50 text-red-700",
         value: "text-red-700",
-        panel: "hover:border-red-200",
+        rail: "border-l-red-500",
       };
     case "blue":
       return {
-        icon: "bg-sky-50 text-sky-700 ring-sky-100",
+        icon: "bg-sky-50 text-sky-700",
         value: "text-sky-700",
-        panel: "hover:border-sky-200",
+        rail: "border-l-sky-500",
       };
     case "neutral":
     default:
       return {
-        icon: "bg-neutral-100 text-neutral-700 ring-neutral-200",
-        value: "text-neutral-950",
-        panel: "hover:border-neutral-300",
+        icon: "bg-neutral-100 text-neutral-700",
+        value: "text-foreground",
+        rail: "border-l-border",
       };
   }
 }
@@ -191,6 +193,25 @@ function exitTone(value: string | null): string {
   }
 }
 
+function StatusChip({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}): JSX.Element {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 function MetricCard({
   label,
   value,
@@ -198,43 +219,47 @@ function MetricCard({
   href,
   icon: Icon,
   tone = "neutral",
-}: MetricCardProps): React.JSX.Element {
+}: MetricCardProps): JSX.Element {
   const classes = metricToneClasses(tone);
 
   const content = (
     <>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="metadata-label">{label}</p>
+          <div
+            className={cn(
+              "mt-1 text-2xl font-semibold tracking-[-0.04em]",
+              classes.value,
+            )}
+          >
+            {value}
+          </div>
+        </div>
+
         <div
           className={cn(
-            "flex h-11 w-11 items-center justify-center rounded-2xl ring-1",
+            "flex h-8 w-8 shrink-0 items-center justify-center border border-border",
             classes.icon,
           )}
         >
-          <Icon aria-hidden="true" className="h-5 w-5" />
+          <Icon aria-hidden="true" className="h-4 w-4" />
         </div>
-
-        {href ? (
-          <span className="text-xs font-semibold text-neutral-400 transition group-hover:text-neutral-900">
-            View
-          </span>
-        ) : null}
       </div>
 
-      <div className="mt-5">
-        <div
-          className={cn("text-3xl font-semibold tracking-tight", classes.value)}
-        >
-          {value}
-        </div>
-        <div className="mt-1 text-sm font-medium text-neutral-900">{label}</div>
-        <p className="mt-2 text-sm leading-5 text-neutral-500">{helper}</p>
-      </div>
+      <p className="mt-3 text-xs leading-5 text-muted">{helper}</p>
+
+      {href ? (
+        <span className="mt-3 inline-flex text-[11px] font-semibold uppercase tracking-[0.12em] text-muted transition group-hover:text-foreground">
+          Open
+        </span>
+      ) : null}
     </>
   );
 
   const className = cn(
-    "group rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
-    classes.panel,
+    "group block min-h-[8.75rem] border border-border border-l-2 bg-surface p-3 shadow-sm transition hover:bg-background",
+    classes.rail,
   );
 
   if (href) {
@@ -262,56 +287,55 @@ function LiveStatus({
   error: string | null;
   onRefresh: () => void;
   onToggleLive: () => void;
-}): React.JSX.Element {
+}): JSX.Element {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 py-2 shadow-sm">
-      <span className="relative flex h-2.5 w-2.5">
-        {isLive ? (
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-        ) : null}
+    <section className="ops-command justify-between">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span
           className={cn(
-            "relative inline-flex h-2.5 w-2.5 rounded-full",
+            "h-2.5 w-2.5 shrink-0 border border-border",
             isLive ? "bg-emerald-600" : "bg-neutral-400",
           )}
         />
-      </span>
 
-      <span className="text-sm font-semibold text-neutral-950">
-        {isLive ? "Live" : "Paused"}
-      </span>
-
-      <span className="text-sm text-neutral-500">
-        Updated {formatTime(fetchedAt)}
-      </span>
-
-      {error ? (
-        <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
-          {error}
+        <span className="text-sm font-semibold text-foreground">
+          {isLive ? "Live manager feed" : "Manager feed paused"}
         </span>
-      ) : null}
 
-      <button
-        type="button"
-        onClick={onRefresh}
-        disabled={isRefreshing}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 px-2.5 py-1 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <RefreshCw
-          aria-hidden="true"
-          className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
-        />
-        {isRefreshing ? "Refreshing" : "Refresh"}
-      </button>
+        <span className="text-sm text-muted">
+          Updated {formatTime(fetchedAt)}
+        </span>
 
-      <button
-        type="button"
-        onClick={onToggleLive}
-        className="rounded-xl px-2.5 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-50"
-      >
-        {isLive ? "Pause" : "Resume"}
-      </button>
-    </div>
+        {error ? (
+          <StatusChip className="border-red-200 bg-red-50 text-red-700">
+            {error}
+          </StatusChip>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-foreground transition hover:bg-background disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw
+            aria-hidden="true"
+            className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
+          />
+          {isRefreshing ? "Refreshing" : "Refresh"}
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleLive}
+          className="border border-transparent px-2.5 py-1.5 text-xs font-semibold text-muted transition hover:border-border hover:bg-surface hover:text-foreground"
+        >
+          {isLive ? "Pause" : "Resume"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -321,12 +345,12 @@ function ProgressBar({
 }: {
   value: number;
   tone?: ProgressTone;
-}): React.JSX.Element {
+}): JSX.Element {
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
+    <div className="h-1.5 overflow-hidden bg-neutral-100">
       <div
         className={cn(
-          "h-full rounded-full transition-all duration-500",
+          "h-full transition-all duration-500",
           progressToneClass(tone),
         )}
         style={{ width: `${clampPercentage(value)}%` }}
@@ -343,18 +367,19 @@ function AttentionRow({
   label: string;
   value: number;
   tone: ProgressTone;
-}): React.JSX.Element {
+}): JSX.Element {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-neutral-100 bg-neutral-50/70 px-3 py-2.5">
-      <span className="text-sm text-neutral-600">{label}</span>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border py-2.5 last:border-b-0">
+      <span className="text-sm text-muted">{label}</span>
       <span
         className={cn(
-          "rounded-full px-2.5 py-1 text-xs font-semibold",
-          tone === "red" && "bg-red-50 text-red-700",
-          tone === "amber" && "bg-amber-50 text-amber-700",
-          tone === "emerald" && "bg-emerald-50 text-emerald-700",
-          tone === "blue" && "bg-sky-50 text-sky-700",
-          tone === "neutral" && "bg-white text-neutral-700",
+          "min-w-8 border px-2 py-1 text-center text-xs font-semibold",
+          tone === "red" && "border-red-200 bg-red-50 text-red-700",
+          tone === "amber" && "border-amber-200 bg-amber-50 text-amber-700",
+          tone === "emerald" &&
+            "border-emerald-200 bg-emerald-50 text-emerald-700",
+          tone === "blue" && "border-sky-200 bg-sky-50 text-sky-700",
+          tone === "neutral" && "border-border bg-background text-foreground",
         )}
       >
         {value}
@@ -367,96 +392,92 @@ function OperationalSnapshot({
   summary,
 }: {
   summary: ManagerOperationalSummary;
-}): React.JSX.Element {
+}): JSX.Element {
   const occupiedOrReserved = summary.occupiedRooms + summary.reservedRooms;
   const operationalPressure = clampPercentage(
     summary.occupancyRate + Math.round(summary.reservedRooms * 2),
   );
 
   return (
-    <section className="rounded-[2rem] border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-5 shadow-sm">
-      <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-sky-800">
-            <Activity aria-hidden="true" className="h-4 w-4" />
-            Operational snapshot
-          </div>
-
-          <h2 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight text-neutral-950">
-            {summary.availableRooms} rooms available, {occupiedOrReserved} rooms
-            occupied or reserved.
-          </h2>
-
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-600">
-            Live manager view across room stock, active stays, due departures,
-            and security movement.
-          </p>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/80 bg-white/80 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                Availability
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-emerald-700">
+    <section className="surface-panel overflow-hidden">
+      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-3 xl:border-b-0 xl:border-r">
+          <div className="border border-border bg-surface p-3">
+            <p className="metadata-label">Availability</p>
+            <div className="mt-1 flex items-baseline justify-between gap-3">
+              <span className="text-2xl font-semibold tracking-[-0.04em] text-emerald-700">
                 {summary.availabilityRate}%
-              </div>
+              </span>
+              <span className="text-xs text-muted">
+                {summary.availableRooms} ready
+              </span>
+            </div>
+            <div className="mt-3">
               <ProgressBar value={summary.availabilityRate} tone="emerald" />
             </div>
+          </div>
 
-            <div className="rounded-2xl border border-white/80 bg-white/80 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                Occupancy
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-sky-700">
+          <div className="border border-border bg-surface p-3">
+            <p className="metadata-label">Occupancy</p>
+            <div className="mt-1 flex items-baseline justify-between gap-3">
+              <span className="text-2xl font-semibold tracking-[-0.04em] text-sky-700">
                 {summary.occupancyRate}%
-              </div>
+              </span>
+              <span className="text-xs text-muted">
+                {occupiedOrReserved} held
+              </span>
+            </div>
+            <div className="mt-3">
               <ProgressBar value={summary.occupancyRate} tone="blue" />
             </div>
+          </div>
 
-            <div className="rounded-2xl border border-white/80 bg-white/80 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                Pressure
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-amber-700">
+          <div className="border border-border bg-surface p-3">
+            <p className="metadata-label">Pressure</p>
+            <div className="mt-1 flex items-baseline justify-between gap-3">
+              <span className="text-2xl font-semibold tracking-[-0.04em] text-amber-700">
                 {operationalPressure}%
-              </div>
+              </span>
+              <span className="text-xs text-muted">
+                {summary.pendingCheckoutRooms} checkout
+              </span>
+            </div>
+            <div className="mt-3">
               <ProgressBar value={operationalPressure} tone="amber" />
             </div>
           </div>
         </div>
 
-        <div className="rounded-[1.5rem] border border-white/80 bg-white/85 p-4">
+        <div className="bg-surface p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-neutral-950">
-                Today’s attention
-              </div>
-              <div className="mt-1 text-xs text-neutral-500">
-                Items managers should check first.
-              </div>
+              <p className="metadata-label">Today’s attention</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">
+                Check these first
+              </p>
             </div>
 
-            <ShieldCheck aria-hidden="true" className="h-5 w-5 text-sky-700" />
+            <ShieldCheck aria-hidden="true" className="h-4 w-4 text-muted" />
           </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-3">
             <AttentionRow
               label="Due departures"
               value={summary.dueDepartures}
               tone={summary.dueDepartures > 0 ? "amber" : "emerald"}
             />
             <AttentionRow
-              label="Pending checkout rooms"
+              label="Pending checkout"
               value={summary.pendingCheckoutRooms}
               tone={summary.pendingCheckoutRooms > 0 ? "amber" : "emerald"}
             />
             <AttentionRow
-              label="Out of service rooms"
+              label="Out of service"
               value={summary.outOfServiceRooms}
               tone={summary.outOfServiceRooms > 0 ? "red" : "emerald"}
             />
             <AttentionRow
-              label="Security marked exited"
+              label="Security exited"
               value={summary.guestsExitedSecurity}
               tone={summary.guestsExitedSecurity > 0 ? "blue" : "neutral"}
             />
@@ -473,11 +494,11 @@ function MiniStat({
 }: {
   label: string;
   value: number;
-}): React.JSX.Element {
+}): JSX.Element {
   return (
-    <div className="rounded-xl bg-white px-3 py-2 shadow-sm">
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className="mt-1 font-semibold text-neutral-950">{value}</div>
+    <div className="metadata-item">
+      <div className="metadata-label">{label}</div>
+      <div className="metadata-value mt-1">{value}</div>
     </div>
   );
 }
@@ -486,54 +507,57 @@ function CampPerformanceCard({
   camps,
 }: {
   camps: ManagerCampSummary[];
-}): React.JSX.Element {
+}): JSX.Element {
   return (
-    <section className="rounded-[1.75rem] border border-neutral-200 bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-950">
+    <section className="surface-panel overflow-hidden">
+      <div className="flex items-start justify-between gap-4 border-b border-border p-4">
+        <div className="min-w-0">
+          <p className="page-kicker">Camp pressure</p>
+          <h2 className="mt-1 text-base font-semibold text-foreground">
             Camp occupancy
           </h2>
-          <p className="mt-1 text-sm text-neutral-500">
-            Room availability and utilization by camp.
+          <p className="mt-1 text-sm text-muted">
+            Availability and utilization by camp.
           </p>
         </div>
 
-        <Building2 aria-hidden="true" className="h-5 w-5 text-neutral-400" />
+        <Building2 aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
       </div>
 
       {camps.length === 0 ? (
-        <div className="p-6 text-sm text-neutral-500">
+        <div className="p-5 text-sm text-muted">
           No camp room data available.
         </div>
       ) : (
-        <div className="space-y-4 p-5">
+        <div className="divide-y divide-border">
           {camps.map((camp) => (
-            <div
-              key={camp.campId}
-              className="rounded-2xl border border-neutral-100 bg-neutral-50/70 p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="font-semibold text-neutral-950">
+            <div key={camp.campId} className="p-4">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-start">
+                <div className="min-w-0">
+                  <div className="font-semibold text-foreground">
                     {camp.campName}
                   </div>
-                  <div className="mt-1 text-sm text-neutral-500">
+                  <div className="mt-1 text-sm text-muted">
                     {camp.availableRooms} available · {camp.occupiedRooms}{" "}
                     occupied · {camp.reservedRooms} reserved
                   </div>
                 </div>
 
-                <div className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-neutral-900 shadow-sm">
-                  {camp.occupancyRate}% occupied
+                <div className="border border-border bg-surface px-3 py-2 text-right">
+                  <div className="text-lg font-semibold tracking-[-0.04em] text-foreground">
+                    {camp.occupancyRate}%
+                  </div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    Occupied
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-3">
                 <ProgressBar value={camp.occupancyRate} tone="blue" />
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <MiniStat label="Rooms" value={camp.totalRooms} />
                 <MiniStat label="Guests" value={camp.currentGuests} />
                 <MiniStat label="VIP" value={camp.vipGuests} />
@@ -551,7 +575,7 @@ function RoomStatusCard({
   summary,
 }: {
   summary: ManagerOperationalSummary;
-}): React.JSX.Element {
+}): JSX.Element {
   const rows = [
     {
       label: "Vacant ready",
@@ -591,17 +615,15 @@ function RoomStatusCard({
   ];
 
   return (
-    <section className="rounded-[1.75rem] border border-neutral-200 bg-white shadow-sm">
-      <div className="border-b border-neutral-100 p-5">
-        <h2 className="text-lg font-semibold text-neutral-950">
-          Room status mix
+    <section className="surface-panel overflow-hidden">
+      <div className="border-b border-border p-4">
+        <p className="page-kicker">Rooms</p>
+        <h2 className="mt-1 text-base font-semibold text-foreground">
+          Status mix
         </h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          Operational room state from the live room summary view.
-        </p>
       </div>
 
-      <div className="space-y-3 p-5">
+      <div className="space-y-3 p-4">
         {rows.map((row) => {
           const percentage =
             summary.totalRooms > 0
@@ -611,10 +633,8 @@ function RoomStatusCard({
           return (
             <div key={row.label}>
               <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-                <span className="font-medium text-neutral-700">
-                  {row.label}
-                </span>
-                <span className="font-semibold text-neutral-950">
+                <span className="font-medium text-muted">{row.label}</span>
+                <span className="font-semibold text-foreground">
                   {row.value}
                 </span>
               </div>
@@ -631,97 +651,90 @@ function CurrentGuestsTable({
   guests,
 }: {
   guests: ManagerCurrentGuestRow[];
-}): React.JSX.Element {
+}): JSX.Element {
   return (
-    <section className="rounded-[1.75rem] border border-neutral-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 p-5">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-950">
+    <section className="surface-panel overflow-hidden">
+      <div className="flex items-start justify-between gap-4 border-b border-border p-4">
+        <div className="min-w-0">
+          <p className="page-kicker">Current stays</p>
+          <h2 className="mt-1 text-base font-semibold text-foreground">
             Guests currently checked in
           </h2>
-          <p className="mt-1 text-sm text-neutral-500">
-            Assigned room, stay status, security presence, and expected
-            departure.
+          <p className="mt-1 text-sm text-muted">
+            Room, guest, security presence, and expected departure.
           </p>
         </div>
 
         <Link
           href={APP_ROUTES.manager.guests.current}
-          className="rounded-2xl border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
+          className="shrink-0 border border-border bg-surface px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-background"
         >
-          View all
+          Open register
         </Link>
       </div>
 
       {guests.length === 0 ? (
-        <div className="p-8 text-sm text-neutral-500">
+        <div className="p-5 text-sm text-muted">
           No guests are currently checked in.
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-5 py-3 font-semibold">Guest</th>
-                <th className="px-5 py-3 font-semibold">Camp</th>
-                <th className="px-5 py-3 font-semibold">Room</th>
-                <th className="px-5 py-3 font-semibold">Presence</th>
-                <th className="px-5 py-3 font-semibold">Expected departure</th>
-              </tr>
-            </thead>
+        <div className="divide-y divide-border">
+          {guests.map((guest) => (
+            <div
+              key={guest.stay_id ?? guest.guest_id ?? guest.guest_name}
+              className="grid gap-3 p-4 transition hover:bg-surface sm:grid-cols-[7rem_minmax(0,1fr)_12rem_13rem] sm:items-center"
+            >
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  Room
+                </div>
+                <div className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-foreground">
+                  {guest.room_number ?? "—"}
+                </div>
+              </div>
 
-            <tbody className="divide-y divide-neutral-100">
-              {guests.map((guest) => (
-                <tr
-                  key={guest.stay_id ?? guest.guest_id ?? guest.guest_name}
-                  className="transition hover:bg-neutral-50/70"
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="truncate font-semibold text-foreground">
+                    {guest.guest_name ?? "Unnamed guest"}
+                  </div>
+
+                  {guest.is_vip ? (
+                    <StatusChip className="border-amber-200 bg-amber-50 text-amber-700">
+                      VIP
+                    </StatusChip>
+                  ) : null}
+                </div>
+
+                <div className="mt-1 truncate text-sm text-muted">
+                  {[guest.organization, guest.guest_category]
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
+                </div>
+
+                <div className="mt-1 text-xs text-muted">
+                  {guest.camp_name ?? "—"}
+                </div>
+              </div>
+
+              <div>
+                <StatusChip
+                  className={presenceTone(guest.security_presence_status)}
                 >
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="font-semibold text-neutral-950">
-                        {guest.guest_name ?? "Unnamed guest"}
-                      </div>
+                  {formatLabel(guest.security_presence_status)}
+                </StatusChip>
+              </div>
 
-                      {guest.is_vip ? (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                          VIP
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-1 text-xs text-neutral-500">
-                      {[guest.organization, guest.guest_category]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4 text-neutral-700">
-                    {guest.camp_name ?? "—"}
-                  </td>
-
-                  <td className="px-5 py-4 font-semibold text-neutral-900">
-                    {guest.room_number ?? "—"}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-xs font-semibold",
-                        presenceTone(guest.security_presence_status),
-                      )}
-                    >
-                      {formatLabel(guest.security_presence_status)}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4 text-neutral-700">
-                    {formatDateTime(guest.expected_departure_at)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              <div className="text-sm text-muted">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.12em]">
+                  Expected departure
+                </span>
+                <span className="mt-1 block text-foreground">
+                  {formatDateTime(guest.expected_departure_at)}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </section>
@@ -732,58 +745,61 @@ function ExitedGuestsTable({
   guests,
 }: {
   guests: ManagerExitedGuestRow[];
-}): React.JSX.Element {
+}): JSX.Element {
   return (
-    <section className="rounded-[1.75rem] border border-neutral-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 p-5">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-950">
+    <section className="surface-panel overflow-hidden">
+      <div className="flex items-start justify-between gap-4 border-b border-border p-4">
+        <div className="min-w-0">
+          <p className="page-kicker">Movement</p>
+          <h2 className="mt-1 text-base font-semibold text-foreground">
             Recent exits
           </h2>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-1 text-sm text-muted">
             Reception checkouts and security gate exits.
           </p>
         </div>
 
         <Link
           href={APP_ROUTES.manager.guests.exited}
-          className="rounded-2xl border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
+          className="shrink-0 border border-border bg-surface px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-background"
         >
-          View all
+          Open
         </Link>
       </div>
 
       {guests.length === 0 ? (
-        <div className="p-8 text-sm text-neutral-500">
-          No recent exits found.
-        </div>
+        <div className="p-5 text-sm text-muted">No recent exits found.</div>
       ) : (
-        <div className="divide-y divide-neutral-100">
+        <div className="divide-y divide-border">
           {guests.slice(0, 6).map((guest) => (
             <div
               key={[guest.stay_id, guest.guest_id, guest.departure_or_exit_time]
                 .filter(Boolean)
                 .join("-")}
-              className="flex items-start justify-between gap-4 p-5 transition hover:bg-neutral-50/70"
+              className="grid gap-3 p-4 transition hover:bg-surface sm:grid-cols-[5.5rem_minmax(0,1fr)]"
             >
               <div>
-                <div className="font-semibold text-neutral-950">
-                  {guest.guest_name ?? "Unnamed guest"}
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                  Room
                 </div>
-                <div className="mt-1 text-sm text-neutral-500">
-                  Room {guest.room_number ?? "—"} ·{" "}
-                  {formatDateTime(guest.departure_or_exit_time)}
+                <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground">
+                  {guest.room_number ?? "—"}
                 </div>
               </div>
 
-              <span
-                className={cn(
-                  "shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold",
-                  exitTone(guest.exit_source),
-                )}
-              >
-                {formatLabel(guest.exit_source)}
-              </span>
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-foreground">
+                  {guest.guest_name ?? "Unnamed guest"}
+                </div>
+                <div className="mt-1 text-sm text-muted">
+                  {formatDateTime(guest.departure_or_exit_time)}
+                </div>
+                <div className="mt-2">
+                  <StatusChip className={exitTone(guest.exit_source)}>
+                    {formatLabel(guest.exit_source)}
+                  </StatusChip>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -792,7 +808,7 @@ function ExitedGuestsTable({
   );
 }
 
-function QuickActions(): React.JSX.Element {
+function QuickActions(): JSX.Element {
   const actions = [
     {
       label: "Open room board",
@@ -817,24 +833,26 @@ function QuickActions(): React.JSX.Element {
   ] as const;
 
   return (
-    <section className="rounded-[1.75rem] border border-neutral-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-neutral-950">Quick actions</h2>
-      <p className="mt-1 text-sm text-neutral-500">
-        Fast manager navigation for daily operations.
-      </p>
+    <section className="surface-panel overflow-hidden">
+      <div className="border-b border-border p-4">
+        <p className="page-kicker">Manager controls</p>
+        <h2 className="mt-1 text-base font-semibold text-foreground">
+          Quick actions
+        </h2>
+      </div>
 
-      <div className="mt-5 grid gap-2">
+      <div className="grid gap-2 p-4">
         {actions.map((action) => (
           <Link
             key={action.href}
             href={action.href}
-            className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 px-4 py-3 text-sm font-semibold text-neutral-800 transition hover:border-sky-200 hover:bg-sky-50"
+            className="grid grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-3 border border-border bg-surface px-3 py-2.5 text-sm font-semibold text-foreground transition hover:bg-background"
           >
-            <span className="inline-flex items-center gap-2">
-              <action.icon aria-hidden="true" className="h-4 w-4" />
-              {action.label}
+            <action.icon aria-hidden="true" className="h-4 w-4 text-muted" />
+            <span className="truncate">{action.label}</span>
+            <span aria-hidden="true" className="text-muted">
+              →
             </span>
-            <span aria-hidden="true">→</span>
           </Link>
         ))}
       </div>
@@ -846,7 +864,7 @@ export function LiveCampManagerDashboard({
   initialData,
 }: {
   initialData: ManagerDashboardData;
-}): React.JSX.Element {
+}): JSX.Element {
   const abortRef = useRef<AbortController | null>(null);
 
   const [state, setState] = useState<LiveState>({
@@ -986,42 +1004,40 @@ export function LiveCampManagerDashboard({
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <LiveStatus
-          fetchedAt={state.data.fetchedAt}
-          isLive={state.isLive}
-          isRefreshing={state.isRefreshing}
-          error={state.error}
-          onRefresh={() => void refresh()}
-          onToggleLive={() =>
-            setState((current) => ({
-              ...current,
-              isLive: !current.isLive,
-            }))
-          }
-        />
-      </div>
+    <div className="grid gap-4">
+      <LiveStatus
+        fetchedAt={state.data.fetchedAt}
+        isLive={state.isLive}
+        isRefreshing={state.isRefreshing}
+        error={state.error}
+        onRefresh={() => void refresh()}
+        onToggleLive={() =>
+          setState((current) => ({
+            ...current,
+            isLive: !current.isLive,
+          }))
+        }
+      />
 
       <OperationalSnapshot summary={state.data.summary} />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         {summaryCards.map((card) => (
           <MetricCard key={card.label} {...card} />
         ))}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.35fr_0.85fr]">
-        <div className="space-y-6">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid min-w-0 gap-4">
           <CampPerformanceCard camps={state.data.camps} />
           <CurrentGuestsTable guests={state.data.currentGuests} />
         </div>
 
-        <div className="space-y-6">
+        <aside className="grid min-w-0 content-start gap-4">
           <RoomStatusCard summary={state.data.summary} />
           <ExitedGuestsTable guests={state.data.exitedGuests} />
           <QuickActions />
-        </div>
+        </aside>
       </section>
     </div>
   );

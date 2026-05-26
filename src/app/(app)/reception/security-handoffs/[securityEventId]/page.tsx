@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
+import { resolveReceptionSecurityHandoffAction } from "@/lib/actions/security/create-clearance-event";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   ClearanceStatusBadge,
@@ -197,7 +198,7 @@ function LabelValueRow({
   value: ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="grid gap-2 border-b border-border py-2.5 last:border-b-0 sm:grid-cols-[8.5rem_minmax(0,1fr)]">
+    <div className="grid gap-2 border-b border-border/80 py-2.5 last:border-b-0 sm:grid-cols-[8.5rem_minmax(0,1fr)]">
       <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
         {label}
       </dt>
@@ -207,7 +208,7 @@ function LabelValueRow({
   );
 }
 
-function TextPanel({
+function DetailSection({
   title,
   description,
   children,
@@ -217,18 +218,22 @@ function TextPanel({
   children: ReactNode;
 }): React.JSX.Element {
   return (
-    <section className="border border-border bg-surface">
-      <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold tracking-[-0.015em] text-foreground">
-          {title}
-        </h2>
+    <section className="border-b border-border last:border-b-0">
+      <div className="grid gap-4 px-4 py-4 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold tracking-[-0.015em] text-foreground">
+            {title}
+          </h2>
 
-        {description ? (
-          <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
-        ) : null}
+          {description ? (
+            <p className="mt-1 max-w-[16rem] text-xs leading-5 text-muted">
+              {description}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="min-w-0">{children}</div>
       </div>
-
-      <div className="px-4 py-2">{children}</div>
     </section>
   );
 }
@@ -241,41 +246,63 @@ function HandoffActionLinks({
   guestId: string;
 }): React.JSX.Element {
   return (
-    <div className="grid gap-2">
-      <Link
-        href={APP_ROUTES.reception.securityHandoffs}
-        className="btn-secondary btn-sm"
-      >
-        Back to queue
-      </Link>
+    <div className="grid gap-3">
+      <div className="grid gap-2 border-b border-border pb-3">
+        <form action={resolveReceptionSecurityHandoffAction}>
+          <input type="hidden" name="securityEventId" value={event.id} />
+          <input type="hidden" name="receptionStatus" value="received" />
 
-      <Link
-        href={APP_ROUTES.guests.detail(guestId)}
-        className="btn-secondary btn-sm"
-      >
-        Open guest
-      </Link>
+          <button type="submit" className="btn-primary btn-sm w-full">
+            Received guest
+          </button>
+        </form>
 
-      <Link
-        href={APP_ROUTES.reservations.newFromSecurityHandoff(event.id)}
-        className="btn-secondary btn-sm"
-      >
-        Create reservation
-      </Link>
+        <form action={resolveReceptionSecurityHandoffAction}>
+          <input type="hidden" name="securityEventId" value={event.id} />
+          <input type="hidden" name="receptionStatus" value="not_received" />
 
-      <Link
-        href={APP_ROUTES.allocations.newFromSecurityHandoff(event.id)}
-        className="btn-secondary btn-sm"
-      >
-        Allocate room
-      </Link>
+          <button type="submit" className="btn-secondary btn-sm w-full">
+            Not received
+          </button>
+        </form>
+      </div>
 
-      <Link
-        href={APP_ROUTES.stays.checkInFromSecurityHandoff(event.id)}
-        className="btn-primary btn-sm"
-      >
-        Start check-in
-      </Link>
+      <div className="grid gap-2">
+        <Link
+          href={APP_ROUTES.guests.detail(guestId)}
+          className="btn-secondary btn-sm"
+        >
+          Open guest
+        </Link>
+
+        <Link
+          href={APP_ROUTES.reservations.newFromSecurityHandoff(event.id)}
+          className="btn-secondary btn-sm"
+        >
+          Create reservation
+        </Link>
+
+        <Link
+          href={APP_ROUTES.allocations.newFromSecurityHandoff(event.id)}
+          className="btn-secondary btn-sm"
+        >
+          Allocate room
+        </Link>
+
+        <Link
+          href={APP_ROUTES.stays.checkInFromSecurityHandoff(event.id)}
+          className="btn-primary btn-sm"
+        >
+          Start check-in
+        </Link>
+
+        <Link
+          href={APP_ROUTES.reception.securityHandoffs}
+          className="btn-secondary btn-sm"
+        >
+          Back to queue
+        </Link>
+      </div>
     </div>
   );
 }
@@ -425,29 +452,19 @@ export default async function ReceptionSecurityHandoffDetailPage({
 
   return (
     <div className="page-stack">
-      <section className="surface-panel overflow-hidden">
-        <div className="border-b border-border px-4 py-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
-            Reception handoff
-          </p>
-
-          <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
-            {guestName}
-          </h1>
-
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Pending security handoff awaiting reception handling.
-          </p>
-        </div>
-      </section>
-
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18.5rem] xl:items-start">
-        <div className="grid min-w-0 gap-5">
-          <TextPanel
+        <Card variant="console" className="min-w-0 overflow-hidden">
+          <div className="border-b border-border px-4 py-4">
+            <h1 className="text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-3xl">
+              {guestName}
+            </h1>
+          </div>
+
+          <DetailSection
             title="Security status"
-            description="Current handoff status, clearance posture, and visit classification."
+            description="Current handoff state and clearance posture."
           >
-            <div className="flex flex-wrap gap-2 py-2">
+            <div className="mb-2 flex flex-wrap gap-2">
               <VisitTypeBadge visitType={event.visit_type} />
               <ClearanceStatusBadge status={event.clearance_status} />
               <RiskLevelBadge riskLevel={event.risk_level} />
@@ -474,11 +491,11 @@ export default async function ReceptionSecurityHandoffDetailPage({
                 value={camp ? `${camp.name} (${camp.code})` : "Unknown camp"}
               />
             </dl>
-          </TextPanel>
+          </DetailSection>
 
-          <TextPanel
+          <DetailSection
             title="Guest details"
-            description="Identity and contact details available to reception."
+            description="Identity and contact information available to reception."
           >
             <dl>
               <LabelValueRow label="Full name" value={guestName} />
@@ -512,9 +529,9 @@ export default async function ReceptionSecurityHandoffDetailPage({
                 value={textValue(guest?.nationality)}
               />
             </dl>
-          </TextPanel>
+          </DetailSection>
 
-          <TextPanel
+          <DetailSection
             title="Visit details"
             description="Purpose, host, and security notes submitted during handoff."
           >
@@ -532,8 +549,8 @@ export default async function ReceptionSecurityHandoffDetailPage({
                 }
               />
             </dl>
-          </TextPanel>
-        </div>
+          </DetailSection>
+        </Card>
 
         <aside className="grid min-w-0 gap-4 xl:sticky xl:top-4">
           <Card variant="console" className="min-w-0">
