@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { resolveReceptionSecurityHandoffAction } from "@/lib/actions/security/create-clearance-event";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
   ClearanceStatusBadge,
   RiskLevelBadge,
@@ -455,9 +456,12 @@ export default async function ReceptionSecurityHandoffDetailPage({
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18.5rem] xl:items-start">
         <Card variant="console" className="min-w-0 overflow-hidden">
           <div className="border-b border-border px-4 py-4">
-            <h1 className="text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-3xl">
-              {guestName}
-            </h1>
+            <GuestNameWithPhoto
+              guestId={guestId}
+              name={guestName}
+              size="lg"
+              className="text-2xl sm:text-3xl"
+            />
           </div>
 
           <DetailSection
@@ -498,7 +502,10 @@ export default async function ReceptionSecurityHandoffDetailPage({
             description="Identity and contact information available to reception."
           >
             <dl>
-              <LabelValueRow label="Full name" value={guestName} />
+              <LabelValueRow
+                label="Full name"
+                value={<GuestNameWithPhoto guestId={guestId} name={guestName} />}
+              />
 
               <LabelValueRow
                 label="Category"

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { notifyWorkflowPermission } from "@/lib/notifications/workflow-notifications";
 import type { Database, Enums } from "@/lib/db/types";
 
 export type ExpectedArrivalRow =
@@ -83,6 +84,68 @@ function getRpcReturnedId(data: unknown): string {
   }
 
   throw new Error("Expected arrival RPC did not return an ID.");
+}
+
+function getExpectedArrivalGuestName(row: ExpectedArrivalRow): string {
+  return row.guest_name ?? "Expected arrival guest";
+}
+
+async function notifyExpectedArrivalWorkflow(
+  row: ExpectedArrivalRow,
+  event: "created" | "updated" | "arrived" | "cancelled" | "no_show" | "allocated",
+): Promise<void> {
+  if (!row.expected_arrival_id) {
+    return;
+  }
+
+  const guestName = getExpectedArrivalGuestName(row);
+  const href = APP_ROUTES.reception.expectedArrivalDetail(
+    row.expected_arrival_id,
+  );
+  const copy = {
+    created: {
+      title: "Expected arrival created",
+      body: `${guestName} has been added to expected arrivals.`,
+      severity: "info" as const,
+    },
+    updated: {
+      title: "Expected arrival updated",
+      body: `${guestName}'s expected arrival details were updated.`,
+      severity: "info" as const,
+    },
+    arrived: {
+      title: "Expected arrival marked arrived",
+      body: `${guestName} has arrived and is ready for reception processing.`,
+      severity: "success" as const,
+    },
+    cancelled: {
+      title: "Expected arrival cancelled",
+      body: `${guestName}'s expected arrival was cancelled.`,
+      severity: "warning" as const,
+    },
+    no_show: {
+      title: "Expected arrival marked no-show",
+      body: `${guestName} was marked as no-show.`,
+      severity: "warning" as const,
+    },
+    allocated: {
+      title: "Expected arrival allocated",
+      body: `${guestName} has been allocated to a room.`,
+      severity: "success" as const,
+    },
+  }[event];
+
+  await notifyWorkflowPermission({
+    permission: "expected_arrivals.view",
+    campId: row.camp_id,
+    title: copy.title,
+    body: copy.body,
+    category: "reservation",
+    severity: copy.severity,
+    actionHref: href,
+    entityType: "expected_arrivals",
+    entityId: row.expected_arrival_id,
+  });
 }
 
 export async function getExpectedArrivals(
@@ -178,6 +241,8 @@ export async function createExpectedArrival(
     throw new Error("Expected arrival was created but could not be loaded.");
   }
 
+  await notifyExpectedArrivalWorkflow(created, "created");
+
   return created;
 }
 
@@ -227,6 +292,8 @@ export async function createExpectedArrivalWithGuest(
     );
   }
 
+  await notifyExpectedArrivalWorkflow(created, "created");
+
   return created;
 }
 
@@ -265,6 +332,8 @@ export async function updateExpectedArrival(
     throw new Error("Expected arrival was updated but could not be loaded.");
   }
 
+  await notifyExpectedArrivalWorkflow(updated, "updated");
+
   return updated;
 }
 
@@ -296,6 +365,8 @@ export async function markExpectedArrivalArrived(
     throw new Error("Expected arrival was updated but could not be loaded.");
   }
 
+  await notifyExpectedArrivalWorkflow(updated, "arrived");
+
   return updated;
 }
 
@@ -326,6 +397,8 @@ export async function cancelExpectedArrival(
   if (!updated) {
     throw new Error("Expected arrival was cancelled but could not be loaded.");
   }
+
+  await notifyExpectedArrivalWorkflow(updated, "cancelled");
 
   return updated;
 }
@@ -359,6 +432,8 @@ export async function markExpectedArrivalNoShow(
       "Expected arrival was marked no-show but could not be loaded.",
     );
   }
+
+  await notifyExpectedArrivalWorkflow(updated, "no_show");
 
   return updated;
 }
@@ -397,6 +472,8 @@ export async function allocateExpectedArrival(
   if (!updated) {
     throw new Error("Expected arrival was allocated but could not be loaded.");
   }
+
+  await notifyExpectedArrivalWorkflow(updated, "allocated");
 
   return updated;
 }

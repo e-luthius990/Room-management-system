@@ -92,7 +92,7 @@ export type CardHeaderProps = React.ComponentPropsWithoutRef<"div"> & {
 export function CardHeader({
   children,
   className,
-  divided = true,
+  divided = false,
   dense = false,
   ...props
 }: CardHeaderProps): React.JSX.Element {
@@ -183,7 +183,7 @@ const footerAlignClass: Record<
 export function CardFooter({
   children,
   className,
-  divided = true,
+  divided = false,
   align = "end",
   dense = false,
   ...props

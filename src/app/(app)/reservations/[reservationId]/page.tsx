@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { getReservationDetail } from "@/lib/queries/reservations/get-reservation-detail";
@@ -192,9 +193,11 @@ export default async function ReservationDetailPage({
               </div>
 
               <div className="min-w-0 pb-1">
-                <div className="truncate text-lg font-semibold tracking-[-0.03em] text-foreground">
-                  {reservation.guest_name ?? "Guest not assigned"}
-                </div>
+                <GuestNameWithPhoto
+                  guestId={reservation.guest_id ?? ""}
+                  name={reservation.guest_name ?? "Guest not assigned"}
+                  size="md"
+                />
 
                 <p className="mt-1 text-sm leading-6 text-muted">
                   {reservation.building_name} · {reservation.camp_name}
@@ -265,7 +268,12 @@ export default async function ReservationDetailPage({
               <dl className="divide-y divide-border">
                 <InfoRow
                   label="Guest"
-                  value={reservation.guest_name ?? "Guest not assigned"}
+                  value={
+                    <GuestNameWithPhoto
+                      guestId={reservation.guest_id ?? ""}
+                      name={reservation.guest_name ?? "Guest not assigned"}
+                    />
+                  }
                 />
 
                 <InfoRow

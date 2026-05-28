@@ -43,6 +43,10 @@ function getErrorMessage(error?: string): string | null {
     possible_duplicate_guest:
       "A similar guest record may already exist. Check the security review before creating another one.",
     guest_create_failed: "Guest intake record could not be created.",
+    profile_photo_required: "Take or upload a guest profile photo.",
+    unsupported_profile_photo_type: "Use a JPG, PNG, or WebP profile photo.",
+    profile_photo_too_large: "Profile photo must be 4 MB or smaller.",
+    profile_photo_upload_failed: "Profile photo could not be uploaded.",
   };
 
   return messages[error] ?? "Guest intake record could not be created.";
@@ -97,17 +101,6 @@ export default async function NewSecurityGuestPage({
         </section>
       ) : (
         <section className="surface-panel overflow-hidden">
-          <div className="border-b border-border px-4 py-4">
-            <h2 className="text-sm font-semibold tracking-[-0.015em] text-foreground">
-              Create guest
-            </h2>
-
-            <p className="mt-1 text-xs leading-5 text-muted">
-              Capture the visitor identity, organization, document details, host
-              context, and security notes.
-            </p>
-          </div>
-
           <div className="p-4">
             <SecurityGuestIntakeForm camps={camps} />
           </div>

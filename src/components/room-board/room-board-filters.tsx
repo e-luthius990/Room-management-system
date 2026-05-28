@@ -16,6 +16,8 @@ type RoomBoardFiltersProps = {
   selectedBuilding: string;
   selectedStatus: string;
   search: string;
+  canSelectCamp: boolean;
+  assignedCampLabel: string;
   loading?: boolean;
   onCampChange: (value: string) => void;
   onBuildingChange: (value: string) => void;
@@ -91,6 +93,8 @@ export function RoomBoardFilters({
   selectedBuilding,
   selectedStatus,
   search,
+  canSelectCamp,
+  assignedCampLabel,
   loading = false,
   onCampChange,
   onBuildingChange,
@@ -122,7 +126,7 @@ export function RoomBoardFilters({
 
   const activeFilterCount = [
     search.trim().length > 0,
-    selectedCamp !== ALL_VALUE,
+    canSelectCamp && selectedCamp !== ALL_VALUE,
     selectedBuilding !== ALL_VALUE,
     selectedStatus !== ALL_VALUE,
   ].filter(Boolean).length;
@@ -140,7 +144,9 @@ export function RoomBoardFilters({
     }
 
     onSearchChange("");
-    onCampChange(ALL_VALUE);
+    if (canSelectCamp) {
+      onCampChange(ALL_VALUE);
+    }
     onBuildingChange(ALL_VALUE);
     onStatusChange(ALL_VALUE);
   }
@@ -166,20 +172,29 @@ export function RoomBoardFilters({
             wrapperClassName="min-w-0"
           />
 
-          <Select
-            aria-label="Filter by camp"
-            id="room-board-camp"
-            value={selectedCamp}
-            disabled={loading}
-            onChange={(event) => handleCampChange(event.target.value)}
-            options={[
-              { value: ALL_VALUE, label: "All camps" },
-              ...campOptions.map((camp) => ({
-                value: camp.id,
-                label: camp.label,
-              })),
-            ]}
-          />
+          {canSelectCamp ? (
+            <Select
+              aria-label="Filter by camp"
+              id="room-board-camp"
+              value={selectedCamp}
+              disabled={loading}
+              onChange={(event) => handleCampChange(event.target.value)}
+              options={[
+                { value: ALL_VALUE, label: "All camps" },
+                ...campOptions.map((camp) => ({
+                  value: camp.id,
+                  label: camp.label,
+                })),
+              ]}
+            />
+          ) : (
+            <div
+              className="flex min-h-10 min-w-0 items-center border border-border bg-surface px-3 text-sm font-semibold text-foreground"
+              aria-label="Assigned camp"
+            >
+              <span className="truncate">{assignedCampLabel}</span>
+            </div>
+          )}
 
           <Select
             aria-label="Filter by building"

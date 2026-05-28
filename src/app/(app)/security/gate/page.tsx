@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import type { CurrentUserContext } from "@/lib/auth/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { SecurityPresenceCard } from "@/components/security/security-presence-card";
 import {
   ClearanceStatusBadge,
@@ -504,13 +505,25 @@ function ExpectedArrivalsTable({
             {arrivals.map((arrival) => (
               <tr key={arrival.reservation_id} className="align-top">
                 <td>
-                  <RecordLabel
-                    primary={arrival.guest_name ?? "Guest not assigned"}
-                    secondary={
-                      arrival.organization_name ??
-                      formatLabel(arrival.guest_category)
-                    }
-                  />
+                  {arrival.guest_id ? (
+                    <GuestNameWithPhoto
+                      guestId={arrival.guest_id}
+                      name={arrival.guest_name ?? "Guest not assigned"}
+                    >
+                      <span className="mt-1 block truncate text-xs leading-5 text-muted">
+                        {arrival.organization_name ??
+                          formatLabel(arrival.guest_category)}
+                      </span>
+                    </GuestNameWithPhoto>
+                  ) : (
+                    <RecordLabel
+                      primary={arrival.guest_name ?? "Guest not assigned"}
+                      secondary={
+                        arrival.organization_name ??
+                        formatLabel(arrival.guest_category)
+                      }
+                    />
+                  )}
                 </td>
 
                 <td>
@@ -599,12 +612,14 @@ function ActiveStaysTable({
             {stays.map((stay) => (
               <tr key={stay.stay_id} className="align-top">
                 <td>
-                  <RecordLabel
-                    primary={stay.guest_name}
-                    secondary={
-                      stay.organization_name ?? formatLabel(stay.guest_category)
-                    }
-                  />
+                  <GuestNameWithPhoto
+                    guestId={stay.guest_id}
+                    name={stay.guest_name}
+                  >
+                    <span className="mt-1 block truncate text-xs leading-5 text-muted">
+                      {stay.organization_name ?? formatLabel(stay.guest_category)}
+                    </span>
+                  </GuestNameWithPhoto>
                 </td>
 
                 <td>

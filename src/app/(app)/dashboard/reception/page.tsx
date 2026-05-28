@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import type { CurrentUserContext } from "@/lib/auth/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { OperationsSearchBox } from "@/components/search/operations-search-box";
 import {
   Card,
@@ -30,6 +31,7 @@ const RECEPTION_DASHBOARD_TIMING_ENABLED =
 
 type QueueItem = {
   id: string;
+  guestId?: string;
   title: string;
   subtitle: string;
   meta: string;
@@ -76,6 +78,7 @@ type PendingReceptionHandoffRow = {
 
 type ExpectedArrivalDashboardRow = {
   expected_arrival_id: string | null;
+  guest_id?: string | null;
   guest_name: string | null;
   guest_phone: string | null;
   guest_organization: string | null;
@@ -88,11 +91,15 @@ type ExpectedArrivalDashboardRow = {
   host_department: string | null;
   status: string | null;
   is_overdue: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  allocated_at?: string | null;
 };
 
 type FieldAbsenceDashboardRow = {
   field_absence_id: string | null;
   stay_id: string | null;
+  guest_id?: string | null;
   guest_name: string | null;
   guest_phone: string | null;
   guest_organization: string | null;
@@ -107,6 +114,9 @@ type FieldAbsenceDashboardRow = {
   days_away: number | null;
   days_until_return: number | null;
   is_overdue: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  actual_return_at?: string | null;
 };
 
 type RpcError = {
@@ -320,6 +330,7 @@ function mapReservationArrival(item: unknown): QueueItem {
 
   return {
     id,
+    guestId: textValue(guest.id, ""),
     title: guestName,
     subtitle: `Room ${roomNumber} · ${buildingName}`,
     meta: `${formatTime(row.expected_arrival_at)} · ${formatLabel(status)}`,
@@ -340,6 +351,7 @@ function mapStayDeparture(item: unknown): QueueItem {
 
   return {
     id,
+    guestId: textValue(guest.id, ""),
     title: guestName,
     subtitle: `Room ${roomNumber} · ${buildingName}`,
     meta: `${formatTime(row.expected_departure_at)} · Due checkout`,
@@ -360,6 +372,7 @@ function mapPendingReceptionItem(value: unknown): QueueItem {
 
   return {
     id: securityEventId,
+    guestId: textValue(item.guest_id, ""),
     title: textValue(item.guest_full_name, "Unnamed guest"),
     subtitle: `${camp} · ${host}`,
     meta: `${formatTime(item.sent_to_reception_at)} · ${formatLabel(visitType)}`,
@@ -380,6 +393,7 @@ function mapExpectedArrivalItem(value: unknown): QueueItem {
 
   return {
     id: expectedArrivalId,
+    guestId: textValue(item.guest_id, ""),
     title: textValue(item.guest_name, "Unnamed guest"),
     subtitle:
       hostParts.length > 0
@@ -406,6 +420,7 @@ function mapFieldAbsenceItem(value: unknown): QueueItem {
 
   return {
     id: fieldAbsenceId,
+    guestId: textValue(item.guest_id, ""),
     title: textValue(item.guest_name, "Unnamed guest"),
     subtitle: `Room ${room} · ${destination}`,
     meta: isOverdue
@@ -532,7 +547,11 @@ function ReceptionDashboardTopRail(): React.JSX.Element {
         placeholder="Search guests, rooms, phone, ID..."
       />
 
-      <div aria-hidden="true" className="hidden lg:block" />
+      <div className="flex justify-start lg:justify-end">
+        <Link href={APP_ROUTES.guests.new} className="btn-primary">
+          Add guest
+        </Link>
+      </div>
     </section>
   );
 }
@@ -621,10 +640,17 @@ function QueuePanel({
                 className="flex items-start justify-between gap-4 px-4 py-3 transition hover:bg-surface-2"
               >
                 <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="truncate text-sm font-semibold text-foreground">
-                      {item.title}
-                    </div>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    {item.guestId ? (
+                      <GuestNameWithPhoto
+                        guestId={item.guestId}
+                        name={item.title}
+                      />
+                    ) : (
+                      <div className="truncate text-sm font-semibold text-foreground">
+                        {item.title}
+                      </div>
+                    )}
 
                     {item.badge ? (
                       <StatusIndicator

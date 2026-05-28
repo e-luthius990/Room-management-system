@@ -8,6 +8,7 @@ import {
   createExpectedArrivalWithGuestAction,
   type ExpectedArrivalActionState,
 } from "@/lib/actions/expected-arrivals";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -90,32 +91,6 @@ function formatGuestLabel(guest: GuestOption): string {
 
 function formatModeLabel(mode: GuestMode): string {
   return mode === "existing" ? "Existing guest" : "New guest";
-}
-
-function FormSectionHeader({
-  title,
-  description,
-  kicker = "Expected arrival",
-}: {
-  title: string;
-  description?: string;
-  kicker?: string;
-}): React.JSX.Element {
-  return (
-    <div className="border-b border-border px-4 py-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-        {kicker}
-      </div>
-
-      <h2 className="mt-1 text-sm font-semibold tracking-[-0.015em] text-foreground">
-        {title}
-      </h2>
-
-      {description ? (
-        <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
-      ) : null}
-    </div>
-  );
 }
 
 function SummaryRow({
@@ -263,11 +238,6 @@ export function ExpectedArrivalForm({
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="Who is expected?"
-              description="Use an existing guest if already registered, or create a new guest and expected arrival together."
-            />
-
             <div className="space-y-4 p-4">
               <ModeToggle
                 value={mode}
@@ -340,12 +310,6 @@ export function ExpectedArrivalForm({
 
           {mode === "new" ? (
             <section className="border border-border bg-surface">
-              <FormSectionHeader
-                kicker="Guest profile"
-                title="New guest details"
-                description="These fields create the guest record first, then link the expected arrival to that guest."
-              />
-
               <div className="form-grid p-4">
                 <Select
                   label="Guest category"
@@ -429,11 +393,6 @@ export function ExpectedArrivalForm({
           ) : null}
 
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="When should reception expect arrival?"
-              description="These times feed the expected-arrivals queue and help security prepare clearance."
-            />
-
             <div className="form-grid p-4">
               <Input
                 label="Expected arrival"
@@ -457,11 +416,6 @@ export function ExpectedArrivalForm({
           </section>
 
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="Who is receiving the guest?"
-              description="Add host and purpose details so security and reception know where to route the guest."
-            />
-
             <div className="form-grid p-4">
               <Input
                 label="Host name"
@@ -507,11 +461,6 @@ export function ExpectedArrivalForm({
 
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="Arrival summary"
-              description="Confirm the record before creating the expected arrival."
-            />
-
             <div className="p-4">
               <dl className="divide-y divide-border">
                 <SummaryRow label="Mode" value={formatModeLabel(mode)} />
@@ -524,9 +473,18 @@ export function ExpectedArrivalForm({
                 <SummaryRow
                   label="Guest"
                   value={
-                    mode === "existing"
-                      ? (selectedGuest?.full_name ?? "No guest selected")
-                      : newGuestName.trim() || "No guest name entered"
+                    mode === "existing" ? (
+                      selectedGuest ? (
+                        <GuestNameWithPhoto
+                          guestId={selectedGuest.id}
+                          name={selectedGuest.full_name}
+                        />
+                      ) : (
+                        "No guest selected"
+                      )
+                    ) : (
+                      newGuestName.trim() || "No guest name entered"
+                    )
                   }
                 />
 
@@ -549,15 +507,6 @@ export function ExpectedArrivalForm({
           </section>
 
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="Create expected arrival"
-              description={
-                mode === "existing"
-                  ? "This record appears in reception and security arrival workflows."
-                  : "This creates both the guest profile and expected arrival."
-              }
-            />
-
             <div className="p-4">
               {canSubmit ? (
                 <Button

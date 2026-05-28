@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requirePermission } from "@/lib/auth/require-permission";
+import { notifyWorkflowPermission } from "@/lib/notifications/workflow-notifications";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   createSecurityClearanceEventSchema,
@@ -71,6 +72,21 @@ function getResultGuestId(
     value.guest_id.trim().length > 0
   ) {
     return value.guest_id;
+  }
+
+  return null;
+}
+
+function getResultCampId(
+  value: SecurityClearanceEventResult | null,
+): string | null {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    typeof value.camp_id === "string" &&
+    value.camp_id.trim().length > 0
+  ) {
+    return value.camp_id;
   }
 
   return null;
@@ -360,6 +376,7 @@ export async function sendGuestToReceptionAction(
 
   const eventId = getResultId(data);
   const guestId = getResultGuestId(data);
+  const campId = getResultCampId(data);
 
   if (error || !eventId) {
     const code = mapSecurityError(error?.message ?? "send_to_reception_failed");
@@ -368,6 +385,18 @@ export async function sendGuestToReceptionAction(
   }
 
   revalidateSecurityPaths(guestId);
+
+  await notifyWorkflowPermission({
+    permission: "reception.handle_security_handoffs",
+    campId,
+    title: "Security handoff waiting",
+    body: "A guest has been sent from security to reception.",
+    category: "security",
+    severity: "warning",
+    actionHref: `${RECEPTION_HANDOFFS_PATH}/${eventId}`,
+    entityType: "security_clearance_events",
+    entityId: eventId,
+  });
 
   redirect(`${SECURITY_PATH}/pending-reception?success=sent_to_reception`);
 }
@@ -440,6 +469,7 @@ export async function resolveReceptionSecurityHandoffAction(
 
   const eventId = getResultId(data);
   const guestId = getResultGuestId(data);
+  const campId = getResultCampId(data);
 
   if (error || !eventId) {
     const code = mapSecurityError(
@@ -453,6 +483,22 @@ export async function resolveReceptionSecurityHandoffAction(
 
   revalidatePath(`${RECEPTION_HANDOFFS_PATH}/${parsed.data.securityEventId}`);
   revalidateSecurityPaths(guestId);
+
+  await notifyWorkflowPermission({
+    permission: "security.view_gate_dashboard",
+    campId,
+    title: "Reception handoff resolved",
+    body:
+      parsed.data.receptionStatus === "received"
+        ? "Reception received the guest from security."
+        : "Reception marked the security handoff as not received.",
+    category: "security",
+    severity:
+      parsed.data.receptionStatus === "received" ? "success" : "warning",
+    actionHref: guestId ? `${SECURITY_PATH}/guests/${guestId}` : SECURITY_PATH,
+    entityType: "security_clearance_events",
+    entityId: eventId,
+  });
 
   redirect(
     `${RECEPTION_HANDOFFS_PATH}?success=${

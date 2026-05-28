@@ -9,6 +9,11 @@ import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
+import {
+  deleteGuestProfilePhoto,
+  getProfilePhotoErrorCode,
+  uploadRequiredGuestProfilePhoto,
+} from "@/lib/guest-profile-photo";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const guestCategories = [
@@ -141,6 +146,7 @@ function buildGuestInsertPayload(
   input: CreateSecurityGuestInput,
   guestId: string,
   actorId: string,
+  photoMetadata: Awaited<ReturnType<typeof uploadRequiredGuestProfilePhoto>>,
 ) {
   const isVip = input.isVip || input.guestCategory === "vip_guest";
 
@@ -161,6 +167,7 @@ function buildGuestInsertPayload(
     security_clearance_status: "pending",
     created_by: actorId,
     updated_by: actorId,
+    ...photoMetadata,
   };
 }
 
@@ -212,12 +219,23 @@ export async function createSecurityGuestAction(
   }
 
   const guestId = randomUUID();
+  let photoMetadata: Awaited<ReturnType<typeof uploadRequiredGuestProfilePhoto>>;
+
+  try {
+    photoMetadata = await uploadRequiredGuestProfilePhoto(formData, guestId);
+  } catch (error) {
+    redirect(
+      `${APP_ROUTES.security.newGuest}?error=${getProfilePhotoErrorCode(error)}`,
+    );
+  }
 
   const { error } = await supabase
     .from("guests")
-    .insert(buildGuestInsertPayload(parsed.data, guestId, user.id));
+    .insert(buildGuestInsertPayload(parsed.data, guestId, user.id, photoMetadata));
 
   if (error) {
+    await deleteGuestProfilePhoto(photoMetadata);
+
     console.error("Security guest intake insert failed", {
       message: error.message,
       details: error.details,

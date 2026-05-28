@@ -8,13 +8,7 @@ import {
 } from "@/lib/queries/setup/options";
 import { getRoomInventory } from "@/lib/queries/setup/inventory";
 import { Button } from "@/components/ui/Button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { StatusIndicator } from "@/components/ui/StatusIndicator";
@@ -180,13 +174,6 @@ export default async function AdminRoomsPage({
 
       <div className="grid gap-5 2xl:grid-cols-[28rem_minmax(0,1fr)]">
         <Card variant="card">
-          <CardHeader>
-            <CardTitle>Add room</CardTitle>
-            <CardDescription>
-              New rooms are created with the database default readiness state.
-            </CardDescription>
-          </CardHeader>
-
           <CardContent>
             <form action={createRoomAction} className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-1">

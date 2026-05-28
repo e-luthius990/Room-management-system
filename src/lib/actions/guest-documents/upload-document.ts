@@ -31,6 +31,13 @@ function getFormString(formData: FormData, key: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function getOptionalFormString(
+  formData: FormData,
+  key: string,
+): string | undefined {
+  return getFormString(formData, key) ?? undefined;
+}
+
 function buildGuestRedirectPath(
   guestId: string | null,
   params: Record<string, string>,
@@ -106,7 +113,7 @@ export async function uploadGuestDocumentAction(
   const parsed = uploadGuestDocumentSchema.safeParse({
     guestId,
     documentType: getFormString(formData, "documentType"),
-    notes: getFormString(formData, "notes"),
+    notes: getOptionalFormString(formData, "notes"),
   });
 
   if (!parsed.success) {
@@ -198,7 +205,6 @@ export async function uploadGuestDocumentAction(
 
   revalidatePath("/guests");
   revalidatePath(`/guests/${parsed.data.guestId}`);
-  revalidatePath("/guest-documents/review");
 
   redirect(
     buildGuestRedirectPath(parsed.data.guestId, {

@@ -6,11 +6,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
+import { notifyWorkflowPermission } from "@/lib/notifications/workflow-notifications";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createReservationSchema } from "@/lib/validation/reservations";
 
 type CreatedReservationRow = {
   id: string;
+};
+
+type ReservationNotificationRow = {
+  id: string;
+  camp_id: string;
+  guests: { full_name: string | null } | null;
 };
 
 function getFormString(formData: FormData, key: string): string | null {
@@ -68,6 +75,38 @@ function mapReservationError(message: string): string {
   return "create_failed";
 }
 
+async function notifyReservationCreated(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  reservationId: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id,camp_id,guests(full_name)")
+    .eq("id", reservationId)
+    .returns<ReservationNotificationRow[]>()
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) {
+      console.error("Failed to load reservation notification context:", error.message);
+    }
+
+    return;
+  }
+
+  await notifyWorkflowPermission({
+    permission: "reservations.view",
+    campId: data.camp_id,
+    title: "Reservation created",
+    body: `${data.guests?.full_name ?? "A guest"} has a new room reservation.`,
+    category: "reservation",
+    severity: "info",
+    actionHref: APP_ROUTES.reservations.detail(data.id),
+    entityType: "reservations",
+    entityId: data.id,
+  });
+}
+
 export async function createReservationAction(
   formData: FormData,
 ): Promise<never> {
@@ -110,6 +149,8 @@ export async function createReservationAction(
   revalidatePath(APP_ROUTES.reservations.detail(reservation.id));
   revalidatePath("/room-board");
   revalidatePath("/stays");
+
+  await notifyReservationCreated(supabase, reservation.id);
 
   redirect(APP_ROUTES.reservations.detail(reservation.id));
 }

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { getExpectedArrivalById } from "@/lib/queries/expected-arrivals";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
   cancelExpectedArrivalAction,
   markExpectedArrivalArrivedAction,
@@ -241,9 +242,12 @@ export default async function ExpectedArrivalDetailPage({
                   Guest
                 </div>
 
-                <h1 className="mt-1 truncate text-3xl font-semibold leading-none tracking-[-0.055em] text-foreground sm:text-4xl">
-                  {arrival.guest_name ?? "Expected arrival"}
-                </h1>
+                <GuestNameWithPhoto
+                  guestId={arrival.guest_id ?? ""}
+                  name={arrival.guest_name ?? "Expected arrival"}
+                  size="lg"
+                  className="mt-1 text-3xl sm:text-4xl"
+                />
               </div>
 
               <div className="min-w-0 pb-1">
@@ -312,7 +316,12 @@ export default async function ExpectedArrivalDetailPage({
               <dl className="divide-y divide-border">
                 <InfoRow
                   label="Guest"
-                  value={arrival.guest_name ?? "Unassigned guest"}
+                  value={
+                    <GuestNameWithPhoto
+                      guestId={arrival.guest_id ?? ""}
+                      name={arrival.guest_name ?? "Unassigned guest"}
+                    />
+                  }
                 />
 
                 <InfoRow

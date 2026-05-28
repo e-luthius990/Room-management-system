@@ -1,11 +1,13 @@
-// src/lib/actions/users/delete-invited-user-action.ts
-
 "use server";
+
+import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+import { requirePermission } from "@/lib/auth/require-permission";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const deleteInvitedUserSchema = z.object({
   userId: z.string().uuid("Invalid user ID."),
@@ -35,8 +37,16 @@ export async function deleteInvitedUserAction(
 
   const { userId, reason } = parsed.data;
 
+  const currentUser = await requirePermission("users.disable");
+
+  if (currentUser.role.key !== "super_admin") {
+    return {
+      ok: false,
+      message: "Only Super Admins can permanently delete invited users.",
+    };
+  }
+
   const supabase = await createServerSupabaseClient();
-  const supabaseAdmin = createSupabaseAdminClient();
 
   const { data: currentAuthUser, error: currentAuthError } =
     await supabase.auth.getUser();
@@ -48,12 +58,14 @@ export async function deleteInvitedUserAction(
     };
   }
 
-  if (currentAuthUser.user.id === userId) {
+  if (currentUser.authUser.id === userId || currentAuthUser.user.id === userId) {
     return {
       ok: false,
       message: "You cannot delete your own account.",
     };
   }
+
+  const supabaseAdmin = createSupabaseAdminClient();
 
   const { data: targetProfile, error: targetProfileError } =
     await supabaseAdmin
@@ -109,8 +121,13 @@ export async function deleteInvitedUserAction(
 
   revalidatePath("/admin/users");
 
+  const deletedUserName =
+    targetProfile.full_name?.trim() ||
+    targetProfile.email?.trim() ||
+    "Invited user";
+
   return {
     ok: true,
-    message: `${targetProfile.full_name} was permanently deleted.`,
+    message: `${deletedUserName} was permanently deleted.`,
   };
 }

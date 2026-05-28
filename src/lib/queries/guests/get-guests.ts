@@ -26,6 +26,8 @@ export type GuestDirectoryItem = {
   phone: string | null;
   email: string | null;
   security_clearance_status: string | null;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
   created_at: string;
 };
 
@@ -40,6 +42,8 @@ type GuestDirectoryRow = {
   phone: string | null;
   email: string | null;
   security_clearance_status: string | null;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
   created_at: string;
   camps: { name: string | null } | null;
 };
@@ -77,6 +81,8 @@ export async function getGuests(
         "phone",
         "email",
         "security_clearance_status",
+        "profile_photo_path",
+        "profile_photo_updated_at",
         "created_at",
         "camps!guests_primary_camp_id_fkey(name)",
       ].join(","),
@@ -121,6 +127,8 @@ export async function getGuests(
     phone: guest.phone,
     email: guest.email,
     security_clearance_status: guest.security_clearance_status,
+    profile_photo_path: guest.profile_photo_path,
+    profile_photo_updated_at: guest.profile_photo_updated_at,
     created_at: guest.created_at,
   }));
 }

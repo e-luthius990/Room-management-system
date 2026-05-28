@@ -5,6 +5,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-permission";
+import { notifyWorkflowPermission } from "@/lib/notifications/workflow-notifications";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   cancelReservationSchema,
@@ -76,6 +77,53 @@ function revalidateReservationWorkflow(reservationId: string): void {
   revalidatePath("/stays");
 }
 
+async function notifyReservationWorkflow(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  reservationId: string,
+  event: "cancelled" | "no_show",
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id,camp_id,guests(full_name)")
+    .eq("id", reservationId)
+    .returns<
+      {
+        id: string;
+        camp_id: string;
+        guests: { full_name: string | null } | null;
+      }[]
+    >()
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) {
+      console.error("Failed to load reservation notification context:", error.message);
+    }
+
+    return;
+  }
+
+  const guestName = data.guests?.full_name ?? "A guest";
+
+  await notifyWorkflowPermission({
+    permission: "reservations.view",
+    campId: data.camp_id,
+    title:
+      event === "cancelled"
+        ? "Reservation cancelled"
+        : "Reservation marked no-show",
+    body:
+      event === "cancelled"
+        ? `${guestName}'s reservation was cancelled.`
+        : `${guestName}'s reservation was marked no-show.`,
+    category: "reservation",
+    severity: "warning",
+    actionHref: `/reservations/${data.id}`,
+    entityType: "reservations",
+    entityId: data.id,
+  });
+}
+
 export async function cancelReservationAction(
   formData: FormData,
 ): Promise<never> {
@@ -112,6 +160,7 @@ export async function cancelReservationAction(
   }
 
   revalidateReservationWorkflow(parsed.data.reservationId);
+  await notifyReservationWorkflow(supabase, parsed.data.reservationId, "cancelled");
 
   redirect(
     buildReservationRedirectPath(parsed.data.reservationId, {
@@ -156,6 +205,7 @@ export async function markReservationNoShowAction(
   }
 
   revalidateReservationWorkflow(parsed.data.reservationId);
+  await notifyReservationWorkflow(supabase, parsed.data.reservationId, "no_show");
 
   redirect(
     buildReservationRedirectPath(parsed.data.reservationId, {

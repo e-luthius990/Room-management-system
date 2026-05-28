@@ -11,6 +11,7 @@ import {
   RiskLevelBadge,
   VisitTypeBadge,
 } from "@/components/security/security-status-badge";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { cn } from "@/lib/utils/cn";
 
@@ -560,10 +561,13 @@ export default async function SecurityReviewPage({
                       <td>
                         <Link
                           href={APP_ROUTES.security.guestProfile(guest.id)}
-                          className="block truncate font-semibold text-foreground underline-offset-4 hover:underline"
+                          className="block min-w-0 text-foreground underline-offset-4 hover:underline"
                           title={guest.full_name}
                         >
-                          {guest.full_name}
+                          <GuestNameWithPhoto
+                            guestId={guest.id}
+                            name={guest.full_name}
+                          />
                         </Link>
 
                         <div

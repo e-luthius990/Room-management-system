@@ -1,6 +1,7 @@
 import type { JSX, ReactNode } from "react";
 
 import { requireAnyPermission } from "@/lib/auth/require-permission";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { getManagerCurrentGuests } from "@/lib/queries/manager/get-manager-dashboard";
 import { cn } from "@/lib/utils/cn";
 
@@ -224,9 +225,10 @@ export default async function ManagerCurrentGuestsPage({
                   </div>
 
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <div className="truncate text-sm font-semibold text-foreground">
-                      {guest.guest_name ?? "Unnamed guest"}
-                    </div>
+                    <GuestNameWithPhoto
+                      guestId={guest.guest_id ?? ""}
+                      name={guest.guest_name ?? "Unnamed guest"}
+                    />
 
                     {guest.is_vip ? <GuestFlag>VIP</GuestFlag> : null}
                   </div>

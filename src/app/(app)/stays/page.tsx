@@ -1,8 +1,10 @@
 // src/app/(app)/stays/page.tsx
 
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
+
 import { requirePermission } from "@/lib/auth/require-permission";
-import { APP_ROUTES } from "@/lib/auth/routes";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusIndicator } from "@/components/ui/StatusIndicator";
 import { cn } from "@/lib/utils/cn";
@@ -19,6 +21,8 @@ type StaysPageProps = {
     view?: string;
   }>;
 };
+
+type StayRowData = Awaited<ReturnType<typeof getStays>>[number];
 
 function getStayStatusClass(status: string): string {
   switch (status) {
@@ -44,67 +48,26 @@ function getStayStatusClass(status: string): string {
   }
 }
 
-function getPageCopy(view: StayListView): {
-  kicker: string;
-  title: string;
-  description: string;
-  emptyText: string;
-} {
+function getEmptyText(view: StayListView): string {
   switch (view) {
     case "reserved":
-      return {
-        kicker: "Reception check-in queue",
-        title: "Check-in",
-        description:
-          "Reserved stays waiting for arrival confirmation. Open a stay when the guest reaches reception.",
-        emptyText: "No guests are waiting for check-in.",
-      };
+      return "No guests are waiting for check-in.";
 
     case "check-outs":
-      return {
-        kicker: "Reception check-out queue",
-        title: "Check-out",
-        description:
-          "In-house guests who can be checked out when they leave camp accommodation.",
-        emptyText: "No guests are ready for check-out.",
-      };
+      return "No guests are ready for check-out.";
 
     case "active":
-      return {
-        kicker: "Live stay register",
-        title: "Active stays",
-        description:
-          "Guests currently checked in or occupying rooms across your accessible camps.",
-        emptyText: "No active stays found.",
-      };
+      return "No active stays found.";
 
     case "completed":
-      return {
-        kicker: "Completed stay register",
-        title: "Completed stays",
-        description:
-          "Stay records that have already been checked out and closed.",
-        emptyText: "No completed stays found.",
-      };
+      return "No completed stays found.";
 
     case "all":
-      return {
-        kicker: "Stay history register",
-        title: "Stay history",
-        description:
-          "All stay records across reserved, active, completed, cancelled, and no-show states.",
-        emptyText: "No stays found.",
-      };
+      return "No stays found.";
 
     case "current":
     default:
-      return {
-        kicker: "Current stay workflow",
-        title: "Current stays",
-        description:
-          "Reserved, checked-in, and occupied stays currently moving through reception workflow.",
-        emptyText: "No current stays found.",
-      };
+      return "No current stays found.";
   }
 }
 
@@ -138,7 +101,7 @@ function StayViewRail({
   return (
     <nav
       aria-label="Stay views"
-      className="flex flex-wrap gap-2 border border-border bg-surface p-2 shadow-xs"
+      className="flex flex-wrap items-center gap-1.5"
     >
       {filters.map((filter) => {
         const active = filter.value === activeView;
@@ -149,10 +112,10 @@ function StayViewRail({
             href={viewHref(filter.value)}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "inline-flex min-h-9 items-center border px-3 text-xs font-bold uppercase tracking-[0.12em] transition",
+              "inline-flex min-h-8 items-center border px-2.5 text-[11px] font-bold uppercase tracking-[0.12em] transition",
               active
-                ? "border-brand-600/25 bg-brand-50 text-brand-700"
-                : "border-border bg-surface-2 text-muted hover:border-border-strong hover:bg-surface hover:text-foreground",
+                ? "border-brand-600/30 bg-brand-50 text-brand-700 shadow-xs"
+                : "border-border bg-surface text-muted hover:border-border-strong hover:bg-surface-2 hover:text-foreground",
             )}
           >
             {filter.label}
@@ -163,15 +126,11 @@ function StayViewRail({
   );
 }
 
-function StayRow({
-  stay,
-}: {
-  stay: Awaited<ReturnType<typeof getStays>>[number];
-}): React.JSX.Element {
+function StayRow({ stay }: { stay: StayRowData }): React.JSX.Element {
   return (
     <Link
       href={`/stays/${stay.id}`}
-      className="block px-4 py-3 transition hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset"
+      className="block border border-border bg-surface px-4 py-3 shadow-xs transition hover:border-border-strong hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset"
     >
       <div className="grid gap-4 xl:grid-cols-[8.5rem_minmax(0,1.1fr)_minmax(0,0.9fr)_15rem] xl:items-start">
         <div className="min-w-0">
@@ -195,8 +154,13 @@ function StayRow({
             Guest
           </div>
 
-          <div className="mt-1 truncate text-sm font-semibold leading-8 text-foreground">
-            {stay.guest_name}
+          <div className="mt-1">
+            <GuestNameWithPhoto
+              guestId={stay.guest_id}
+              name={stay.guest_name}
+              photoPath={stay.guest_profile_photo_path}
+              photoUpdatedAt={stay.guest_profile_photo_updated_at}
+            />
           </div>
 
           <div className="mt-1 truncate text-xs leading-5 text-muted">
@@ -241,9 +205,9 @@ function StayRow({
               statusClassName={getStayStatusClass(stay.status)}
             />
 
-            <span className="inline-flex min-h-7 items-center border border-border bg-surface px-2.5 text-[11px] font-bold text-muted">
+            <div className="text-xs font-semibold leading-5 text-muted">
               {getPrimaryActionLabel(stay.status)}
-            </span>
+            </div>
           </div>
         </div>
       </div>
@@ -254,11 +218,12 @@ function StayRow({
 export default async function StaysPage({
   searchParams,
 }: StaysPageProps): Promise<React.JSX.Element> {
+  noStore();
+
   await requirePermission("stays.view");
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const view = normalizeStayListView(resolvedSearchParams.view);
-  const copy = getPageCopy(view);
   const stays = await getStays(view);
 
   const filters: Array<{ label: string; value: StayListView }> = [
@@ -270,49 +235,22 @@ export default async function StaysPage({
   ];
 
   return (
-    <div className="page-stack">
-      <section className="surface-panel overflow-hidden">
-        <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-          <div className="min-w-0">
-            <div className="page-kicker">{copy.kicker}</div>
-
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-[1.65rem]">
-              {copy.title}
-            </h1>
-
-            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted">
-              {copy.description}
-            </p>
-          </div>
-
-          <Link href={APP_ROUTES.allocations.list} className="btn-secondary">
-            Room allocation
-          </Link>
-        </div>
-      </section>
-
+    <div className="space-y-3">
       <StayViewRail filters={filters} activeView={view} />
 
       {stays.length > 0 ? (
-        <section className="border border-border bg-surface shadow-xs">
-          <div className="divide-y divide-border">
-            {stays.map((stay) => (
-              <StayRow key={stay.id} stay={stay} />
-            ))}
-          </div>
+        <section className="grid gap-2" aria-label="Stay records">
+          {stays.map((stay) => (
+            <StayRow key={stay.id} stay={stay} />
+          ))}
         </section>
       ) : (
         <EmptyState
           operational
           align="left"
           size="sm"
-          title={copy.emptyText}
+          title={getEmptyText(view)}
           description="Room allocation creates reserved stays. Check-in and check-out are completed from the stay detail page."
-          action={
-            <Link href={APP_ROUTES.allocations.list} className="btn-primary">
-              Go to room allocation
-            </Link>
-          }
         />
       )}
     </div>

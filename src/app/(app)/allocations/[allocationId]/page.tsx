@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
   Card,
   CardContent,
@@ -129,9 +130,10 @@ export default async function AllocationDetailPage({
               </div>
 
               <div className="min-w-0 pb-1">
-                <div className="truncate text-lg font-semibold tracking-[-0.03em] text-foreground">
-                  {allocation.guest_name}
-                </div>
+                <GuestNameWithPhoto
+                  guestId={allocation.guest_id}
+                  name={allocation.guest_name}
+                />
 
                 <p className="mt-1 text-sm leading-6 text-muted">
                   {allocation.building_code} · {allocation.camp_name}
@@ -195,7 +197,15 @@ export default async function AllocationDetailPage({
 
             <CardContent dense>
               <div className="divide-y divide-border">
-                <InfoRow label="Name" value={allocation.guest_name} />
+                <InfoRow
+                  label="Name"
+                  value={
+                    <GuestNameWithPhoto
+                      guestId={allocation.guest_id}
+                      name={allocation.guest_name}
+                    />
+                  }
+                />
 
                 <InfoRow
                   label="Organization"
@@ -303,7 +313,12 @@ export default async function AllocationDetailPage({
 
               <div className="metadata-item">
                 <div className="metadata-label">Guest</div>
-                <div className="metadata-value">{allocation.guest_name}</div>
+                <div className="metadata-value">
+                  <GuestNameWithPhoto
+                    guestId={allocation.guest_id}
+                    name={allocation.guest_name}
+                  />
+                </div>
                 <div className="mt-1 truncate text-xs text-muted">
                   {allocation.guest_organization ?? "No organization"}
                 </div>

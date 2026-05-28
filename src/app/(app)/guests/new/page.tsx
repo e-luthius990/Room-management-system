@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
 import { requirePermission } from "@/lib/auth/require-permission";
@@ -23,6 +22,10 @@ function getErrorMessage(error?: string): string | null {
     camp_not_allowed: "You do not have access to create guests in that camp.",
     access_denied: "You do not have permission to create guests.",
     create_failed: "Guest could not be created.",
+    profile_photo_required: "Take or upload a guest profile photo.",
+    unsupported_profile_photo_type: "Use a JPG, PNG, or WebP profile photo.",
+    profile_photo_too_large: "Profile photo must be 4 MB or smaller.",
+    profile_photo_upload_failed: "Profile photo could not be uploaded.",
   };
 
   return error ? (messages[error] ?? "The guest could not be created.") : null;
@@ -43,29 +46,6 @@ export default async function NewGuestPage({
 
   return (
     <main className="page-stack">
-      <section className="surface-panel overflow-hidden">
-        <div className="grid gap-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
-              Reception registry
-            </p>
-
-            <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
-              Add guest
-            </h1>
-
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-              Create a guest identity before reservation, room allocation,
-              security handoff, or check-in.
-            </p>
-          </div>
-
-          <Link href="/guests" className="btn-secondary">
-            Back to guests
-          </Link>
-        </div>
-      </section>
-
       {errorMessage ? (
         <div className="alert alert-danger">{errorMessage}</div>
       ) : null}
@@ -83,17 +63,6 @@ export default async function NewGuestPage({
         </section>
       ) : (
         <section className="surface-panel overflow-hidden">
-          <div className="border-b border-border px-4 py-4">
-            <h2 className="text-sm font-semibold tracking-[-0.015em] text-foreground">
-              Guest record
-            </h2>
-
-            <p className="mt-1 text-xs leading-5 text-muted">
-              Capture identity, camp, organization, contact, and classification
-              details used across reception and security workflows.
-            </p>
-          </div>
-
           <div className="p-4">
             <GuestForm camps={camps} />
           </div>

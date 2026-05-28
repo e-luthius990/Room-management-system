@@ -5,6 +5,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-permission";
+import { notifyWorkflowPermission } from "@/lib/notifications/workflow-notifications";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { checkOutStaySchema } from "@/lib/validation/stays";
 
@@ -63,6 +64,47 @@ function mapCheckOutError(message: string): string {
   return "check_out_failed";
 }
 
+async function notifyStayCheckedOut(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  stayId: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("stays")
+    .select("id,camp_id,guests(full_name),rooms(room_number)")
+    .eq("id", stayId)
+    .returns<
+      {
+        id: string;
+        camp_id: string;
+        guests: { full_name: string | null } | null;
+        rooms: { room_number: string | null } | null;
+      }[]
+    >()
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) {
+      console.error("Failed to load stay notification context:", error.message);
+    }
+
+    return;
+  }
+
+  await notifyWorkflowPermission({
+    permission: "stays.view",
+    campId: data.camp_id,
+    title: "Guest checked out",
+    body: `${data.guests?.full_name ?? "A guest"} checked out from ${
+      data.rooms?.room_number ? `Room ${data.rooms.room_number}` : "a room"
+    }.`,
+    category: "stay",
+    severity: "info",
+    actionHref: `/stays/${data.id}`,
+    entityType: "stays",
+    entityId: data.id,
+  });
+}
+
 export async function checkOutStayAction(formData: FormData): Promise<never> {
   await requirePermission("stays.check_out");
 
@@ -108,6 +150,8 @@ export async function checkOutStayAction(formData: FormData): Promise<never> {
   revalidatePath("/dashboard/reception");
   revalidatePath("/dashboard/camp-manager");
   revalidatePath("/reports");
+
+  await notifyStayCheckedOut(supabase, checkedOutStayId);
 
   redirect(`/stays/${checkedOutStayId}`);
 }

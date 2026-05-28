@@ -168,17 +168,7 @@ export default async function InviteUserPage({
           action={inviteUserAction}
           className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"
         >
-          <div className="border-b border-neutral-100 pb-5">
-            <p className="text-sm font-semibold text-neutral-950">
-              Invite details
-            </p>
-            <p className="mt-1 text-sm leading-6 text-neutral-500">
-              The invite creates an Auth user first, then writes to profiles,
-              user_roles, and user_camp_access where required.
-            </p>
-          </div>
-
-          <div className="mt-6 grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2">
             <div className="md:col-span-2">
               <label
                 htmlFor="invite-full-name"

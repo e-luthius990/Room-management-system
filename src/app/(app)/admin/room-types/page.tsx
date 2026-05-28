@@ -73,17 +73,7 @@ export default async function RoomTypesPage({
           action={createRoomTypeAction}
           className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"
         >
-          <h2 className="text-base font-semibold text-neutral-950">
-            Add room type
-          </h2>
-
-          <p className="mt-1 text-sm leading-6 text-neutral-500">
-            Use a stable lowercase key for reporting and imports, for example{" "}
-            <span className="font-mono text-neutral-700">executive_single</span>
-            .
-          </p>
-
-          <div className="mt-5 space-y-4">
+          <div className="space-y-4">
             <div>
               <label
                 htmlFor="room-type-key"

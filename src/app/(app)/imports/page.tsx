@@ -91,7 +91,7 @@ export default async function ImportsPage({
         actions={
           <Link
             href="/imports/new"
-            className="rounded-2xl bg-neutral-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
+            className="btn-primary"
           >
             New import
           </Link>
@@ -99,24 +99,24 @@ export default async function ImportsPage({
       />
 
       {successMessage ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+        <div className="border border-success-600/25 bg-success-50 px-4 py-3 text-sm font-medium text-success-700">
           {successMessage}
         </div>
       ) : null}
 
       {errorMessage ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <div className="border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-700">
           {errorMessage}
         </div>
       ) : null}
 
-      <section className="rounded-[1.75rem] border border-neutral-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 p-5">
+      <section className="table-shell">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-2 px-4 py-3">
           <div>
-            <h2 className="text-lg font-semibold text-neutral-950">
+            <h2 className="text-sm font-semibold text-foreground">
               Import history
             </h2>
-            <p className="mt-1 text-sm text-neutral-500">
+            <p className="mt-1 text-xs text-muted">
               Showing {batches.length} import batch
               {batches.length === 1 ? "" : "es"}.
             </p>
@@ -124,69 +124,66 @@ export default async function ImportsPage({
         </div>
 
         {batches.length === 0 ? (
-          <div className="p-8 text-sm text-neutral-500">
+          <div className="p-8 text-sm text-muted">
             No import batches found.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm">
-              <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
+          <div className="table-scroll">
+            <table className="data-table min-w-[1050px]">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Import</th>
-                  <th className="px-4 py-3 font-semibold">Camp</th>
-                  <th className="px-4 py-3 font-semibold">Rows</th>
-                  <th className="px-4 py-3 font-semibold">Errors</th>
-                  <th className="px-4 py-3 font-semibold">Created</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3" />
+                  <th>Import</th>
+                  <th>Camp</th>
+                  <th>Rows</th>
+                  <th>Errors</th>
+                  <th>Created</th>
+                  <th>Status</th>
+                  <th />
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-neutral-100">
+              <tbody>
                 {batches.map((batch) => (
-                  <tr
-                    key={batch.id}
-                    className="align-top transition hover:bg-neutral-50/70"
-                  >
-                    <td className="px-4 py-4">
-                      <div className="font-semibold text-neutral-950">
+                  <tr key={batch.id} className="align-top">
+                    <td>
+                      <div className="font-semibold text-foreground">
                         {formatImportType(batch.import_type)}
                       </div>
-                      <div className="mt-1 text-xs text-neutral-500">
+                      <div className="mt-1 text-xs text-muted">
                         {batch.original_filename ?? "CSV import"}
                       </div>
                     </td>
 
-                    <td className="px-4 py-4 text-neutral-700">
+                    <td className="text-foreground">
                       {batch.camp_name}
                     </td>
 
-                    <td className="px-4 py-4 text-neutral-700">
+                    <td className="text-foreground">
                       <div>
                         {batch.valid_rows} valid / {batch.total_rows} total
                       </div>
-                      <div className="mt-1 text-xs text-neutral-500">
+                      <div className="mt-1 text-xs text-muted">
                         {batch.invalid_rows} invalid
                       </div>
                     </td>
 
-                    <td className="px-4 py-4 text-neutral-700">
+                    <td className="text-foreground">
                       {batch.invalid_rows}
                       {batch.error_message ? (
-                        <div className="mt-1 max-w-[260px] text-xs leading-5 text-red-700">
+                        <div className="mt-1 max-w-[260px] text-xs leading-5 text-danger-700">
                           {batch.error_message}
                         </div>
                       ) : null}
                     </td>
 
-                    <td className="px-4 py-4 text-neutral-700">
+                    <td className="text-foreground">
                       {formatDateTime(batch.created_at)}
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td>
                       <span
                         className={[
-                          "rounded-full border px-3 py-1 text-xs font-semibold",
+                          "border px-2.5 py-1 text-xs font-semibold",
                           importStatusTone(batch.status),
                         ].join(" ")}
                       >
@@ -194,10 +191,10 @@ export default async function ImportsPage({
                       </span>
                     </td>
 
-                    <td className="px-4 py-4 text-right">
+                    <td className="text-right">
                       <Link
                         href={`/imports/${batch.id}`}
-                        className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:border-sky-200 hover:bg-sky-50"
+                        className="btn-secondary btn-sm"
                       >
                         Review
                       </Link>

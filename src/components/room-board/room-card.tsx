@@ -2,8 +2,9 @@
 
 import type { JSX } from "react";
 import Link from "next/link";
-import { CalendarClock, Crown, Eye, MapPin, UserRound } from "lucide-react";
+import { CalendarClock, Crown, Eye, MapPin } from "lucide-react";
 import type { RoomBoardItem } from "@/lib/queries/room-board/get-room-board";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import {
   AutoStatusIndicator,
@@ -349,11 +350,11 @@ export function RoomCard({ room, className }: RoomCardProps): JSX.Element {
           <DetailLine
             label="Guest"
             value={
-              room.current_guest_name ? (
-                <span className="inline-flex min-w-0 items-center gap-1.5">
-                  <UserRound className="size-3.5 shrink-0 text-muted" />
-                  <span className="truncate">{room.current_guest_name}</span>
-                </span>
+              room.current_guest_id && room.current_guest_name ? (
+                <GuestNameWithPhoto
+                  guestId={room.current_guest_id}
+                  name={room.current_guest_name}
+                />
               ) : (
                 "No active guest"
               )

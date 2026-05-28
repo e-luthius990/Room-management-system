@@ -1,20 +1,19 @@
 // src/components/layout/app-sidebar.tsx
 "use client";
 
-import type { JSX, ReactNode } from "react";
+import type { JSX } from "react";
 import { useMemo } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { AppNavItem } from "@/lib/navigation/app-nav";
 import { NavIcon } from "@/components/layout/nav-icon";
+import { LinkPendingIndicator } from "@/components/navigation/link-pending-indicator";
 import { cn } from "@/lib/utils/cn";
 
 type AppSidebarProps = {
   primaryItems: AppNavItem[];
   adminItems: AppNavItem[];
-  brandName?: string;
-  brandSubtitle?: string;
-  brandMark?: ReactNode;
   className?: string;
 };
 
@@ -101,6 +100,10 @@ function getNavItemKey(item: AppNavItem): string {
   return `${item.label}:${item.href}`;
 }
 
+function formatBadgeCount(value: number): string {
+  return value > 99 ? "99+" : String(value);
+}
+
 function SidebarNavLink({
   item,
   current,
@@ -133,6 +136,17 @@ function SidebarNavLink({
       </span>
 
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
+
+      <LinkPendingIndicator />
+
+      {typeof item.badgeCount === "number" && item.badgeCount > 0 ? (
+        <span
+          aria-label={`${item.badgeCount} unread notifications`}
+          className="ml-auto inline-flex min-w-6 shrink-0 items-center justify-center rounded-full border border-danger-200 bg-danger-50 px-1.5 py-0.5 text-[11px] font-bold leading-none text-danger-700"
+        >
+          {formatBadgeCount(item.badgeCount)}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -175,23 +189,9 @@ function EmptyNavigationNotice(): JSX.Element {
   );
 }
 
-function DefaultBrandMark(): JSX.Element {
-  return (
-    <div
-      aria-hidden="true"
-      className="flex size-10 items-center justify-center border border-sidebar-border bg-surface text-sm font-bold text-brand-700 shadow-xs"
-    >
-      CR
-    </div>
-  );
-}
-
 export function AppSidebar({
   primaryItems,
   adminItems,
-  brandName = "CampRoomOps",
-  brandSubtitle = "Room operations console",
-  brandMark,
   className,
 }: AppSidebarProps): JSX.Element {
   const pathname = usePathname();
@@ -226,21 +226,14 @@ export function AppSidebar({
     >
       <div className="flex h-full min-h-0 w-full flex-col">
         <div className="sidebar-brand shrink-0">
-          <div className="flex items-center gap-3">
-            {brandMark ?? <DefaultBrandMark />}
-
-            <div className="min-w-0">
-              <div className="sidebar-brand-title truncate" title={brandName}>
-                {brandName}
-              </div>
-              <div
-                className="sidebar-brand-subtitle truncate"
-                title={brandSubtitle}
-              >
-                {brandSubtitle}
-              </div>
-            </div>
-          </div>
+          <Image
+            src="/african-skies.png"
+            alt="African Skies"
+            width={96}
+            height={96}
+            priority
+            className="size-20 object-contain"
+          />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 pr-2">

@@ -7,9 +7,6 @@ import { createSecurityClearanceEventAction } from "@/lib/actions/security/creat
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
@@ -55,23 +52,6 @@ export function ClearanceEventForm({
       <input type="hidden" name="guestId" value={guestId} />
 
       <Card variant={isInspector ? "console" : "card"} className="min-w-0">
-        <CardHeader
-          className={
-            isInspector ? "border-b border-border px-4 py-3" : undefined
-          }
-        >
-          <CardTitle className={isInspector ? "text-sm" : undefined}>
-            Clearance decision
-          </CardTitle>
-
-          <CardDescription
-            className={isInspector ? "mt-1 text-xs leading-5" : undefined}
-          >
-            Record the latest security decision for this guest. Restricted and
-            high-risk decisions require notes.
-          </CardDescription>
-        </CardHeader>
-
         <CardContent className={isInspector ? "space-y-4 p-4" : "space-y-5"}>
           <div
             className={isInspector ? "grid gap-3" : "grid gap-4 md:grid-cols-2"}

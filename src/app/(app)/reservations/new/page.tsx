@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { requirePermission } from "@/lib/auth/require-permission";
-import { APP_ROUTES } from "@/lib/auth/routes";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import {
   getReservationGuestOptions,
@@ -49,26 +47,6 @@ export default async function NewReservationPage({
 
   return (
     <div className="page-stack">
-      <section className="surface-panel overflow-hidden">
-        <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-          <div className="min-w-0">
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-[1.65rem]">
-              New reservation
-            </h1>
-
-            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted">
-              Hold a room for an expected guest before check-in. Use this for
-              planned arrivals, same-day room holds, and protected delegate
-              reservations.
-            </p>
-          </div>
-
-          <Link href={APP_ROUTES.reservations.list} className="btn-secondary">
-            Back to reservations
-          </Link>
-        </div>
-      </section>
-
       {errorMessage ? (
         <div className="alert alert-danger">{errorMessage}</div>
       ) : null}

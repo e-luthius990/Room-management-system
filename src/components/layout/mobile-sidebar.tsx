@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { AppNavItem } from "@/lib/navigation/app-nav";
 import { NavIcon } from "@/components/layout/nav-icon";
+import { LinkPendingIndicator } from "@/components/navigation/link-pending-indicator";
 import { cn } from "@/lib/utils/cn";
 
 type MobileSidebarProps = {
@@ -96,6 +97,10 @@ function getNavItemKey(item: AppNavItem): string {
   return `${item.label}:${item.href}`;
 }
 
+function formatBadgeCount(value: number): string {
+  return value > 99 ? "99+" : String(value);
+}
+
 function MobileMenuIcon({ open }: { open: boolean }): React.JSX.Element {
   return (
     <span
@@ -164,6 +169,17 @@ function MobileNavLink({
       </span>
 
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
+
+      <LinkPendingIndicator />
+
+      {typeof item.badgeCount === "number" && item.badgeCount > 0 ? (
+        <span
+          aria-label={`${item.badgeCount} unread notifications`}
+          className="ml-auto inline-flex min-w-6 shrink-0 items-center justify-center rounded-full border border-danger-200 bg-danger-50 px-1.5 py-0.5 text-[11px] font-bold leading-none text-danger-700"
+        >
+          {formatBadgeCount(item.badgeCount)}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -291,10 +307,9 @@ export function MobileSidebar({
         type="button"
         onClick={toggleNavigation}
         className={cn(
-          "inline-grid size-10 place-items-center border border-topbar-border bg-surface/80 text-topbar-foreground shadow-xs backdrop-blur-xl transition",
+          "inline-grid size-10 place-items-center border border-topbar-border bg-surface text-topbar-foreground shadow-xs transition",
           "rounded-md hover:border-brand-500/30 hover:bg-surface hover:text-brand-700",
           "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-canvas",
-          "active:scale-[0.97]",
           open && "border-brand-500/35 bg-brand-50 text-brand-700",
         )}
         aria-label={open ? "Close navigation drawer" : "Open navigation drawer"}
@@ -310,7 +325,7 @@ export function MobileSidebar({
         <div
           id={panelId}
           role="menu"
-          className="dropdown-panel absolute left-0 top-12 z-[90] max-h-[calc(100dvh-5rem)] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto p-2 shadow-floating"
+          className="dropdown-panel absolute left-0 top-12 z-[90] max-h-[calc(100dvh-5rem)] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto p-2 shadow-command"
         >
           {parsedPrimaryItems.length > 0 ? (
             <MobileNavSection

@@ -10,6 +10,7 @@ import {
   PresenceBadge,
   VisitTypeBadge,
 } from "@/components/security/security-status-badge";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/lib/utils/cn";
@@ -469,10 +470,13 @@ function PendingReceptionTable({
                   <td>
                     <Link
                       href={APP_ROUTES.security.guestProfile(item.guest_id)}
-                      className="block truncate font-semibold text-foreground underline-offset-4 hover:underline"
+                      className="block min-w-0 text-foreground underline-offset-4 hover:underline"
                       title={item.guest_name}
                     >
-                      {item.guest_name}
+                      <GuestNameWithPhoto
+                        guestId={item.guest_id}
+                        name={item.guest_name}
+                      />
                     </Link>
 
                     <div

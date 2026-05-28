@@ -7,6 +7,10 @@ import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { hasCampAccess } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  getProfilePhotoErrorCode,
+  uploadOptionalGuestProfilePhoto,
+} from "@/lib/guest-profile-photo";
 import { updateGuestSchema } from "@/lib/validation/guests";
 
 const dbGuestCategories = [
@@ -177,6 +181,20 @@ export async function updateGuestAction(formData: FormData): Promise<never> {
   }
 
   const supabase = await createServerSupabaseClient();
+  let photoMetadata: Awaited<ReturnType<typeof uploadOptionalGuestProfilePhoto>>;
+
+  try {
+    photoMetadata = await uploadOptionalGuestProfilePhoto(
+      formData,
+      parsed.data.guestId,
+    );
+  } catch (error) {
+    redirect(
+      buildGuestRedirectPath(parsed.data.guestId, {
+        error: getProfilePhotoErrorCode(error),
+      }),
+    );
+  }
 
   const { data: guest, error: guestError } = await supabase
     .from("guests")
@@ -202,6 +220,7 @@ export async function updateGuestAction(formData: FormData): Promise<never> {
 
       notes: parsed.data.notes,
       manager_notes: parsed.data.managerNotes,
+      ...(photoMetadata ?? {}),
     })
     .eq("id", parsed.data.guestId)
     .is("archived_at", null)

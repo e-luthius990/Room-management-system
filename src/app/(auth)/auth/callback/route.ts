@@ -18,9 +18,14 @@ type LoginRouteResponse =
       error: string;
     };
 
-type RoleJoinRow = {
-  key?: string | null;
-};
+type JsonRecord = Record<string, unknown>;
+
+type AccountStatus =
+  | "active"
+  | "disabled"
+  | "suspended"
+  | "pending_password_reset"
+  | "invited";
 
 const ALLOWED_AUTH_NEXT_PATHS = new Set<string>([
   AUTH_ROUTES.acceptInvite,
@@ -65,6 +70,20 @@ function getPublicSupabaseKey(): string {
   }
 
   return value;
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function getString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : null;
+}
+
+function getBoolean(value: unknown): boolean {
+  return value === true;
 }
 
 function isAllowedAuthNextPath(path: string): boolean {
@@ -190,46 +209,88 @@ function createCallbackSupabaseClient(
   );
 }
 
-function normalizeRoleJoin(value: unknown): RoleJoinRow | null {
-  if (!value) {
+function getAccountStatusError(status: string | null): string | null {
+  if (status === "active") {
     return null;
   }
 
-  if (Array.isArray(value)) {
-    const first = value[0];
-
-    return first && typeof first === "object" ? (first as RoleJoinRow) : null;
+  if (status === "disabled") {
+    return "account_disabled";
   }
 
-  return typeof value === "object" ? (value as RoleJoinRow) : null;
+  if (status === "suspended") {
+    return "account_suspended";
+  }
+
+  if (status === "pending_password_reset") {
+    return "pending_password_reset";
+  }
+
+  return "access_denied";
 }
 
-async function getDefaultPostLoginPath(userId: string): Promise<string> {
+async function getPostLoginPathFromSnapshot(userId: string): Promise<
+  | {
+      ok: true;
+      redirectTo: string;
+    }
+  | {
+      ok: false;
+      error: string;
+    }
+> {
   const admin = createSupabaseAdminClient();
 
-  const { data, error } = await admin
-    .from("user_roles")
-    .select("roles!inner(key)")
-    .eq("user_id", userId)
-    .is("revoked_at", null)
-    .order("assigned_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await admin.rpc("get_current_user_context_snapshot", {
+    p_user_id: userId,
+  });
 
-  if (error) {
-    console.error("Failed to resolve post-login role:", error.message);
-    return SYSTEM_ROUTES.dashboard;
+  if (error || !isRecord(data)) {
+    console.error(
+      "Failed to resolve current user context:",
+      error?.message ?? "Invalid context payload.",
+    );
+
+    return {
+      ok: false,
+      error: "session_failed",
+    };
   }
 
-  const roleRow = data as { roles?: unknown } | null;
-  const role = normalizeRoleJoin(roleRow?.roles ?? null);
-  const roleKey = role?.key as RoleKey | null | undefined;
+  const profile = isRecord(data.profile) ? data.profile : null;
+  const role = isRecord(data.role) ? data.role : null;
 
-  if (!roleKey) {
-    return SYSTEM_ROUTES.dashboard;
+  if (!profile || !role) {
+    return {
+      ok: false,
+      error: "access_denied",
+    };
   }
 
-  return getDefaultRouteForRole(roleKey);
+  const accountStatus = getString(profile.account_status) as AccountStatus | null;
+  const accountError = getAccountStatusError(accountStatus);
+
+  if (accountError) {
+    return {
+      ok: false,
+      error: accountError,
+    };
+  }
+
+  const roleKey = getString(role.key) as RoleKey | null;
+  const canAccessSystem = getBoolean(role.canAccessSystem);
+
+  if (!roleKey || !canAccessSystem) {
+    return {
+      ok: false,
+      error: "access_denied",
+    };
+  }
+
+  return {
+    ok: true,
+    redirectTo: getDefaultRouteForRole(roleKey),
+  };
 }
 
 export async function POST(
@@ -280,6 +341,7 @@ export async function POST(
     email: parsed.data.email,
     password: parsed.data.password,
   });
+
   mark("signInWithPassword completed");
 
   if (error || !data.user || !data.session) {
@@ -295,21 +357,36 @@ export async function POST(
   const requestedNextPath = getSafeOptionalNextPath(parsed.data.next);
   mark("next path normalized");
 
-  const redirectTo =
-    requestedNextPath ?? (await getDefaultPostLoginPath(data.user.id));
-  mark("default route resolved");
+  const contextResult = await getPostLoginPathFromSnapshot(data.user.id);
+  mark("context snapshot resolved");
+
+  if (!contextResult.ok) {
+    const failureResponse = jsonResponse(
+      {
+        ok: false,
+        error: contextResult.error,
+      },
+      403,
+    );
+
+    return copyCookies<LoginRouteResponse>(cookieResponse, failureResponse);
+  }
+
+  const finalRedirectTo = requestedNextPath ?? contextResult.redirectTo;
 
   const finalResponse = jsonResponse(
     {
       ok: true,
-      redirectTo: getSafeNextPath(redirectTo),
+      redirectTo: getSafeNextPath(finalRedirectTo),
     },
     200,
   );
+
   mark("response prepared");
 
   return copyCookies<LoginRouteResponse>(cookieResponse, finalResponse);
 }
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const requestUrl = new URL(request.url);
 

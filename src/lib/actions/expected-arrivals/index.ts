@@ -4,6 +4,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import type { Enums } from "@/lib/db/types";
 import {
@@ -137,6 +138,31 @@ const allocateExpectedArrivalSchema = z.object({
   notes: optionalTextSchema,
 });
 
+async function requireExpectedArrivalCreateAccess(): Promise<void> {
+  await requirePermission("expected_arrivals.create");
+}
+
+async function requireExpectedArrivalWithGuestCreateAccess(): Promise<void> {
+  await requirePermission("guests.create");
+  await requirePermission("expected_arrivals.create");
+}
+
+async function requireExpectedArrivalUpdateAccess(): Promise<void> {
+  await requirePermission("expected_arrivals.update");
+}
+
+async function requireExpectedArrivalCancelAccess(): Promise<void> {
+  await requirePermission("expected_arrivals.cancel");
+}
+
+async function requireExpectedArrivalNoShowAccess(): Promise<void> {
+  await requirePermission("expected_arrivals.mark_no_show");
+}
+
+async function requireExpectedArrivalAllocationAccess(): Promise<void> {
+  await requirePermission("expected_arrivals.allocate");
+}
+
 function validateArrivalWindow(
   expectedArrivalAt: string | undefined,
   expectedDepartureAt: string | undefined,
@@ -253,6 +279,8 @@ export async function createExpectedArrivalAction(
     return failFromZod(parsed.error);
   }
 
+  await requireExpectedArrivalCreateAccess();
+
   try {
     const arrival = await createExpectedArrival(parsed.data);
 
@@ -294,6 +322,8 @@ export async function createExpectedArrivalWithGuestAction(
   if (!parsed.success) {
     return failFromZod(parsed.error);
   }
+
+  await requireExpectedArrivalWithGuestCreateAccess();
 
   try {
     const arrival = await createExpectedArrivalWithGuest({
@@ -346,6 +376,8 @@ export async function updateExpectedArrivalAction(
     return failFromZod(parsed.error);
   }
 
+  await requireExpectedArrivalUpdateAccess();
+
   try {
     const arrival = await updateExpectedArrival(parsed.data);
 
@@ -371,6 +403,8 @@ export async function markExpectedArrivalArrivedAction(
   if (!parsed.success) {
     return failFromZod(parsed.error);
   }
+
+  await requireExpectedArrivalUpdateAccess();
 
   try {
     const arrival = await markExpectedArrivalArrived(
@@ -401,6 +435,8 @@ export async function cancelExpectedArrivalAction(
     return failFromZod(parsed.error);
   }
 
+  await requireExpectedArrivalCancelAccess();
+
   try {
     const arrival = await cancelExpectedArrival(
       parsed.data.expectedArrivalId,
@@ -429,6 +465,8 @@ export async function markExpectedArrivalNoShowAction(
   if (!parsed.success) {
     return failFromZod(parsed.error);
   }
+
+  await requireExpectedArrivalNoShowAccess();
 
   try {
     const arrival = await markExpectedArrivalNoShow(
@@ -460,6 +498,8 @@ export async function allocateExpectedArrivalAction(
   if (!parsed.success) {
     return failFromZod(parsed.error);
   }
+
+  await requireExpectedArrivalAllocationAccess();
 
   try {
     const arrival = await allocateExpectedArrival(parsed.data);

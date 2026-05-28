@@ -8,6 +8,7 @@ import {
   formatImportType,
   importStatusTone,
 } from "@/components/imports/status";
+import { formatReadableEntries } from "@/lib/format/human-readable";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,12 +32,12 @@ const IMPORT_DETAIL_PAGE_PERMISSIONS = [
 ] as const;
 
 function formatDateTime(value: string | null): string {
-  if (!value) return "—";
+  if (!value) return "-";
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "-";
   }
 
   return new Intl.DateTimeFormat("en", {
@@ -44,14 +45,6 @@ function formatDateTime(value: string | null): string {
     timeStyle: "short",
     timeZone: "Africa/Kampala",
   }).format(date);
-}
-
-function payloadPreview(value: Record<string, unknown>): string {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return "{}";
-  }
 }
 
 function getSuccessMessage(success?: string): string | null {
@@ -222,15 +215,6 @@ export default async function ImportDetailPage({
             />
           ) : null}
 
-          {batch.storage_path ? (
-            <div>
-              <dt className="text-sm text-neutral-500">Storage path</dt>
-              <dd className="mt-1 break-all font-mono text-xs text-neutral-700">
-                {batch.storage_path}
-              </dd>
-            </div>
-          ) : null}
-
           {batch.error_message ? (
             <div className="md:col-span-2">
               <dt className="text-sm text-neutral-500">Batch error</dt>
@@ -266,10 +250,8 @@ export default async function ImportDetailPage({
                   <th className="px-4 py-3 font-semibold">Row</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Errors</th>
-                  <th className="px-4 py-3 font-semibold">
-                    Normalized payload
-                  </th>
-                  <th className="px-4 py-3 font-semibold">Raw payload</th>
+                  <th className="px-4 py-3 font-semibold">Parsed values</th>
+                  <th className="px-4 py-3 font-semibold">Submitted values</th>
                 </tr>
               </thead>
 
@@ -302,20 +284,16 @@ export default async function ImportDetailPage({
                           ))}
                         </ul>
                       ) : (
-                        <span className="text-neutral-400">—</span>
+                        <span className="text-neutral-400">-</span>
                       )}
                     </td>
 
-                    <td className="px-4 py-4 text-xs text-neutral-700">
-                      <pre className="max-w-[420px] overflow-x-auto whitespace-pre-wrap rounded-2xl bg-neutral-50 p-3 font-mono leading-5">
-                        {payloadPreview(row.normalized_payload)}
-                      </pre>
+                    <td className="px-4 py-4 text-sm text-neutral-700">
+                      <ReadableFields value={row.normalized_payload} />
                     </td>
 
-                    <td className="px-4 py-4 text-xs text-neutral-700">
-                      <pre className="max-w-[420px] overflow-x-auto whitespace-pre-wrap rounded-2xl bg-neutral-50 p-3 font-mono leading-5">
-                        {payloadPreview(row.raw_payload)}
-                      </pre>
+                    <td className="px-4 py-4 text-sm text-neutral-700">
+                      <ReadableFields value={row.raw_payload} />
                     </td>
                   </tr>
                 ))}
@@ -340,6 +318,33 @@ function DetailItem({
       <dt className="text-sm text-neutral-500">{label}</dt>
       <dd className="mt-1 font-medium text-neutral-950">{value}</dd>
     </div>
+  );
+}
+
+function ReadableFields({
+  value,
+}: {
+  value: Record<string, unknown>;
+}): React.JSX.Element {
+  const entries = formatReadableEntries(value);
+
+  if (entries.length === 0) {
+    return <span className="text-neutral-400">-</span>;
+  }
+
+  return (
+    <dl className="grid max-w-[420px] gap-2">
+      {entries.map((entry) => (
+        <div key={entry.label} className="grid gap-1">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            {entry.label}
+          </dt>
+          <dd className="break-words leading-6 text-neutral-800">
+            {entry.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

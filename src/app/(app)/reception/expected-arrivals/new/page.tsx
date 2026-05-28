@@ -1,7 +1,4 @@
-import Link from "next/link";
-
 import { requirePermission } from "@/lib/auth/require-permission";
-import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { CampAccessLevel, CurrentUserContext } from "@/lib/auth/types";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -99,31 +96,6 @@ export default async function NewExpectedArrivalPage(): Promise<React.JSX.Elemen
 
   return (
     <div className="page-stack">
-      <section className="surface-panel overflow-hidden">
-        <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-          <div className="min-w-0">
-            <div className="page-kicker">Reception arrival setup</div>
-
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-[1.65rem]">
-              Create expected arrival
-            </h1>
-
-            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted">
-              Register a guest before room allocation so security and reception
-              can prepare arrival handling, clearance, host routing, and room
-              assignment.
-            </p>
-          </div>
-
-          <Link
-            href={APP_ROUTES.reception.expectedArrivals}
-            className="btn-secondary"
-          >
-            Back to expected arrivals
-          </Link>
-        </div>
-      </section>
-
       {camps.length === 0 ? (
         <EmptyState
           operational

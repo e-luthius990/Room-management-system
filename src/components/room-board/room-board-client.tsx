@@ -11,8 +11,10 @@ import type {
   RoomBoardSummary,
 } from "@/lib/queries/room-board/get-room-board";
 import { APP_ROUTES } from "@/lib/auth/routes";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { RoomBoardFilters } from "@/components/room-board/room-board-filters";
 import { RoomBoardSummaryCards } from "@/components/room-board/room-board-summary";
+import { LinkPendingIndicator } from "@/components/navigation/link-pending-indicator";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   AutoStatusIndicator,
@@ -22,6 +24,8 @@ import { cn } from "@/lib/utils/cn";
 
 type RoomBoardClientProps = {
   rooms: RoomBoardItem[];
+  canSelectCamp: boolean;
+  assignedCampLabel: string;
 };
 
 type RoomGroup = {
@@ -456,7 +460,18 @@ function SelectedRoomPanel({
 
         <InspectorRow
           label="Guest"
-          value={room.current_guest_name || "No active guest"}
+          value={
+            room.current_guest_id && room.current_guest_name ? (
+              <GuestNameWithPhoto
+                guestId={room.current_guest_id}
+                name={room.current_guest_name}
+                photoPath={room.current_guest_profile_photo_path}
+                photoUpdatedAt={room.current_guest_profile_photo_updated_at}
+              />
+            ) : (
+              "No active guest"
+            )
+          }
         />
 
         <InspectorRow
@@ -528,13 +543,18 @@ function SelectedRoomPanel({
         >
           <Eye className="size-4" aria-hidden="true" />
           Open room
+          <LinkPendingIndicator />
         </Link>
       </div>
     </aside>
   );
 }
 
-export function RoomBoardClient({ rooms }: RoomBoardClientProps): JSX.Element {
+export function RoomBoardClient({
+  rooms,
+  canSelectCamp,
+  assignedCampLabel,
+}: RoomBoardClientProps): JSX.Element {
   const [selectedCamp, setSelectedCamp] = useState(ALL_VALUE);
   const [selectedBuilding, setSelectedBuilding] = useState(ALL_VALUE);
   const [selectedStatus, setSelectedStatus] = useState(ALL_VALUE);
@@ -638,6 +658,8 @@ export function RoomBoardClient({ rooms }: RoomBoardClientProps): JSX.Element {
         selectedBuilding={selectedBuilding}
         selectedStatus={selectedStatus}
         search={search}
+        canSelectCamp={canSelectCamp}
+        assignedCampLabel={assignedCampLabel}
         onCampChange={handleCampChange}
         onBuildingChange={handleBuildingChange}
         onStatusChange={handleStatusChange}

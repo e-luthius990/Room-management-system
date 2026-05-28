@@ -7,9 +7,6 @@ import { recordSecurityGateEntryAction } from "@/lib/actions/security/create-cle
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
@@ -41,8 +38,6 @@ function normalizeGateEntryClearanceStatus(
 export function GateEntryForm({
   guestId,
   campId,
-  guestName,
-  campName,
   currentClearanceStatus,
 }: GateEntryFormProps): React.JSX.Element {
   const defaultStatus = normalizeGateEntryClearanceStatus(
@@ -55,33 +50,9 @@ export function GateEntryForm({
       <input type="hidden" name="campId" value={campId} />
 
       <Card variant="console" className="min-w-0 overflow-hidden">
-        <CardHeader className="border-b border-border px-4 py-3">
-          <div className="page-kicker">Gate entry</div>
-
-          <CardTitle className="text-sm">
-            Record arrival for {guestName}
-          </CardTitle>
-
-          <CardDescription className="mt-1 text-xs leading-5">
-            Confirm physical entry into{" "}
-            {campName?.trim() ? campName : "the selected camp"} and record the
-            security decision in one operation.
-          </CardDescription>
-        </CardHeader>
-
         <CardContent className="space-y-5 p-4">
           <div className="grid gap-5 xl:grid-cols-2">
             <section className="min-w-0">
-              <div className="mb-3 border-b border-border pb-2">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Gate movement
-                </h3>
-
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  Record the visit type, host, and reason for entry.
-                </p>
-              </div>
-
               <div className="grid gap-4">
                 <Select
                   label="Visit type"
@@ -126,17 +97,6 @@ export function GateEntryForm({
             </section>
 
             <section className="min-w-0">
-              <div className="mb-3 border-b border-border pb-2">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Clearance decision
-                </h3>
-
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  This decision is saved with the gate entry and becomes the
-                  guest&apos;s latest security posture.
-                </p>
-              </div>
-
               <div className="grid gap-4">
                 <Select
                   label="Clearance status"

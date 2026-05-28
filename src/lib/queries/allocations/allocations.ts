@@ -9,6 +9,8 @@ export type AllocationGuest = {
   guest_category: string;
   is_vip: boolean;
   primary_camp_id: string;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
 };
 
 export type AllocationRoom = {
@@ -132,7 +134,7 @@ export async function getAllocationGuests(): Promise<AllocationGuest[]> {
   const { data, error } = await supabase
     .from("guests")
     .select(
-      "id, full_name, organization, guest_category, is_vip, primary_camp_id",
+      "id, full_name, organization, guest_category, is_vip, primary_camp_id, profile_photo_path, profile_photo_updated_at",
     )
     .is("archived_at", null)
     .order("full_name", { ascending: true })
@@ -149,6 +151,8 @@ export async function getAllocationGuests(): Promise<AllocationGuest[]> {
     guest_category: row.guest_category,
     is_vip: row.is_vip,
     primary_camp_id: row.primary_camp_id,
+    profile_photo_path: row.profile_photo_path,
+    profile_photo_updated_at: row.profile_photo_updated_at,
   }));
 }
 

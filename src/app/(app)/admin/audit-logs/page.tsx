@@ -1,17 +1,17 @@
 import { requirePermission } from "@/lib/auth/require-permission";
 import { PageHeader } from "@/components/layout/page-header";
 import { getAuditLogs } from "@/lib/queries/reports/get-audit-logs";
+import {
+  formatReadableEntries,
+  formatReadableLabel,
+  formatReadableValue,
+} from "@/lib/format/human-readable";
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-function compactJson(value: Record<string, unknown> | null): string {
-  if (!value) return "—";
-  return JSON.stringify(value);
 }
 
 export default async function AuditLogsPage() {
@@ -43,32 +43,34 @@ export default async function AuditLogsPage() {
             {logs.map((log) => (
               <tr key={log.id} className="align-top">
                 <td className="px-4 py-4 font-medium text-neutral-950">
-                  {log.action}
+                  {formatReadableLabel(log.action)}
                 </td>
 
                 <td className="px-4 py-4 text-neutral-700">
-                  <div>{log.entity_type}</div>
+                  <div>{formatReadableLabel(log.entity_type)}</div>
                   <div className="mt-1 max-w-[220px] truncate text-xs text-neutral-500">
-                    {log.entity_id ?? "—"}
+                    {log.entity_id ? formatReadableValue(log.entity_id) : "-"}
                   </div>
                 </td>
 
                 <td className="px-4 py-4 text-neutral-700">
                   <div className="max-w-[260px] whitespace-pre-wrap">
-                    {log.reason ?? "—"}
+                    {log.reason ?? "-"}
                   </div>
                 </td>
 
-                <td className="px-4 py-4 text-xs text-neutral-600">
-                  <div className="max-w-[260px] truncate">
-                    {compactJson(log.old_value)}
-                  </div>
+                <td className="px-4 py-4 text-sm text-neutral-600">
+                  <ReadableChanges
+                    value={log.old_value}
+                    emptyLabel="No previous values"
+                  />
                 </td>
 
-                <td className="px-4 py-4 text-xs text-neutral-600">
-                  <div className="max-w-[260px] truncate">
-                    {compactJson(log.new_value)}
-                  </div>
+                <td className="px-4 py-4 text-sm text-neutral-600">
+                  <ReadableChanges
+                    value={log.new_value}
+                    emptyLabel="No new values"
+                  />
                 </td>
 
                 <td className="px-4 py-4 text-neutral-700">
@@ -91,5 +93,34 @@ export default async function AuditLogsPage() {
         </table>
       </div>
     </div>
+  );
+}
+
+function ReadableChanges({
+  value,
+  emptyLabel,
+}: {
+  value: Record<string, unknown> | null;
+  emptyLabel: string;
+}): React.JSX.Element {
+  const entries = formatReadableEntries(value);
+
+  if (entries.length === 0) {
+    return <span className="text-neutral-400">{emptyLabel}</span>;
+  }
+
+  return (
+    <dl className="grid max-w-[280px] gap-2">
+      {entries.map((entry) => (
+        <div key={entry.label}>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            {entry.label}
+          </dt>
+          <dd className="mt-0.5 break-words leading-5 text-neutral-700">
+            {entry.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

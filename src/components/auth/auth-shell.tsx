@@ -21,19 +21,19 @@ export function AuthShell({
       >
         <Card
           variant="card"
-          className="overflow-hidden rounded-[2rem] border-border"
+          className="overflow-hidden border-border"
         >
           <div className="h-1 w-full bg-primary" aria-hidden="true" />
 
-          <CardHeader className="space-y-5 border-b border-border px-7 py-7">
-            <div className="inline-flex w-fit items-center rounded-full border border-border bg-surface-2 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+          <CardHeader className="space-y-5 px-6 py-6">
+            <div className="inline-flex w-fit items-center border border-border bg-surface-2 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
               CampRoomOps
             </div>
 
             <div>
               <h1
                 id="auth-title"
-                className="text-3xl font-semibold tracking-[-0.05em] text-foreground"
+                className="text-2xl font-semibold tracking-[-0.035em] text-foreground"
               >
                 {title}
               </h1>
@@ -47,7 +47,7 @@ export function AuthShell({
             </div>
           </CardHeader>
 
-          <CardContent className="px-7 py-7">{children}</CardContent>
+          <CardContent className="px-6 py-6">{children}</CardContent>
         </Card>
       </section>
     </main>

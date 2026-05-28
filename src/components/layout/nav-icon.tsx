@@ -4,6 +4,7 @@ import type { JSX } from "react";
 import {
   BarChart3,
   Bed,
+  Bell,
   Building2,
   CalendarDays,
   ClipboardCheck,
@@ -28,6 +29,7 @@ type NavIconProps = {
 
 const NAV_ICON_REGISTRY = {
   "layout-dashboard": LayoutDashboard,
+  bell: Bell,
   bed: Bed,
   users: Users,
   "calendar-days": CalendarDays,

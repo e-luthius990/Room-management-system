@@ -9,6 +9,7 @@ import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import type { Enums } from "@/lib/db/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { GateEntryForm } from "@/components/security/gate-entry-form";
 import {
   ClearanceStatusBadge,
@@ -1139,9 +1140,12 @@ export default async function SecurityGuestProfilePage({
               Security profile
             </p>
 
-            <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
-              {guest.full_name}
-            </h1>
+            <GuestNameWithPhoto
+              guestId={guest.id}
+              name={guest.full_name}
+              size="lg"
+              className="mt-1 text-xl sm:text-2xl"
+            />
           </div>
         </div>
       </section>

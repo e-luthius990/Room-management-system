@@ -4,6 +4,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import {
   cancelFieldAbsence,
@@ -107,6 +108,22 @@ const cancelFieldAbsenceSchema = z.object({
   reason: optionalTextSchema,
 });
 
+async function requireFieldAbsenceCreateAccess(): Promise<void> {
+  await requirePermission("field_absences.create");
+}
+
+async function requireFieldAbsenceUpdateAccess(): Promise<void> {
+  await requirePermission("field_absences.update");
+}
+
+async function requireFieldAbsenceReturnAccess(): Promise<void> {
+  await requirePermission("field_absences.mark_returned");
+}
+
+async function requireFieldAbsenceCancelAccess(): Promise<void> {
+  await requirePermission("field_absences.cancel");
+}
+
 function getString(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);
 
@@ -175,6 +192,8 @@ export async function createFieldAbsenceAction(
     return failFromZod(parsed.error);
   }
 
+  await requireFieldAbsenceCreateAccess();
+
   try {
     const absence = await createFieldAbsence(parsed.data);
 
@@ -203,6 +222,8 @@ export async function extendFieldAbsenceAction(
     return failFromZod(parsed.error);
   }
 
+  await requireFieldAbsenceUpdateAccess();
+
   try {
     const absence = await extendFieldAbsence(parsed.data);
 
@@ -230,6 +251,8 @@ export async function markFieldAbsenceReturnedAction(
     return failFromZod(parsed.error);
   }
 
+  await requireFieldAbsenceReturnAccess();
+
   try {
     const absence = await markFieldAbsenceReturned(parsed.data);
 
@@ -255,6 +278,8 @@ export async function cancelFieldAbsenceAction(
   if (!parsed.success) {
     return failFromZod(parsed.error);
   }
+
+  await requireFieldAbsenceCancelAccess();
 
   try {
     const absence = await cancelFieldAbsence(

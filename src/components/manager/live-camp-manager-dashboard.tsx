@@ -24,6 +24,7 @@ import {
   type SVGProps,
 } from "react";
 
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import type {
   ManagerCampSummary,
@@ -695,9 +696,10 @@ function CurrentGuestsTable({
 
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <div className="truncate font-semibold text-foreground">
-                    {guest.guest_name ?? "Unnamed guest"}
-                  </div>
+                  <GuestNameWithPhoto
+                    guestId={guest.guest_id ?? ""}
+                    name={guest.guest_name ?? "Unnamed guest"}
+                  />
 
                   {guest.is_vip ? (
                     <StatusChip className="border-amber-200 bg-amber-50 text-amber-700">
@@ -788,9 +790,10 @@ function ExitedGuestsTable({
               </div>
 
               <div className="min-w-0">
-                <div className="truncate font-semibold text-foreground">
-                  {guest.guest_name ?? "Unnamed guest"}
-                </div>
+                <GuestNameWithPhoto
+                  guestId={guest.guest_id ?? ""}
+                  name={guest.guest_name ?? "Unnamed guest"}
+                />
                 <div className="mt-1 text-sm text-muted">
                   {formatDateTime(guest.departure_or_exit_time)}
                 </div>

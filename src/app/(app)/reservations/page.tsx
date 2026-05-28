@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { StatusIndicator } from "@/components/ui/StatusIndicator";
@@ -63,11 +64,6 @@ function getReservationStatusClass(status: string): string {
   }
 }
 
-function countByStatus(reservations: Reservation[], status: string): number {
-  return reservations.filter((reservation) => reservation.status === status)
-    .length;
-}
-
 function getNextExpectedArrival(reservations: Reservation[]): string {
   const now = Date.now();
 
@@ -97,73 +93,6 @@ function getNextExpectedArrival(reservations: Reservation[]): string {
   return formatDateTime(nextReservation?.expected_arrival_at ?? null);
 }
 
-function ReservationPressureStrip({
-  reservations,
-}: {
-  reservations: Reservation[];
-}): React.JSX.Element {
-  const pendingCount = countByStatus(reservations, "pending");
-  const confirmedCount = countByStatus(reservations, "confirmed");
-  const checkedInCount = countByStatus(reservations, "checked_in");
-  const vipHoldCount = reservations.filter(
-    (reservation) => reservation.is_vip_hold,
-  ).length;
-
-  const items = [
-    {
-      label: "Total",
-      value: reservations.length,
-      note: "Reservations",
-    },
-    {
-      label: "Pending",
-      value: pendingCount,
-      note: "Needs confirmation",
-    },
-    {
-      label: "Confirmed",
-      value: confirmedCount,
-      note: "Room holds",
-    },
-    {
-      label: "Checked in",
-      value: checkedInCount,
-      note: "Converted",
-    },
-    {
-      label: "VIP holds",
-      value: vipHoldCount,
-      note: "Priority holds",
-    },
-  ];
-
-  return (
-    <section
-      aria-label="Reservation operations summary"
-      className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5"
-    >
-      {items.map((item) => (
-        <article
-          key={item.label}
-          className="border border-border bg-surface px-3 py-2.5 shadow-xs"
-        >
-          <div className="truncate text-[10px] font-bold uppercase leading-3 tracking-[0.13em] text-muted">
-            {item.label}
-          </div>
-
-          <div className="mt-0.5 text-xl font-semibold leading-6 tracking-[-0.045em] text-foreground">
-            {item.value}
-          </div>
-
-          <div className="mt-0.5 truncate text-[11px] leading-4 text-muted">
-            {item.note}
-          </div>
-        </article>
-      ))}
-    </section>
-  );
-}
-
 const reservationColumns: DataTableColumn<Reservation>[] = [
   {
     id: "arrival",
@@ -189,9 +118,10 @@ const reservationColumns: DataTableColumn<Reservation>[] = [
     header: "Guest",
     cell: (reservation) => (
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-foreground">
-          {reservation.guest_name ?? "Guest not assigned"}
-        </div>
+        <GuestNameWithPhoto
+          guestId={reservation.guest_id ?? ""}
+          name={reservation.guest_name ?? "Guest not assigned"}
+        />
 
         <div className="mt-1 truncate text-xs leading-5 text-muted">
           {reservation.group_id ? "Group reservation" : "Individual hold"}
@@ -280,33 +210,23 @@ export default async function ReservationsPage(): Promise<React.JSX.Element> {
 
   return (
     <div className="page-stack">
-      <section className="surface-panel overflow-hidden">
-        <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-          <div className="min-w-0">
-            <div className="page-kicker">Reception reservation register</div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="page-kicker">Reception reservation register</div>
 
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-[1.65rem]">
-              Reservations
-            </h1>
-
-            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted">
-              Track planned arrivals before they become active stays. This queue
-              controls room blocking, reception readiness, and delegate holds.
-            </p>
-
-            <div className="mt-3 inline-flex border border-border bg-surface px-3 py-2 text-xs font-semibold text-muted">
-              Next arrival:{" "}
-              <span className="ml-1 text-foreground">{nextArrival}</span>
-            </div>
+          <div className="mt-2 inline-flex border border-border bg-surface px-3 py-2 text-xs font-semibold text-muted shadow-xs">
+            Next arrival:
+            <span className="ml-1 text-foreground">{nextArrival}</span>
           </div>
-
-          <Link href="/reservations/new" className="btn-primary">
-            New reservation
-          </Link>
         </div>
-      </section>
 
-      <ReservationPressureStrip reservations={reservations} />
+        <Link
+          href="/reservations/new"
+          className="btn-primary h-10 shrink-0 px-4"
+        >
+          New reservation
+        </Link>
+      </div>
 
       <DataTable
         data={reservations}

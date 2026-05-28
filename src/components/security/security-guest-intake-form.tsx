@@ -1,4 +1,5 @@
 import { createSecurityGuestAction } from "@/lib/actions/security/create-security-guest";
+import { ProfilePhotoField } from "@/components/guests/profile-photo-field";
 import { Input } from "@/components/ui/Input";
 import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
@@ -53,8 +54,16 @@ export function SecurityGuestIntakeForm({
   }));
 
   return (
-    <form action={createSecurityGuestAction} className="space-y-5">
+    <form
+      action={createSecurityGuestAction}
+      className="space-y-5"
+    >
       <div className="form-grid">
+        <ProfilePhotoField
+          className="md:col-span-2"
+          required
+        />
+
         <Select
           label="Camp"
           id="primaryCampId"

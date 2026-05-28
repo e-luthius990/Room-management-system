@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { getFieldAbsenceById } from "@/lib/queries/field-absences";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
   cancelFieldAbsenceAction,
   markFieldAbsenceReturnedAction,
@@ -224,9 +225,10 @@ export default async function FieldAbsenceDetailPage({
               </div>
 
               <div className="min-w-0 pb-1">
-                <div className="truncate text-lg font-semibold tracking-[-0.03em] text-foreground">
-                  {absence.guest_name ?? "Unknown guest"}
-                </div>
+                <GuestNameWithPhoto
+                  guestId={absence.guest_id ?? ""}
+                  name={absence.guest_name ?? "Unknown guest"}
+                />
 
                 <p className="mt-1 text-sm leading-6 text-muted">
                   {absence.camp_name ?? "Unknown camp"} ·{" "}
@@ -300,7 +302,12 @@ export default async function FieldAbsenceDetailPage({
               <dl className="divide-y divide-border">
                 <InfoRow
                   label="Guest"
-                  value={absence.guest_name ?? "Unknown guest"}
+                  value={
+                    <GuestNameWithPhoto
+                      guestId={absence.guest_id ?? ""}
+                      name={absence.guest_name ?? "Unknown guest"}
+                    />
+                  }
                 />
 
                 <InfoRow

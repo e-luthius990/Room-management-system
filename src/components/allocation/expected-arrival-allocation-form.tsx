@@ -11,12 +11,10 @@ import {
 import type { ExpectedArrivalRow } from "@/lib/queries/expected-arrivals";
 import type { AllocationRoom } from "@/lib/queries/allocations/allocations";
 import { APP_ROUTES } from "@/lib/auth/routes";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
@@ -156,22 +154,17 @@ export function ExpectedArrivalAllocationForm({
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <Card variant="card">
-          <CardHeader>
-            <CardTitle>Expected arrival</CardTitle>
-            <CardDescription>
-              Guest and arrival details are locked from the expected arrival
-              record.
-            </CardDescription>
-          </CardHeader>
-
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
                 Guest
               </p>
-              <p className="mt-1 text-sm font-medium text-foreground">
-                {expectedArrival.guest_name ?? "Unknown guest"}
-              </p>
+              <div className="mt-1">
+                <GuestNameWithPhoto
+                  guestId={expectedArrival.guest_id ?? ""}
+                  name={expectedArrival.guest_name ?? "Unknown guest"}
+                />
+              </div>
             </div>
 
             <div>
@@ -222,14 +215,6 @@ export function ExpectedArrivalAllocationForm({
         </Card>
 
         <Card variant="card">
-          <CardHeader>
-            <CardTitle>Stay window</CardTitle>
-            <CardDescription>
-              Adjust departure only if the expected arrival record has no final
-              departure date.
-            </CardDescription>
-          </CardHeader>
-
           <CardContent className="space-y-4">
             <Input
               label="Expected departure"
@@ -255,28 +240,16 @@ export function ExpectedArrivalAllocationForm({
       </section>
 
       <Card variant="card">
-        <CardHeader>
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <CardTitle>Select vacant ready room</CardTitle>
-              <CardDescription>
-                Only vacant ready rooms in{" "}
-                {expectedArrival.camp_name ?? "this camp"} are shown.
-              </CardDescription>
-            </div>
+        <CardContent className="space-y-4">
+          <Input
+            aria-label="Search rooms"
+            value={roomSearch}
+            disabled={isPending}
+            onChange={(event) => setRoomSearch(event.target.value)}
+            placeholder="Search room, building, bed..."
+            className="max-w-sm"
+          />
 
-            <Input
-              aria-label="Search rooms"
-              value={roomSearch}
-              disabled={isPending}
-              onChange={(event) => setRoomSearch(event.target.value)}
-              placeholder="Search room, building, bed..."
-              className="max-w-sm"
-            />
-          </div>
-        </CardHeader>
-
-        <CardContent>
           {filteredRooms.length > 0 ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredRooms.map((room) => {
@@ -345,8 +318,11 @@ export function ExpectedArrivalAllocationForm({
               Allocation summary
             </div>
 
-            <div className="mt-1 truncate text-sm text-muted">
-              {expectedArrival.guest_name ?? "Expected guest"}{" "}
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-sm text-muted">
+              <GuestNameWithPhoto
+                guestId={expectedArrival.guest_id ?? ""}
+                name={expectedArrival.guest_name ?? "Expected guest"}
+              />
               {selectedRoom
                 ? `→ Room ${selectedRoom.room_number}`
                 : "→ No room selected"}

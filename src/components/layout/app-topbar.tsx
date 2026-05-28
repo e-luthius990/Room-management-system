@@ -13,6 +13,7 @@ type AppTopbarProps = {
   fullName: string;
   email: string | null;
   roleName: string;
+  photoUpdatedAt?: string | null;
   campAccess: CurrentCampAccess[];
   isSystemActor: boolean;
   className?: string;
@@ -73,6 +74,7 @@ export function AppTopbar({
   fullName,
   email,
   roleName,
+  photoUpdatedAt,
   campAccess,
   isSystemActor,
   className,
@@ -108,6 +110,7 @@ export function AppTopbar({
             fullName={displayName}
             email={displayEmail}
             roleName={displayRoleName}
+            photoUpdatedAt={photoUpdatedAt}
           />
         </div>
       </div>

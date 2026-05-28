@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getActiveFieldAbsenceByStayId } from "@/lib/queries/field-absences";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
   Card,
   CardContent,
@@ -169,7 +170,7 @@ export default async function NewFieldAbsencePage({
 
   return (
     <div className="page-stack">
-      <section className="surface-panel overflow-hidden">
+      <section className="hidden">
         <div className="grid gap-5 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
           <div className="min-w-0">
             <div className="page-kicker">Field movement record</div>
@@ -186,9 +187,11 @@ export default async function NewFieldAbsencePage({
               </div>
 
               <div className="min-w-0 pb-1">
-                <div className="truncate text-lg font-semibold tracking-[-0.03em] text-foreground">
-                  {stay.guest_name ?? "Unknown guest"}
-                </div>
+                <GuestNameWithPhoto
+                  guestId={stay.guest_id}
+                  name={stay.guest_name ?? "Unknown guest"}
+                  size="md"
+                />
 
                 <p className="mt-1 text-sm leading-6 text-muted">
                   {stay.camp_name ?? "Unknown camp"} · Field absence setup
@@ -218,7 +221,15 @@ export default async function NewFieldAbsencePage({
 
             <CardContent dense>
               <dl className="divide-y divide-border">
-                <DetailRow label="Guest" value={stay.guest_name ?? "Unknown"} />
+                <DetailRow
+                  label="Guest"
+                  value={
+                    <GuestNameWithPhoto
+                      guestId={stay.guest_id}
+                      name={stay.guest_name ?? "Unknown"}
+                    />
+                  }
+                />
 
                 <DetailRow
                   label="Category"
@@ -261,14 +272,6 @@ export default async function NewFieldAbsencePage({
 
         <main className="min-w-0">
           <Card variant="console">
-            <CardHeader dense>
-              <CardTitle className="text-sm">Field absence details</CardTitle>
-              <CardDescription className="text-xs leading-5">
-                Mark the occupant as away in field while keeping the room
-                occupied.
-              </CardDescription>
-            </CardHeader>
-
             <CardContent dense>
               {!activeStay ? (
                 <EmptyState

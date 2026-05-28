@@ -33,6 +33,10 @@ export type DataTableProps<TData> = {
   onRowClick?: (row: TData, index: number) => void;
   getRowAriaLabel?: (row: TData, index: number) => string;
   rowClassName?: (row: TData, index: number) => string | undefined;
+  rowAttributes?: (
+    row: TData,
+    index: number,
+  ) => Record<string, string | undefined>;
   getRowStatus?: (row: TData, index: number) => string | undefined;
   selectedRowKey?: React.Key | null;
 };
@@ -129,6 +133,7 @@ export function DataTable<TData>({
   onRowClick,
   getRowAriaLabel,
   rowClassName,
+  rowAttributes,
   getRowStatus,
   selectedRowKey = null,
 }: DataTableProps<TData>): React.JSX.Element {
@@ -202,6 +207,7 @@ export function DataTable<TData>({
               const rowKey = getRowKey(row, rowIndex);
               const ariaLabel = getRowAriaLabel?.(row, rowIndex);
               const rowStatus = getRowStatus?.(row, rowIndex);
+              const additionalRowAttributes = rowAttributes?.(row, rowIndex);
               const isSelected =
                 selectedRowKey != null &&
                 String(selectedRowKey) === String(rowKey);
@@ -215,6 +221,7 @@ export function DataTable<TData>({
                   data-clickable={isClickable ? "true" : undefined}
                   data-selected={isSelected ? "true" : undefined}
                   data-row-status={rowStatus}
+                  {...additionalRowAttributes}
                   onClick={
                     isClickable
                       ? (event) => {

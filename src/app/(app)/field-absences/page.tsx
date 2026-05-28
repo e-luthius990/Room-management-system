@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { getFieldAbsences } from "@/lib/queries/field-absences";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -320,8 +321,11 @@ export default async function FieldAbsencesPage({
                         Guest
                       </div>
 
-                      <div className="mt-1 truncate text-sm font-semibold leading-8 text-foreground">
-                        {absence.guest_name ?? "Unknown guest"}
+                      <div className="mt-1">
+                        <GuestNameWithPhoto
+                          guestId={absence.guest_id ?? ""}
+                          name={absence.guest_name ?? "Unknown guest"}
+                        />
                       </div>
 
                       <div className="mt-1 truncate text-xs leading-5 text-muted">
@@ -377,6 +381,7 @@ export default async function FieldAbsencesPage({
                             Open
                           </span>
                         ) : null}
+
                       </div>
                     </div>
                   </div>

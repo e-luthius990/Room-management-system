@@ -84,7 +84,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           variantClass[variant],
           sizeClass[size],
-          "min-w-0",
+          "relative min-w-0 overflow-hidden",
           fullWidth && "w-full",
           className,
         )}
@@ -92,7 +92,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {loading ? (
-          <span aria-hidden="true" className="inline-spinner shrink-0" />
+          <span
+            aria-hidden="true"
+            className="button-progress-track"
+          >
+            <span className="button-progress-bar" />
+          </span>
         ) : leftIcon ? (
           <span aria-hidden="true" className="shrink-0">
             {leftIcon}

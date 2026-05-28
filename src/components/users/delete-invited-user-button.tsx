@@ -108,7 +108,7 @@ export function DeleteInvitedUserButton({
             aria-modal="true"
             aria-labelledby={titleId}
             aria-describedby={descriptionId}
-            className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-floating"
+            className="w-full max-w-md border border-border bg-surface p-5 shadow-command"
           >
             <div className="page-kicker text-danger-700">Permanent delete</div>
 
@@ -124,7 +124,7 @@ export function DeleteInvitedUserButton({
               Supabase Auth account. This cannot be undone.
             </p>
 
-            <div className="mt-5 rounded-2xl border border-border bg-surface-2 p-4">
+            <div className="mt-5 border border-border bg-surface-2 p-4">
               <p className="font-semibold text-foreground">{fullName}</p>
 
               {email ? (
@@ -170,7 +170,6 @@ export function DeleteInvitedUserButton({
               >
                 {isDeleting ? (
                   <>
-                    <span aria-hidden="true" className="inline-spinner" />
                     Deleting...
                   </>
                 ) : (

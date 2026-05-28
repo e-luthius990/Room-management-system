@@ -7,7 +7,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAnyPermission } from "@/lib/auth/require-permission";
+import type { CurrentUserContext } from "@/lib/auth/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { notifyWorkflowUsers } from "@/lib/notifications/workflow-notifications";
 import {
   createReportExportSchema,
   type ExportFormat,
@@ -95,8 +97,10 @@ function mapExportError(message: string): string {
   return "export_failed";
 }
 
-async function requireExportPermission(format: ExportFormat): Promise<void> {
-  await requireAnyPermission([
+async function requireExportPermission(
+  format: ExportFormat,
+): Promise<CurrentUserContext> {
+  return requireAnyPermission([
     "data.export",
     "exports.reports",
     EXPORT_PERMISSION_BY_FORMAT[format],
@@ -136,7 +140,7 @@ export async function createReportExportAction(
     redirect("/reports/exports?error=invalid_input");
   }
 
-  await requireExportPermission(parsed.data.exportFormat);
+  const currentUser = await requireExportPermission(parsed.data.exportFormat);
 
   const supabase = await createServerSupabaseClient();
 
@@ -194,6 +198,17 @@ export async function createReportExportAction(
     const message = error instanceof Error ? error.message : "Export failed.";
 
     await markExportFailed(supabase, exportJobId, message);
+    await notifyWorkflowUsers({
+      recipientIds: [currentUser.authUser.id],
+      campId: parsed.data.campId ?? null,
+      title: "Report export failed",
+      body: `Your ${parsed.data.reportType} export could not be completed.`,
+      category: "system",
+      severity: "urgent",
+      actionHref: "/reports/exports",
+      entityType: "export_jobs",
+      entityId: exportJobId,
+    });
 
     revalidatePath("/reports");
     revalidatePath("/reports/exports");
@@ -204,6 +219,18 @@ export async function createReportExportAction(
   revalidatePath("/reports");
   revalidatePath("/reports/exports");
   revalidatePath(`/reports/exports/${exportJobId}/download`);
+
+  await notifyWorkflowUsers({
+    recipientIds: [currentUser.authUser.id],
+    campId: parsed.data.campId ?? null,
+    title: "Report export ready",
+    body: `Your ${parsed.data.reportType} export is ready to download.`,
+    category: "system",
+    severity: "success",
+    actionHref: `/reports/exports/${exportJobId}/download`,
+    entityType: "export_jobs",
+    entityId: exportJobId,
+  });
 
   redirect(`/reports/exports/${exportJobId}/download`);
 }

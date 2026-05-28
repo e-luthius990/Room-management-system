@@ -1,73 +1,13 @@
-import Link from "next/link";
+import {
+  GuestDocumentPreviewCard,
+  type GuestDocumentPreviewItem,
+} from "@/components/guest-documents/guest-document-preview-card";
 import { UploadGuestDocumentForm } from "@/components/guest-documents/upload-guest-document-form";
-
-export type GuestDocumentStatus =
-  | "pending_review"
-  | "approved"
-  | "rejected"
-  | "active" // legacy only
-  | "archived"
-  | "deleted";
-
-type GuestDocument = {
-  id: string;
-  document_type: string;
-  status: GuestDocumentStatus;
-  uploaded_at: string;
-  original_filename: string | null;
-};
 
 type GuestDocumentsPanelProps = {
   guestId: string;
-  documents: GuestDocument[];
+  documents: GuestDocumentPreviewItem[];
 };
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown date";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
-function formatDocumentType(type: string): string {
-  return type
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function formatStatus(status: GuestDocumentStatus): string {
-  if (status === "active") {
-    return "Legacy active";
-  }
-
-  return status
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function getStatusTextClass(status: GuestDocumentStatus): string {
-  switch (status) {
-    case "approved":
-      return "text-emerald-700";
-    case "rejected":
-      return "text-red-700";
-    case "pending_review":
-      return "text-amber-700";
-    case "archived":
-    case "deleted":
-      return "text-neutral-500";
-    case "active":
-      return "text-blue-700";
-    default:
-      return "text-neutral-600";
-  }
-}
 
 export function GuestDocumentsPanel({
   guestId,
@@ -77,71 +17,25 @@ export function GuestDocumentsPanel({
     <div className="space-y-6">
       <UploadGuestDocumentForm guestId={guestId} />
 
-      <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div>
-          <h2 className="text-base font-semibold text-neutral-950">
-            Documents
-          </h2>
-          <p className="mt-1 text-sm text-neutral-500">
-            Uploaded guest documents and review status.
+      <section className="surface-card overflow-hidden">
+        <div className="border-b border-border bg-surface px-4 py-4 sm:px-5">
+          <h2 className="text-sm font-semibold text-foreground">Documents</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Private files attached to this guest record.
           </p>
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="space-y-3 p-4 sm:p-5">
           {documents.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">
+            <div className="border border-dashed border-border bg-surface-2 px-4 py-6 text-sm text-muted">
               No documents uploaded yet.
             </div>
           ) : (
             documents.map((document) => (
-              <div
+              <GuestDocumentPreviewCard
                 key={document.id}
-                className="rounded-2xl border border-neutral-200 px-4 py-3 text-sm"
-              >
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="font-medium text-neutral-950">
-                      {formatDocumentType(document.document_type)}
-                    </div>
-
-                    {document.original_filename ? (
-                      <div className="mt-1 max-w-xl truncate text-xs text-neutral-500">
-                        {document.original_filename}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div
-                    className={`text-xs font-semibold ${getStatusTextClass(
-                      document.status,
-                    )}`}
-                  >
-                    {formatStatus(document.status)}
-                  </div>
-                </div>
-
-                <div className="mt-2 text-xs text-neutral-500">
-                  Uploaded {formatDate(document.uploaded_at)}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
-                  <Link
-                    href={`/guest-documents/${document.id}/download`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-neutral-900 underline underline-offset-4"
-                  >
-                    Open private file
-                  </Link>
-
-                  <Link
-                    href={`/guest-documents/${document.id}`}
-                    className="text-neutral-900 underline underline-offset-4"
-                  >
-                    View details
-                  </Link>
-                </div>
-              </div>
+                document={document}
+              />
             ))
           )}
         </div>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { requirePermission } from "@/lib/auth/require-permission";
 import { GuestForm } from "@/components/guests/guest-form";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { GuestDocumentsPanel } from "@/components/guest-documents/guest-documents-panel";
 import { getCampOptions } from "@/lib/queries/setup/options";
 import { getGuestProfile } from "@/lib/queries/guests/get-guest-profile";
@@ -65,6 +66,10 @@ function getErrorMessage(error?: string): string | null {
     invalid_document_storage: "The document could not be stored safely.",
     document_download_failed: "Secure document link could not be created.",
     upload_failed: "Document upload failed. Please try again.",
+    profile_photo_required: "Take or upload a guest profile photo.",
+    unsupported_profile_photo_type: "Use a JPG, PNG, or WebP profile photo.",
+    profile_photo_too_large: "Profile photo must be 4 MB or smaller.",
+    profile_photo_upload_failed: "Profile photo could not be uploaded.",
   };
 
   return messages[error] ?? "The request could not be completed.";
@@ -100,9 +105,15 @@ export default async function GuestProfilePage({
                 Guest record
               </p>
 
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                {guest.full_name}
-              </h1>
+              <div className="mt-2">
+                <GuestNameWithPhoto
+                  guestId={guest.id}
+                  name={guest.full_name}
+                  photoPath={guest.profile_photo_path}
+                  photoUpdatedAt={guest.profile_photo_updated_at}
+                  size="lg"
+                />
+              </div>
 
               <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
                 Guest profile, reception identity, security clearance, protected

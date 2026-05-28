@@ -2,6 +2,12 @@ import { notFound } from "next/navigation";
 
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 import {
+  canSelectCampFilter,
+  filterByCampAccess,
+  filterByPrimaryCampAccess,
+  getAssignedCampLabel,
+} from "@/lib/auth/camp-scope";
+import {
   getAllocationGuests,
   getReadyAllocationRooms,
 } from "@/lib/queries/allocations/allocations";
@@ -18,40 +24,6 @@ type NewAllocationPageProps = {
 
 function singleParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function AllocationPageHeader({
-  mode,
-}: {
-  mode: "standard" | "expected-arrival";
-}): React.JSX.Element {
-  const isExpectedArrival = mode === "expected-arrival";
-
-  return (
-    <section className="surface-panel overflow-hidden">
-      <div className="p-4 sm:p-5">
-        <div className="max-w-3xl">
-          <div className="page-kicker">
-            {isExpectedArrival
-              ? "Expected arrival allocation"
-              : "Reception allocation"}
-          </div>
-
-          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-[1.65rem]">
-            {isExpectedArrival
-              ? "Allocate room for expected arrival"
-              : "Assign room"}
-          </h1>
-
-          <p className="mt-1.5 text-sm leading-6 text-muted">
-            {isExpectedArrival
-              ? "Select a vacant-ready room for the expected arrival. Guest and stay window are prefilled from the arrival record."
-              : "Select the guest, choose a vacant-ready room, then confirm the stay window and allocation details."}
-          </p>
-        </div>
-      </div>
-    </section>
-  );
 }
 
 export default async function NewAllocationPage({
@@ -82,8 +54,6 @@ export default async function NewAllocationPage({
 
     return (
       <div className="page-stack">
-        <AllocationPageHeader mode="expected-arrival" />
-
         {!canAllocate ? (
           <EmptyState
             operational
@@ -120,17 +90,24 @@ export default async function NewAllocationPage({
     );
   }
 
-  await requireAnyPermission(["allocations.create"]);
+  const currentUser = await requireAnyPermission(["allocations.create"]);
+  const canUseCampSelect = canSelectCampFilter(currentUser.role.key);
+  const assignedCampLabel = getAssignedCampLabel(currentUser.campAccess);
 
-  const [guests, rooms] = await Promise.all([
+  const [loadedGuests, loadedRooms] = await Promise.all([
     getAllocationGuests(),
     getReadyAllocationRooms(),
   ]);
 
+  const rooms = canUseCampSelect
+    ? loadedRooms
+    : filterByCampAccess(loadedRooms, currentUser.campAccess);
+  const guests = canUseCampSelect
+    ? loadedGuests
+    : filterByPrimaryCampAccess(loadedGuests, currentUser.campAccess);
+
   return (
     <div className="page-stack">
-      <AllocationPageHeader mode="standard" />
-
       {guests.length === 0 ? (
         <EmptyState
           operational
@@ -148,7 +125,12 @@ export default async function NewAllocationPage({
           description="Only rooms currently marked vacant-ready appear here for allocation."
         />
       ) : (
-        <AllocationForm guests={guests} rooms={rooms} />
+        <AllocationForm
+          guests={guests}
+          rooms={rooms}
+          canSelectCamp={canUseCampSelect}
+          assignedCampLabel={assignedCampLabel}
+        />
       )}
     </div>
   );

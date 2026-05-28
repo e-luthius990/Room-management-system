@@ -58,30 +58,6 @@ function formatGuestLabel(guest: ReservationGuestOption): string {
   ]);
 }
 
-function FormSectionHeader({
-  title,
-  description,
-}: {
-  title: string;
-  description?: string;
-}): React.JSX.Element {
-  return (
-    <div className="border-b border-border px-4 py-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-        Reservation control
-      </div>
-
-      <h2 className="mt-1 text-sm font-semibold tracking-[-0.015em] text-foreground">
-        {title}
-      </h2>
-
-      {description ? (
-        <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
-      ) : null}
-    </div>
-  );
-}
-
 export function ReservationForm({
   guests,
   rooms,
@@ -122,11 +98,6 @@ export function ReservationForm({
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="Who is the room held for?"
-              description="Select the guest and the room to protect before arrival."
-            />
-
             <div className="form-grid p-4">
               <Select
                 wrapperClassName="md:col-span-2"
@@ -156,11 +127,6 @@ export function ReservationForm({
           </section>
 
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="When should reception expect the guest?"
-              description="These times control the expected-arrivals queue, room blocking, and reception visibility."
-            />
-
             <div className="form-grid p-4">
               <Input
                 label="Expected arrival"
@@ -196,11 +162,6 @@ export function ReservationForm({
 
         <aside className="space-y-4">
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="Control flags"
-              description="Use only when this hold needs closer management visibility."
-            />
-
             <div className="p-4">
               <label className="flex items-start gap-3 border border-border bg-surface-2 px-3 py-3 text-sm text-muted">
                 <input
@@ -224,11 +185,6 @@ export function ReservationForm({
           </section>
 
           <section className="border border-border bg-surface">
-            <FormSectionHeader
-              title="Create reservation"
-              description="Save this room hold and send it into the reception expected-arrivals workflow."
-            />
-
             <div className="p-4">
               {canCreateReservation ? (
                 <PendingSubmitButton

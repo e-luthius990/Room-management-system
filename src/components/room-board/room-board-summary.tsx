@@ -98,33 +98,33 @@ export function RoomBoardSummaryCards({
 }: RoomBoardSummaryProps): JSX.Element {
   return (
     <section
-      className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7"
+      className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7"
       aria-label="Room availability summary"
     >
       {summaryItems.map((item) => (
         <article
           key={item.key}
           className={cn(
-            "ops-live-card min-h-[4.35rem] px-3 py-2.5",
+            "room-board-summary-card ops-live-card min-h-[3.45rem] px-2.5 py-2",
             toneClass[item.tone],
           )}
         >
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-1.5">
             <div className="min-w-0">
               <p className="truncate text-[10px] font-bold uppercase leading-3 tracking-[0.13em] text-muted">
                 {item.label}
               </p>
 
-              <p className="mt-0.5 text-xl font-semibold leading-6 tracking-[-0.045em] text-foreground">
+              <p className="text-lg font-semibold leading-5 tracking-[-0.04em] text-foreground">
                 {item.value(summary)}
               </p>
 
-              <p className="mt-0.5 truncate text-[11px] leading-4 text-muted">
+              <p className="truncate text-[10px] leading-3 text-muted">
                 {item.note}
               </p>
             </div>
 
-            <div className="flex size-7 shrink-0 items-center justify-center border border-border bg-surface-2 text-muted shadow-xs">
+            <div className="flex size-6 shrink-0 items-center justify-center border border-border bg-surface-2 text-muted shadow-xs">
               {item.icon}
             </div>
           </div>

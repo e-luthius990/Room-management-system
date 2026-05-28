@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { GateExitForm } from "@/components/security/gate-exit-form";
 import { SendToReceptionButton } from "@/components/security/send-to-reception-button";
 import {
@@ -161,9 +162,10 @@ export function SecurityPresenceCard({
           <summary className="grid cursor-pointer list-none gap-3 px-4 py-3 transition hover:bg-surface-muted/45 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center [&::-webkit-details-marker]:hidden">
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h3 className="truncate text-sm font-semibold text-foreground">
-                  {item.guest_name}
-                </h3>
+                <GuestNameWithPhoto
+                  guestId={item.guest_id}
+                  name={item.guest_name}
+                />
 
                 <PresenceBadge
                   isInside={isInside}

@@ -110,21 +110,21 @@ function AuthMessageBanner({
       role={isError ? "alert" : "status"}
       aria-live={isError ? "assertive" : "polite"}
       className={[
-        "mb-5 overflow-hidden transition-[opacity,transform,margin,max-height] duration-200 ease-out",
+        "fixed left-1/2 top-5 z-[100] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 transition-[opacity,transform] duration-200 ease-out",
         closing
-          ? "mb-0 max-h-0 -translate-y-1 opacity-0"
-          : "max-h-28 translate-y-0 opacity-100",
+          ? "-translate-x-1/2 -translate-y-2 opacity-0"
+          : "-translate-x-1/2 translate-y-0 opacity-100",
       ].join(" ")}
     >
       <div
         className={[
-          "relative flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm shadow-sm",
+          "relative flex items-start gap-3 border px-4 py-3 text-sm shadow-xs",
           toneClass.shell,
         ].join(" ")}
       >
         <span
           className={[
-            "absolute inset-y-3 left-0 w-1 rounded-r-full",
+            "absolute inset-y-2.5 left-0 w-1",
             toneClass.accent,
           ].join(" ")}
           aria-hidden="true"
@@ -132,7 +132,7 @@ function AuthMessageBanner({
 
         <span
           className={[
-            "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl",
+            "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center",
             toneClass.icon,
           ].join(" ")}
           aria-hidden="true"
@@ -151,7 +151,7 @@ function AuthMessageBanner({
           onClick={close}
           aria-label="Dismiss message"
           className={[
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition",
+            "flex h-8 w-8 shrink-0 items-center justify-center transition",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
             toneClass.button,
           ].join(" ")}

@@ -76,11 +76,11 @@ function getSuccessMessage(success?: string): string | null {
 export default async function NotificationsPage({
   searchParams,
 }: NotificationsPageProps): Promise<React.JSX.Element> {
-  await requirePermission("notifications.view");
+  const currentUser = await requirePermission("notifications.view");
 
   const [query, notifications] = await Promise.all([
     searchParams,
-    getNotifications(),
+    getNotifications(currentUser.authUser.id),
   ]);
 
   const unreadCount = notifications.filter(
@@ -103,19 +103,13 @@ export default async function NotificationsPage({
           <div className="flex flex-wrap gap-3">
             {unreadCount > 0 ? (
               <form action={markAllNotificationsReadAction}>
-                <button
-                  type="submit"
-                  className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-                >
+                <button type="submit" className="btn-secondary">
                   Mark all read
                 </button>
               </form>
             ) : null}
 
-            <Link
-              href="/notifications/new"
-              className="rounded-2xl bg-neutral-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
-            >
+            <Link href="/notifications/new" className="btn-primary">
               New alert
             </Link>
           </div>
@@ -123,13 +117,13 @@ export default async function NotificationsPage({
       />
 
       {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
           {errorMessage}
         </div>
       ) : null}
 
       {successMessage ? (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="mb-6 border border-success-600/25 bg-success-50 px-4 py-3 text-sm text-success-700">
           {successMessage}
         </div>
       ) : null}
@@ -152,96 +146,98 @@ export default async function NotificationsPage({
         />
       </section>
 
-      <div className="overflow-x-auto rounded-3xl border border-neutral-200 bg-white shadow-sm">
-        <table className="w-full min-w-[1100px] text-left text-sm">
-          <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-            <tr>
-              <th className="px-4 py-3">Alert</th>
-              <th className="px-4 py-3">Recipient</th>
-              <th className="px-4 py-3">Camp</th>
-              <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3">Severity</th>
-              <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3">Read</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-
-          <tbody className="divide-y divide-neutral-100">
-            {notifications.map((notification) => (
-              <tr
-                key={notification.id}
-                className={[
-                  "align-top",
-                  notification.read_at ? "" : "bg-amber-50/35",
-                ].join(" ")}
-              >
-                <td className="px-4 py-4">
-                  <div className="font-medium text-neutral-950">
-                    {notification.title}
-                  </div>
-
-                  <div className="mt-1 max-w-[340px] truncate text-xs text-neutral-500">
-                    {notification.body}
-                  </div>
-                </td>
-
-                <td className="px-4 py-4 text-neutral-700">
-                  {notification.recipient_name ?? "Camp broadcast"}
-                </td>
-
-                <td className="px-4 py-4 text-neutral-700">
-                  {notification.camp_name ?? "—"}
-                </td>
-
-                <td className="px-4 py-4 text-neutral-700">
-                  {formatNotificationCategory(notification.category)}
-                </td>
-
-                <td className="px-4 py-4">
-                  <span
-                    className={[
-                      "rounded-full border px-3 py-1 text-xs font-medium",
-                      notificationSeverityTone(notification.severity),
-                    ].join(" ")}
-                  >
-                    {formatNotificationSeverity(notification.severity)}
-                  </span>
-                </td>
-
-                <td className="px-4 py-4 text-neutral-700">
-                  {formatDateTime(notification.created_at)}
-                </td>
-
-                <td className="px-4 py-4 text-neutral-700">
-                  {notification.read_at
-                    ? formatDateTime(notification.read_at)
-                    : "Unread"}
-                </td>
-
-                <td className="px-4 py-4 text-right">
-                  <Link
-                    href={`/notifications/${notification.id}`}
-                    className="rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-50"
-                  >
-                    Open
-                  </Link>
-                </td>
-              </tr>
-            ))}
-
-            {notifications.length === 0 ? (
+      <div className="table-shell">
+        <div className="table-scroll">
+          <table className="data-table min-w-[1100px]">
+            <thead>
               <tr>
-                <td
-                  colSpan={8}
-                  className="px-4 py-10 text-center text-sm text-neutral-500"
-                >
-                  No notifications found.
-                </td>
+                <th>Alert</th>
+                <th>Recipient</th>
+                <th>Camp</th>
+                <th>Category</th>
+                <th>Severity</th>
+                <th>Created</th>
+                <th>Read</th>
+                <th />
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {notifications.map((notification) => (
+                <tr
+                  key={notification.id}
+                  className={[
+                    "align-top",
+                    notification.read_at ? "" : "bg-amber-50/35",
+                  ].join(" ")}
+                >
+                  <td>
+                    <div className="font-medium text-foreground">
+                      {notification.title}
+                    </div>
+
+                    <div className="mt-1 max-w-[340px] truncate text-xs text-muted">
+                      {notification.body}
+                    </div>
+                  </td>
+
+                  <td className="text-foreground">
+                    {notification.recipient_name ?? "Camp broadcast"}
+                  </td>
+
+                  <td className="text-foreground">
+                    {notification.camp_name ?? "—"}
+                  </td>
+
+                  <td className="text-foreground">
+                    {formatNotificationCategory(notification.category)}
+                  </td>
+
+                  <td>
+                    <span
+                      className={[
+                        "border px-2.5 py-1 text-xs font-medium",
+                        notificationSeverityTone(notification.severity),
+                      ].join(" ")}
+                    >
+                      {formatNotificationSeverity(notification.severity)}
+                    </span>
+                  </td>
+
+                  <td className="text-foreground">
+                    {formatDateTime(notification.created_at)}
+                  </td>
+
+                  <td className="text-foreground">
+                    {notification.read_at
+                      ? formatDateTime(notification.read_at)
+                      : "Unread"}
+                  </td>
+
+                  <td className="text-right">
+                    <Link
+                      href={`/notifications/${notification.id}`}
+                      className="btn-secondary btn-sm"
+                    >
+                      Open
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+
+              {notifications.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="px-4 py-10 text-center text-sm text-muted"
+                  >
+                    No notifications found.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -250,8 +246,8 @@ export default async function NotificationsPage({
 function SummaryCard({
   title,
   value,
-  className = "border-neutral-200 bg-white text-neutral-950",
-  labelClassName = "text-neutral-500",
+  className = "border-border bg-surface text-foreground",
+  labelClassName = "text-muted",
 }: {
   title: string;
   value: number;
@@ -259,7 +255,7 @@ function SummaryCard({
   labelClassName?: string;
 }): React.JSX.Element {
   return (
-    <div className={`rounded-3xl border p-5 shadow-sm ${className}`}>
+    <div className={`surface-card p-4 ${className}`}>
       <div className="text-2xl font-semibold">{value}</div>
 
       <div

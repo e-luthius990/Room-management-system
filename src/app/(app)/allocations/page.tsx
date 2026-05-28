@@ -1,10 +1,12 @@
 import Link from "next/link";
+
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { hasPermission } from "@/lib/auth/permissions";
 import { APP_ROUTES } from "@/lib/auth/routes";
-import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
+import { LinkPendingIndicator } from "@/components/navigation/link-pending-indicator";
 import { StatusIndicator } from "@/components/ui/StatusIndicator";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -83,75 +85,67 @@ function getStatusSummary(
   );
 }
 
-function AllocationRegisterHeader({
-  canCreateAllocation,
-}: {
-  canCreateAllocation: boolean;
-}): React.JSX.Element {
-  return (
-    <section className="surface-panel overflow-hidden">
-      <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-        <div className="min-w-0">
-          <div className="page-kicker">Reception allocation register</div>
-
-          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.045em] text-foreground sm:text-[1.65rem]">
-            Room allocation
-          </h1>
-
-          <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted">
-            Assign vacant-ready rooms to guests and keep room availability
-            synchronized with stays.
-          </p>
-        </div>
-
-        {canCreateAllocation ? (
-          <Link href={APP_ROUTES.allocations.new} className="btn-primary">
-            Allocate room
-          </Link>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
 function AllocationStatusRail({
   filters,
   activeStatus,
   summary,
+  canCreateAllocation,
 }: {
   filters: StatusFilter[];
   activeStatus: AllocationStatus | "all";
   summary: Record<AllocationStatus | "all", number>;
+  canCreateAllocation: boolean;
 }): React.JSX.Element {
   return (
-    <nav
-      aria-label="Allocation status filters"
-      className="flex flex-wrap gap-2 border border-border bg-surface p-2 shadow-xs"
+    <section
+      aria-label="Allocation register controls"
+      className="border border-border bg-surface px-3 py-2.5 shadow-xs"
     >
-      {filters.map((filter) => {
-        const active = filter.value === activeStatus;
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <nav
+          aria-label="Allocation status filters"
+          className="flex min-w-0 flex-wrap items-center gap-1.5"
+        >
+          {filters.map((filter) => {
+            const active = filter.value === activeStatus;
 
-        return (
+            return (
+              <Link
+                key={filter.value}
+                href={statusHref(filter.value)}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-8 items-center gap-2 border px-2.5 text-[11px] font-bold uppercase tracking-[0.12em] transition",
+                  active
+                    ? "border-brand-600/30 bg-brand-50 text-brand-700 shadow-xs"
+                    : "border-border bg-surface-2 text-muted hover:border-border-strong hover:bg-surface hover:text-foreground",
+                )}
+              >
+                <span>{filter.label}</span>
+                <span
+                  className={cn(
+                    "font-mono text-[11px] tracking-normal",
+                    active ? "text-brand-700" : "text-muted",
+                  )}
+                >
+                  {summary[filter.value]}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {canCreateAllocation ? (
           <Link
-            key={filter.value}
-            href={statusHref(filter.value)}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "inline-flex min-h-9 items-center gap-2 border px-3 text-xs font-bold uppercase tracking-[0.12em] transition",
-              "rounded-md",
-              active
-                ? "border-brand-600/25 bg-brand-50 text-brand-700"
-                : "border-border bg-surface-2 text-muted hover:border-border-strong hover:bg-surface hover:text-foreground",
-            )}
+            href={APP_ROUTES.allocations.new}
+            className="btn-primary h-10 shrink-0 px-4 xl:ml-4"
           >
-            <span>{filter.label}</span>
-            <span className="font-semibold tracking-normal">
-              {summary[filter.value]}
-            </span>
+            Allocate room
+            <LinkPendingIndicator />
           </Link>
-        );
-      })}
-    </nav>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -163,9 +157,9 @@ function AllocationRowItem({
   return (
     <Link
       href={APP_ROUTES.allocations.detail(allocation.id)}
-      className="block px-4 py-3 transition hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset"
+      className="block border border-border bg-surface px-4 py-3 shadow-xs transition hover:border-border-strong hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset"
     >
-      <div className="grid gap-4 xl:grid-cols-[8.5rem_minmax(0,1.1fr)_minmax(0,0.85fr)_15rem] xl:items-start">
+      <div className="grid gap-4 xl:grid-cols-[8.5rem_minmax(0,1.15fr)_minmax(0,0.85fr)_15rem] xl:items-start">
         <div className="min-w-0">
           <div className="text-[10px] font-bold uppercase leading-4 tracking-[0.14em] text-muted">
             Room
@@ -185,8 +179,11 @@ function AllocationRowItem({
             Guest
           </div>
 
-          <div className="mt-1 truncate text-sm font-semibold leading-8 text-foreground">
-            {allocation.guest_name}
+          <div className="mt-1">
+            <GuestNameWithPhoto
+              guestId={allocation.guest_id}
+              name={allocation.guest_name}
+            />
           </div>
 
           <div className="mt-1 truncate text-xs leading-5 text-muted">
@@ -233,6 +230,29 @@ function AllocationRowItem({
   );
 }
 
+function AllocationEmptyState({
+  canCreateAllocation,
+}: {
+  canCreateAllocation: boolean;
+}): React.JSX.Element {
+  return (
+    <EmptyState
+      operational
+      align="left"
+      size="sm"
+      title="No allocations found"
+      description="Room allocations will appear here after reception assigns rooms to guests."
+      action={
+        canCreateAllocation ? (
+          <Link href={APP_ROUTES.allocations.new} className="btn-primary">
+            Allocate room
+          </Link>
+        ) : undefined
+      }
+    />
+  );
+}
+
 export default async function AllocationsPage({
   searchParams,
 }: AllocationsPageProps): Promise<React.JSX.Element> {
@@ -246,63 +266,52 @@ export default async function AllocationsPage({
 
   const [allocations, allAllocations] = await Promise.all([
     getAllocations(status),
-    status === "all" ? getAllocations("all") : getAllocations("all"),
+    getAllocations("all"),
   ]);
 
   const summary = getStatusSummary(allAllocations);
 
   const filters: StatusFilter[] = [
-    { label: "Active", value: "active" },
-    { label: "Checked in", value: "checked_in" },
-    { label: "Expired", value: "expired" },
-    { label: "Cancelled", value: "cancelled" },
-    { label: "All", value: "all" },
+    {
+      label: "Active",
+      value: "active",
+    },
+    {
+      label: "Checked in",
+      value: "checked_in",
+    },
+    {
+      label: "Expired",
+      value: "expired",
+    },
+    {
+      label: "Cancelled",
+      value: "cancelled",
+    },
+    {
+      label: "All",
+      value: "all",
+    },
   ];
 
   return (
-    <div className="page-stack">
-      <AllocationRegisterHeader canCreateAllocation={canCreateAllocation} />
-
+    <div className="space-y-3">
       <AllocationStatusRail
         filters={filters}
         activeStatus={status}
         summary={summary}
+        canCreateAllocation={canCreateAllocation}
       />
 
-      <Card variant="console">
-        <CardContent className="p-0">
-          {allocations.length > 0 ? (
-            <div className="divide-y divide-border">
-              {allocations.map((allocation) => (
-                <AllocationRowItem
-                  key={allocation.id}
-                  allocation={allocation}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="p-5">
-              <EmptyState
-                operational
-                align="left"
-                size="sm"
-                title="No room allocations found"
-                description="Allocate a vacant-ready room when reception is ready to assign accommodation."
-                action={
-                  canCreateAllocation ? (
-                    <Link
-                      href={APP_ROUTES.allocations.new}
-                      className="btn-primary"
-                    >
-                      Allocate room
-                    </Link>
-                  ) : null
-                }
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {allocations.length === 0 ? (
+        <AllocationEmptyState canCreateAllocation={canCreateAllocation} />
+      ) : (
+        <section className="grid gap-2" aria-label="Room allocation records">
+          {allocations.map((allocation) => (
+            <AllocationRowItem key={allocation.id} allocation={allocation} />
+          ))}
+        </section>
+      )}
     </div>
   );
 }

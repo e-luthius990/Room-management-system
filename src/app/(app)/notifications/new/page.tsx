@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { requirePermission } from "@/lib/auth/require-permission";
-import { PageHeader } from "@/components/layout/page-header";
 import {
   getNotificationCampOptions,
   getNotificationRecipientOptions,
@@ -50,19 +48,6 @@ export default async function NewNotificationPage({
 
   return (
     <div>
-      <PageHeader
-        title="New Internal Alert"
-        description="Send an operational notification to a user or a camp, and optionally link it to a room, guest, stay, ticket, or workflow record."
-        actions={
-          <Link
-            href="/notifications"
-            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-          >
-            Back to notifications
-          </Link>
-        }
-      />
-
       {errorMessage ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {errorMessage}

@@ -1,4 +1,5 @@
 import { uploadGuestDocumentAction } from "@/lib/actions/guest-documents/upload-document";
+import { DocumentFileInput } from "@/components/guest-documents/document-file-input";
 import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
@@ -23,24 +24,20 @@ export function UploadGuestDocumentForm({
   return (
     <form
       action={uploadGuestDocumentAction}
-      encType="multipart/form-data"
-      className="surface-card p-5 sm:p-6"
+      className="surface-card overflow-hidden p-0"
     >
       <input type="hidden" name="guestId" value={guestId} />
 
-      <div>
-        <div className="page-kicker">Guest documents</div>
-
-        <h2 className="mt-2 text-base font-semibold tracking-[-0.025em] text-foreground">
+      <div className="border-b border-border bg-surface px-4 py-4 sm:px-5">
+        <h2 className="text-sm font-semibold text-foreground">
           Upload document
         </h2>
-
-        <p className="mt-1 text-sm leading-6 text-muted">
-          Uploaded documents are stored privately and sent for review.
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Store private identity and clearance files on this guest record.
         </p>
       </div>
 
-      <div className="mt-5 space-y-4">
+      <div className="space-y-4 px-4 py-4 sm:px-5">
         <Select
           id="documentType"
           name="documentType"
@@ -51,37 +48,20 @@ export function UploadGuestDocumentForm({
           options={documentTypeOptions}
         />
 
-        <div className="field-group">
-          <label htmlFor="guestDocumentFile" className="field-label">
-            File
-          </label>
-
-          <input
-            id="guestDocumentFile"
-            required
-            name="file"
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            className="input file:mr-4 file:rounded-xl file:border-0 file:bg-surface-2 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-foreground"
-          />
-
-          <p className="field-hint">
-            Accepted formats: PDF, JPG, PNG, and WEBP. Maximum size: 10MB.
-          </p>
-        </div>
+        <DocumentFileInput />
 
         <Textarea
           id="documentNotes"
           name="notes"
-          label="Notes"
+          label="Upload note"
           rows={3}
           maxLength={500}
-          placeholder="Optional upload note"
+          placeholder="Optional context for this document"
           className="resize-y"
         />
       </div>
 
-      <div className="form-actions mt-6">
+      <div className="form-actions mx-4 mb-4 sm:mx-5">
         <PendingSubmitButton pendingLabel="Uploading document..." fullWidth>
           Upload private document
         </PendingSubmitButton>

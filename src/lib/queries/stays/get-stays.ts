@@ -25,6 +25,8 @@ export type StayListItem = {
   guest_organization: string | null;
   guest_category: GuestCategory | null;
   guest_is_vip: boolean;
+  guest_profile_photo_path: string | null;
+  guest_profile_photo_updated_at: string | null;
 
   reservation_id: string | null;
 
@@ -47,6 +49,7 @@ export type StayListItem = {
   expected_departure_at: string | null;
   checked_in_at: string | null;
   checked_out_at: string | null;
+  updated_at: string;
 
   can_check_in: boolean;
   can_check_out: boolean;
@@ -65,6 +68,7 @@ type StayRow = {
   expected_departure_at: string | null;
   checked_in_at: string | null;
   checked_out_at: string | null;
+  updated_at: string;
 };
 
 type GuestRow = {
@@ -73,6 +77,8 @@ type GuestRow = {
   organization: string | null;
   guest_category: GuestCategory | null;
   is_vip: boolean | null;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
 };
 
 type CampRow = {
@@ -225,6 +231,7 @@ export async function getStays(
         "expected_departure_at",
         "checked_in_at",
         "checked_out_at",
+        "updated_at",
       ].join(","),
     )
     .in("status", [...statuses]);
@@ -276,7 +283,9 @@ export async function getStays(
   if (guestIds.length > 0) {
     const { data: guests, error: guestsError } = await supabase
       .from("guests")
-      .select("id,full_name,organization,guest_category,is_vip")
+      .select(
+        "id,full_name,organization,guest_category,is_vip,profile_photo_path,profile_photo_updated_at",
+      )
       .in("id", guestIds)
       .returns<GuestRow[]>();
 
@@ -391,6 +400,8 @@ export async function getStays(
       guest_organization: guest?.organization ?? null,
       guest_category: guest?.guest_category ?? null,
       guest_is_vip: Boolean(guest?.is_vip),
+      guest_profile_photo_path: guest?.profile_photo_path ?? null,
+      guest_profile_photo_updated_at: guest?.profile_photo_updated_at ?? null,
 
       reservation_id: stay.reservation_id,
 
@@ -413,6 +424,7 @@ export async function getStays(
       expected_departure_at: stay.expected_departure_at,
       checked_in_at: stay.checked_in_at,
       checked_out_at: stay.checked_out_at,
+      updated_at: stay.updated_at,
 
       can_check_in: canCheckIn,
       can_check_out: canCheckOut,

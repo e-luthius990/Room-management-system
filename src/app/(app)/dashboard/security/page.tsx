@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { requirePermission } from "@/lib/auth/require-permission";
-import { APP_ROUTES } from "@/lib/auth/routes";
+import { APP_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
 import type { CurrentUserContext } from "@/lib/auth/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { OperationsSearchBox } from "@/components/search/operations-search-box";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
   ClearanceStatusBadge,
   PresenceBadge,
@@ -130,6 +132,9 @@ type SecurityExpectedArrivalRow = {
   host_department: string | null;
   status: string | null;
   is_overdue: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  allocated_at?: string | null;
 };
 
 type GateActiveStay = {
@@ -145,6 +150,7 @@ type GateActiveStay = {
   status: string;
   checked_in_at: string | null;
   expected_departure_at: string | null;
+  updated_at?: string | null;
 };
 
 type SecurityDashboardSummary = {
@@ -215,6 +221,9 @@ type ReceptionHandoffStatusClient = {
   ): ReceptionHandoffStatusSelectBuilder;
 };
 
+type SecurityDashboardAdminClient = SecurityDashboardRpcClient &
+  ReceptionHandoffStatusClient;
+
 const SECURITY_ROUTES = {
   gate: "/security/gate",
   pendingReception: "/security/pending-reception",
@@ -222,6 +231,13 @@ const SECURITY_ROUTES = {
 } as const;
 
 const OPERATIONAL_TIME_ZONE = "Africa/Kampala";
+
+const REQUIRED_SECURITY_DASHBOARD_PERMISSIONS = [
+  "security.view_clearance",
+  "security.view_gate_dashboard",
+  "guests.view",
+  "expected_arrivals.view",
+] as const;
 
 const SECURITY_DASHBOARD_TIMING_ENABLED =
   process.env.NODE_ENV !== "production" ||
@@ -239,6 +255,18 @@ function createSecurityDashboardTimer(scope: string): (label: string) => void {
       `[${scope}] ${label}: ${Math.round(performance.now() - startedAt)}ms`,
     );
   };
+}
+
+function requireDashboardPermissions(currentUser: CurrentUserContext): void {
+  const permissions = new Set(currentUser.permissions);
+
+  const hasRequiredPermissions = REQUIRED_SECURITY_DASHBOARD_PERMISSIONS.every(
+    (permission) => permissions.has(permission),
+  );
+
+  if (!hasRequiredPermissions) {
+    redirect(SYSTEM_ROUTES.accessPending);
+  }
 }
 
 function getFirstSearchParam(
@@ -636,6 +664,9 @@ function parseExpectedArrival(
     host_department: nullableTextValue(item.host_department),
     status: nullableTextValue(item.status),
     is_overdue: booleanValue(item.is_overdue),
+    created_at: nullableTextValue(item.created_at),
+    updated_at: nullableTextValue(item.updated_at),
+    allocated_at: nullableTextValue(item.allocated_at),
   };
 }
 
@@ -663,6 +694,7 @@ function parseActiveStay(value: unknown): GateActiveStay | null {
     status: textValue(item.status, "occupied"),
     checked_in_at: nullableTextValue(item.checked_in_at),
     expected_departure_at: nullableTextValue(item.expected_departure_at),
+    updated_at: nullableTextValue(item.updated_at),
   };
 }
 
@@ -707,6 +739,7 @@ function parseSecurityDashboardData(value: unknown): SecurityDashboardData {
 }
 
 async function getSecurityDashboardData(
+  admin: SecurityDashboardAdminClient,
   currentUser: CurrentUserContext,
   mark: (label: string) => void,
 ): Promise<SecurityDashboardData> {
@@ -717,11 +750,6 @@ async function getSecurityDashboardData(
   if (campIds !== null && campIds.length === 0) {
     return getEmptySecurityDashboardData();
   }
-
-  const admin =
-    createSupabaseAdminClient() as unknown as SecurityDashboardRpcClient;
-
-  mark("admin client created");
 
   const { data, error } = await admin.rpc("get_security_dashboard_snapshot", {
     p_camp_ids: campIds,
@@ -741,6 +769,7 @@ async function getSecurityDashboardData(
 }
 
 async function getRecentReceptionHandoffStatuses(
+  admin: SecurityDashboardAdminClient,
   currentUser: CurrentUserContext,
 ): Promise<ReceptionHandoffStatusItem[]> {
   const campIds = getSecurityCampIds(currentUser);
@@ -748,9 +777,6 @@ async function getRecentReceptionHandoffStatuses(
   if (campIds !== null && campIds.length === 0) {
     return [];
   }
-
-  const admin =
-    createSupabaseAdminClient() as unknown as ReceptionHandoffStatusClient;
 
   let query = admin
     .from("security_reception_handoff_status_view")
@@ -839,7 +865,7 @@ function SummaryCard({
 function SecurityDashboardTopRail(): React.JSX.Element {
   return (
     <section className="grid gap-3 lg:grid-cols-[minmax(12rem,16rem)_minmax(18rem,42rem)_minmax(12rem,1fr)] lg:items-center">
-      <div className="min-w-0 ">
+      <div className="min-w-0">
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
           Security Dashboard
         </p>
@@ -892,9 +918,11 @@ function AlertPanel({
             <RiskLevelBadge riskLevel={guest.latest_risk_level} />
           </div>
 
-          <div className="mt-2 truncate text-sm font-semibold text-foreground">
-            {guest.full_name}
-          </div>
+          <GuestNameWithPhoto
+            guestId={guest.id}
+            name={guest.full_name}
+            className="mt-2"
+          />
 
           <div className="mt-1 truncate text-xs text-muted">
             {getGuestContext(guest)}
@@ -966,12 +994,14 @@ function CompactListPanel({
 
 function SmallGuestLink({
   href,
+  guestId,
   title,
   subtitle,
   meta,
   children,
 }: {
   href: string;
+  guestId?: string | null;
   title: string;
   subtitle: string;
   meta?: string;
@@ -984,8 +1014,14 @@ function SmallGuestLink({
     >
       <div className="grid gap-1.5">
         <div className="flex min-w-0 items-start justify-between gap-2">
-          <div className="min-w-0 truncate text-sm font-semibold text-foreground">
-            {title}
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {guestId ? (
+              <GuestNameWithPhoto guestId={guestId} name={title} />
+            ) : (
+              <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+                {title}
+              </span>
+            )}
           </div>
 
           {children ? <div className="shrink-0">{children}</div> : null}
@@ -1016,9 +1052,10 @@ function CompactGatePresenceRow({
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className="truncate text-sm font-semibold text-foreground">
-              {item.guest_name}
-            </span>
+            <GuestNameWithPhoto
+              guestId={item.guest_id}
+              name={item.guest_name}
+            />
 
             <PresenceBadge
               isInside={Boolean(item.entry_at && !item.exit_at)}
@@ -1102,6 +1139,7 @@ function ReceptionHandoffStatusPanel({
           <SmallGuestLink
             key={item.security_event_id}
             href={SECURITY_ROUTES.guestProfile(item.guest_id)}
+            guestId={item.guest_id}
             title={item.guest_full_name}
             subtitle={`${item.camp_name} · ${formatLabel(item.visit_type)}`}
             meta={`Sent: ${formatDateTime(item.sent_to_reception_at)}`}
@@ -1150,6 +1188,7 @@ function ExpectedGuestsPanel({
               `${item.guest_name ?? "expected"}-${index}`
             }
             href={getExpectedGuestHref(item)}
+            guestId={item.guest_id}
             title={item.guest_name ?? "Unnamed guest"}
             subtitle={getExpectedArrivalSubtitle(item)}
             meta={getExpectedArrivalMeta(item)}
@@ -1232,10 +1271,13 @@ function RecentReviewTable({
                 <td>
                   <Link
                     href={SECURITY_ROUTES.guestProfile(guest.id)}
-                    className="block truncate font-semibold text-foreground underline-offset-4 hover:underline"
+                    className="block min-w-0 text-foreground underline-offset-4 hover:underline"
                     title={guest.full_name}
                   >
-                    {guest.full_name}
+                    <GuestNameWithPhoto
+                      guestId={guest.id}
+                      name={guest.full_name}
+                    />
                   </Link>
 
                   <div
@@ -1326,24 +1368,21 @@ export default async function SecurityDashboardPage({
   const currentUser = await requirePermission("security.view_clearance");
   mark("security.view_clearance permission checked");
 
-  await requirePermission("security.view_gate_dashboard");
-  mark("security.view_gate_dashboard permission checked");
+  requireDashboardPermissions(currentUser);
+  mark("dashboard permissions checked");
 
-  await requirePermission("guests.view");
-  mark("guests.view permission checked");
+  const admin =
+    createSupabaseAdminClient() as unknown as SecurityDashboardAdminClient;
+  mark("admin client created");
 
-  await requirePermission("expected_arrivals.view");
-  mark("expected_arrivals.view permission checked");
+  const [resolvedSearchParams, data, receptionHandoffStatusItems] =
+    await Promise.all([
+      Promise.resolve(searchParams ?? {}),
+      getSecurityDashboardData(admin, currentUser, mark),
+      getRecentReceptionHandoffStatuses(admin, currentUser),
+    ]);
 
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-  mark("search params resolved");
-
-  const data = await getSecurityDashboardData(currentUser, mark);
-  mark("security dashboard data prepared");
-
-  const receptionHandoffStatusItems =
-    await getRecentReceptionHandoffStatuses(currentUser);
-  mark("reception handoff status feed prepared");
+  mark("dashboard data and handoff feed prepared");
 
   const errorMessage = getErrorMessage(
     getFirstSearchParam(resolvedSearchParams.error),
@@ -1489,6 +1528,7 @@ export default async function SecurityDashboardPage({
                 <SmallGuestLink
                   key={guest.id}
                   href={SECURITY_ROUTES.guestProfile(guest.id)}
+                  guestId={guest.id}
                   title={guest.full_name}
                   subtitle={`${guest.primary_camp_name} · ${formatLabel(
                     guest.guest_category,
@@ -1520,6 +1560,7 @@ export default async function SecurityDashboardPage({
                 <SmallGuestLink
                   key={item.handoff_event_id ?? item.security_event_id}
                   href={SECURITY_ROUTES.guestProfile(item.guest_id)}
+                  guestId={item.guest_id}
                   title={item.guest_name}
                   subtitle={`${item.camp_name} · ${formatLabel(
                     item.visit_type,
@@ -1552,6 +1593,7 @@ export default async function SecurityDashboardPage({
                 <SmallGuestLink
                   key={stay.stay_id}
                   href={SECURITY_ROUTES.guestProfile(stay.guest_id)}
+                  guestId={stay.guest_id}
                   title={stay.guest_name}
                   subtitle={`${stay.camp_name} · ${stay.building_name} / Room ${stay.room_number}`}
                   meta={`Departure: ${formatDateTime(

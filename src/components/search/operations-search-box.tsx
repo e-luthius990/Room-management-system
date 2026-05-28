@@ -109,9 +109,15 @@ export function OperationsSearchBox({
       query: string,
       signal: AbortSignal,
     ): Promise<readonly OperationSearchResult[]> => {
+      const normalizedQuery = query.trim().replace(/\s+/g, " ");
+
+      if (normalizedQuery.length < 2) {
+        return [];
+      }
+
       const params = new URLSearchParams({
         scope,
-        q: query,
+        q: normalizedQuery,
       });
 
       const response = await fetch(`/api/operations/search?${params}`, {
@@ -142,7 +148,7 @@ export function OperationsSearchBox({
       label="Search operations"
       placeholder={placeholder}
       minQueryLength={2}
-      debounceMs={180}
+      debounceMs={250}
       className={cn("w-full min-w-0", className)}
       loadItems={loadItems}
       getItemKey={(item) => `${item.type}:${item.id}`}

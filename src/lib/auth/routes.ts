@@ -25,6 +25,11 @@ function queryValue(value: string): string {
 export const APP_ROUTES = {
   dashboard: "/dashboard",
 
+  account: {
+    profile: "/profile",
+    settings: "/profile/settings",
+  },
+
   dashboards: {
     reception: "/dashboard/reception",
     security: "/dashboard/security",
@@ -153,9 +158,9 @@ export const APP_ROUTES = {
 
   reports: {
     home: "/reports",
-    occupancy: "/reports/occupancy",
-    guests: "/reports/guests",
-    rooms: "/reports/rooms",
+    occupancy: "/reports/exports?reportType=occupancy",
+    guests: "/reports/exports?reportType=guests",
+    rooms: "/reports/exports?reportType=rooms",
     exports: "/reports/exports",
   },
 
@@ -168,8 +173,8 @@ export const APP_ROUTES = {
     buildings: "/admin/buildings",
     roomTypes: "/admin/room-types",
     amenities: "/admin/amenities",
-    imports: "/admin/imports",
-    exports: "/admin/exports",
+    imports: "/imports",
+    exports: "/reports/exports",
     auditLogs: "/admin/audit-logs",
     settings: "/admin/settings",
   },

@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAnyPermission } from "@/lib/auth/require-permission";
+import type { CurrentUserContext } from "@/lib/auth/types";
+import { notifyWorkflowUsers } from "@/lib/notifications/workflow-notifications";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadImportBatchSchema } from "@/lib/validation/imports";
 import { parseCsv } from "@/lib/actions/imports/csv-parser";
@@ -99,8 +101,10 @@ function mapImportError(message: string): string {
   return "import_failed";
 }
 
-async function requireImportPermission(importType: "rooms_csv" | "guests_csv"): Promise<void> {
-  await requireAnyPermission([
+async function requireImportPermission(
+  importType: "rooms_csv" | "guests_csv",
+): Promise<CurrentUserContext> {
+  return requireAnyPermission([
     "data.import",
     importType === "rooms_csv" ? "imports.rooms" : "imports.guests",
   ]);
@@ -124,7 +128,7 @@ export async function createImportBatchAction(
     );
   }
 
-  await requireImportPermission(parsed.data.importType);
+  const currentUser = await requireImportPermission(parsed.data.importType);
 
   const supabase = await createServerSupabaseClient();
 
@@ -240,6 +244,18 @@ export async function createImportBatchAction(
     revalidatePath("/imports");
     revalidatePath(`/imports/${batchId}`);
 
+    await notifyWorkflowUsers({
+      recipientIds: [currentUser.authUser.id],
+      campId: parsed.data.campId,
+      title: "Import validation completed",
+      body: `${file.name} has been validated and is ready for review.`,
+      category: "system",
+      severity: "success",
+      actionHref: `/imports/${batchId}`,
+      entityType: "data_import_batches",
+      entityId: batchId,
+    });
+
     redirect(
       buildImportRedirectPath(batchId, {
         success: "import_validated",
@@ -262,6 +278,18 @@ export async function createImportBatchAction(
 
     revalidatePath("/imports");
     revalidatePath(`/imports/${batchId}`);
+
+    await notifyWorkflowUsers({
+      recipientIds: [currentUser.authUser.id],
+      campId: parsed.data.campId,
+      title: "Import validation failed",
+      body: `${file.name} could not be validated.`,
+      category: "system",
+      severity: "urgent",
+      actionHref: `/imports/${batchId}`,
+      entityType: "data_import_batches",
+      entityId: batchId,
+    });
 
     redirect(
       buildImportRedirectPath(batchId, {

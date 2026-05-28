@@ -2,6 +2,7 @@ import type { CampOption } from "@/lib/queries/setup/options";
 import type { GuestProfile } from "@/lib/queries/guests/get-guest-profile";
 import { createGuestAction } from "@/lib/actions/guests/create-guest";
 import { updateGuestAction } from "@/lib/actions/guests/update-guest";
+import { ProfilePhotoField } from "@/components/guests/profile-photo-field";
 import { Input } from "@/components/ui/Input";
 import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { Select } from "@/components/ui/Select";
@@ -42,23 +43,6 @@ const clearanceOptions = [
   { value: "not_required", label: "Not required" },
 ] as const;
 
-function SectionHeader({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}): React.JSX.Element {
-  return (
-    <div className="border-b border-border px-4 py-3 sm:px-5">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        {description}
-      </p>
-    </div>
-  );
-}
-
 export function GuestForm({ camps, guest }: GuestFormProps): React.JSX.Element {
   const isEditing = Boolean(guest);
 
@@ -74,20 +58,18 @@ export function GuestForm({ camps, guest }: GuestFormProps): React.JSX.Element {
     >
       {guest ? <input type="hidden" name="guestId" value={guest.id} /> : null}
 
-      <SectionHeader
-        title={isEditing ? "Edit guest profile" : "Create guest profile"}
-        description="Maintain the guest identity, camp assignment, contact details, clearance state, and internal notes used by reception and security."
-      />
-
       <div className="divide-y divide-border">
         <section className="px-4 py-4 sm:px-5">
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Identity
-            </p>
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2">
+            <ProfilePhotoField
+              className="md:col-span-2"
+              required={!isEditing}
+              guestId={guest?.id}
+              guestName={guest?.full_name}
+              photoPath={guest?.profile_photo_path}
+              photoUpdatedAt={guest?.profile_photo_updated_at}
+            />
+
             <Input
               wrapperClassName="md:col-span-2"
               id="fullName"
@@ -126,12 +108,6 @@ export function GuestForm({ camps, guest }: GuestFormProps): React.JSX.Element {
         </section>
 
         <section className="px-4 py-4 sm:px-5">
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Camp and handling
-            </p>
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2">
             <Select
               id="primaryCampId"
@@ -192,12 +168,6 @@ export function GuestForm({ camps, guest }: GuestFormProps): React.JSX.Element {
         </section>
 
         <section className="px-4 py-4 sm:px-5">
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Contact and organization
-            </p>
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2">
             <Input
               id="phone"
@@ -237,12 +207,6 @@ export function GuestForm({ camps, guest }: GuestFormProps): React.JSX.Element {
         </section>
 
         <section className="px-4 py-4 sm:px-5">
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Emergency contact
-            </p>
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2">
             <Input
               id="emergencyContactName"
@@ -263,12 +227,6 @@ export function GuestForm({ camps, guest }: GuestFormProps): React.JSX.Element {
         </section>
 
         <section className="px-4 py-4 sm:px-5">
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Operational notes
-            </p>
-          </div>
-
           <div className="grid gap-4">
             <Textarea
               id="notes"

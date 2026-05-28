@@ -50,6 +50,8 @@ export type GuestProfile = {
   emergency_contact_phone: string | null;
   is_vip: boolean;
   security_clearance_status: string | null;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
   notes: string | null;
   manager_notes: string | null;
   created_at: string;
@@ -73,6 +75,9 @@ export type GuestDocumentItem = {
   status: GuestDocumentStatus;
   uploaded_at: string;
   original_filename: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  notes: string | null;
 };
 
 export type GuestProfileResult = {
@@ -106,6 +111,8 @@ type GuestProfileRow = {
   emergency_contact_phone: string | null;
   is_vip: boolean;
   security_clearance_status: string | null;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
   notes: string | null;
   manager_notes: string | null;
   created_at: string;
@@ -129,6 +136,9 @@ type GuestDocumentRow = {
   status: GuestDocumentStatus;
   uploaded_at: string;
   original_filename: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  notes: string | null;
 };
 
 export async function getGuestProfile(
@@ -155,6 +165,8 @@ export async function getGuestProfile(
         "emergency_contact_phone",
         "is_vip",
         "security_clearance_status",
+        "profile_photo_path",
+        "profile_photo_updated_at",
         "notes",
         "manager_notes",
         "created_at",
@@ -201,7 +213,18 @@ export async function getGuestProfile(
 
     supabase
       .from("guest_documents")
-      .select("id,document_type,status,uploaded_at,original_filename")
+      .select(
+        [
+          "id",
+          "document_type",
+          "status",
+          "uploaded_at",
+          "original_filename",
+          "mime_type",
+          "size_bytes",
+          "notes",
+        ].join(","),
+      )
       .eq("guest_id", guestId)
       .is("archived_at", null)
       .is("deleted_at", null)
@@ -237,6 +260,8 @@ export async function getGuestProfile(
       emergency_contact_phone: guest.emergency_contact_phone,
       is_vip: guest.is_vip,
       security_clearance_status: guest.security_clearance_status,
+      profile_photo_path: guest.profile_photo_path,
+      profile_photo_updated_at: guest.profile_photo_updated_at,
       notes: guest.notes,
       manager_notes: guest.manager_notes,
       created_at: guest.created_at,
@@ -265,6 +290,9 @@ export async function getGuestProfile(
       status: document.status,
       uploaded_at: document.uploaded_at,
       original_filename: document.original_filename,
+      mime_type: document.mime_type,
+      size_bytes: document.size_bytes,
+      notes: document.notes,
     })),
   };
 }

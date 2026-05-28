@@ -88,14 +88,7 @@ export default async function CampsPage({
           action={createCampAction}
           className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"
         >
-          <h2 className="text-base font-semibold text-neutral-950">Add camp</h2>
-
-          <p className="mt-1 text-sm leading-6 text-neutral-500">
-            Camp codes are stored as uppercase operational identifiers, for
-            example <span className="font-mono text-neutral-700">AIRPORT</span>.
-          </p>
-
-          <div className="mt-5 space-y-4">
+          <div className="space-y-4">
             <div>
               <label
                 htmlFor="camp-name"

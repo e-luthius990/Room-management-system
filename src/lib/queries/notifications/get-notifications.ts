@@ -64,8 +64,15 @@ function toRequiredText(value: string | null, fallback: string): string {
   return normalized && normalized.length > 0 ? normalized : fallback;
 }
 
-export async function getNotifications(): Promise<NotificationListItem[]> {
+export async function getNotifications(
+  userId: string,
+): Promise<NotificationListItem[]> {
   const supabase = await createServerSupabaseClient();
+  const normalizedUserId = userId.trim();
+
+  if (normalizedUserId.length === 0) {
+    return [];
+  }
 
   const { data: notifications, error } = await supabase
     .from("notifications")
@@ -89,6 +96,7 @@ export async function getNotifications(): Promise<NotificationListItem[]> {
       ].join(","),
     )
     .is("archived_at", null)
+    .or(`recipient_id.eq.${normalizedUserId},user_id.eq.${normalizedUserId}`)
     .order("created_at", { ascending: false })
     .limit(300)
     .returns<NotificationRow[]>();

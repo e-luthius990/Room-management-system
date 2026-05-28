@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { notifyWorkflowPermission } from "@/lib/notifications/workflow-notifications";
 import type { Database } from "@/lib/db/types";
 
 export type FieldAbsenceRow =
@@ -44,6 +45,56 @@ type ListFieldAbsencesFilters = {
 
 function normalizeQuery(value?: string): string {
   return value?.trim() ?? "";
+}
+
+function getFieldAbsenceGuestName(row: FieldAbsenceRow): string {
+  return row.guest_name ?? "Guest";
+}
+
+async function notifyFieldAbsenceWorkflow(
+  row: FieldAbsenceRow,
+  event: "created" | "extended" | "returned" | "cancelled",
+): Promise<void> {
+  if (!row.field_absence_id) {
+    return;
+  }
+
+  const guestName = getFieldAbsenceGuestName(row);
+  const href = APP_ROUTES.fieldAbsences.detail(row.field_absence_id);
+  const copy = {
+    created: {
+      title: "Field absence recorded",
+      body: `${guestName} has departed on field absence.`,
+      severity: "warning" as const,
+    },
+    extended: {
+      title: "Field absence extended",
+      body: `${guestName}'s expected return time was extended.`,
+      severity: "warning" as const,
+    },
+    returned: {
+      title: "Field absence returned",
+      body: `${guestName} has returned from field absence.`,
+      severity: "success" as const,
+    },
+    cancelled: {
+      title: "Field absence cancelled",
+      body: `${guestName}'s field absence was cancelled.`,
+      severity: "info" as const,
+    },
+  }[event];
+
+  await notifyWorkflowPermission({
+    permission: "field_absences.view",
+    campId: row.camp_id,
+    title: copy.title,
+    body: copy.body,
+    category: "stay",
+    severity: copy.severity,
+    actionHref: href,
+    entityType: "field_absences",
+    entityId: row.field_absence_id,
+  });
 }
 
 export async function getFieldAbsences(
@@ -155,6 +206,8 @@ export async function createFieldAbsence(
     throw new Error("Field absence was created but could not be loaded.");
   }
 
+  await notifyFieldAbsenceWorkflow(created, "created");
+
   return created;
 }
 
@@ -184,6 +237,8 @@ export async function extendFieldAbsence(
     throw new Error("Field absence was extended but could not be loaded.");
   }
 
+  await notifyFieldAbsenceWorkflow(updated, "extended");
+
   return updated;
 }
 
@@ -212,6 +267,8 @@ export async function markFieldAbsenceReturned(
     throw new Error("Field absence was marked returned but could not be loaded.");
   }
 
+  await notifyFieldAbsenceWorkflow(updated, "returned");
+
   return updated;
 }
 
@@ -239,6 +296,8 @@ export async function cancelFieldAbsence(
   if (!updated) {
     throw new Error("Field absence was cancelled but could not be loaded.");
   }
+
+  await notifyFieldAbsenceWorkflow(updated, "cancelled");
 
   return updated;
 }

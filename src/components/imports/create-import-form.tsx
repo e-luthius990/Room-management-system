@@ -24,23 +24,9 @@ export function CreateImportForm({
   return (
     <form
       action={createImportBatchAction}
-      encType="multipart/form-data"
       className="surface-card p-5 sm:p-6"
     >
-      <div>
-        <div className="page-kicker">Bulk import</div>
-
-        <h2 className="mt-2 text-base font-semibold tracking-[-0.025em] text-foreground">
-          Upload import file
-        </h2>
-
-        <p className="mt-1 text-sm leading-6 text-muted">
-          Upload a CSV file to validate rows before applying them into rooms or
-          guests.
-        </p>
-      </div>
-
-      <div className="mt-6 grid gap-5 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-2">
         <Select
           label="Camp"
           id="campId"

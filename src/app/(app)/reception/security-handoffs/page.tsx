@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -5,37 +6,19 @@ import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { resolveReceptionSecurityHandoffAction } from "@/lib/actions/security/create-clearance-event";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
   ClearanceStatusBadge,
   RiskLevelBadge,
   VisitTypeBadge,
 } from "@/components/security/security-status-badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/Card";
 import { EmptyState as UiEmptyState } from "@/components/ui/EmptyState";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 import { cn } from "@/lib/utils/cn";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const RECEPTION_HANDOFFS_PATH = "/reception/security-handoffs";
-
-type PageSearchParams = {
-  q?: string | string[];
-  visitType?: string | string[];
-  risk?: string | string[];
-};
-
-type ReceptionSecurityHandoffsPageProps = {
-  searchParams?: Promise<PageSearchParams> | PageSearchParams;
-};
 
 type SecurityHandoffEventRow = {
   id: string;
@@ -97,42 +80,8 @@ type ReceptionHandoffItem = {
 
 type SummaryTone = "neutral" | "success" | "warning" | "danger" | "info";
 
-const visitTypeOptions = [
-  { value: "all", label: "All visits" },
-  { value: "day_visitor", label: "Day visitors" },
-  { value: "overnight_guest", label: "Overnight guests" },
-  { value: "contractor", label: "Contractors" },
-  { value: "delegate", label: "Delegates" },
-  { value: "vip", label: "VIPs" },
-  { value: "delivery", label: "Deliveries" },
-  { value: "staff_visit", label: "Staff visits" },
-] as const;
-
-const riskOptions = [
-  { value: "all", label: "All risk levels" },
-  { value: "low", label: "Low" },
-  { value: "normal", label: "Normal" },
-  { value: "elevated", label: "Elevated" },
-  { value: "high", label: "High" },
-  { value: "critical", label: "Critical" },
-] as const;
-
 function handoffDetailPath(securityEventId: string): string {
   return `${RECEPTION_HANDOFFS_PATH}/${securityEventId}`;
-}
-
-function getFirstParam(
-  value: string | string[] | undefined,
-): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function normalizeFilterValue(value: string | undefined): string {
-  return value?.trim() ?? "";
-}
-
-function normalizeSearchText(value: string | null | undefined): string {
-  return value?.toLowerCase().trim() ?? "";
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
@@ -264,71 +213,6 @@ function getPriorityLabel(item: ReceptionHandoffItem): {
   }
 
   return { label: "Standard", tone: "neutral" };
-}
-
-function matchesSearch(item: ReceptionHandoffItem, query: string): boolean {
-  if (!query) {
-    return true;
-  }
-
-  const guest = item.guest;
-  const event = item.event;
-  const camp = item.camp;
-
-  const haystack = [
-    guest?.full_name,
-    guest?.organization,
-    guest?.department_or_project,
-    guest?.nationality,
-    guest?.phone,
-    guest?.email,
-    guest?.id_or_passport_number,
-    guest?.guest_category,
-    camp?.name,
-    camp?.code,
-    event.host_name,
-    event.host_department,
-    event.purpose,
-    event.visit_type,
-    event.risk_level,
-    event.clearance_status,
-  ]
-    .map(normalizeSearchText)
-    .join(" ");
-
-  return haystack.includes(query.toLowerCase().trim());
-}
-
-function applyFilters({
-  handoffs,
-  q,
-  visitType,
-  risk,
-}: {
-  handoffs: ReceptionHandoffItem[];
-  q: string;
-  visitType: string;
-  risk: string;
-}): ReceptionHandoffItem[] {
-  return handoffs.filter((item) => {
-    if (!matchesSearch(item, q)) {
-      return false;
-    }
-
-    if (
-      visitType &&
-      visitType !== "all" &&
-      item.event.visit_type !== visitType
-    ) {
-      return false;
-    }
-
-    if (risk && risk !== "all" && item.event.risk_level !== risk) {
-      return false;
-    }
-
-    return true;
-  });
 }
 
 function hasExitAfterHandoff(
@@ -493,46 +377,7 @@ async function getReceptionSecurityHandoffs(): Promise<ReceptionHandoffItem[]> {
     }));
 }
 
-function PressureCell({
-  label,
-  value,
-  hint,
-  tone = "default",
-}: {
-  label: string;
-  value: number;
-  hint: string;
-  tone?: "default" | "warning" | "danger" | "info";
-}): React.JSX.Element {
-  const toneClass = {
-    default: "bg-surface",
-    warning: "bg-warning-50/70",
-    danger: "bg-danger-50/60",
-    info: "bg-info-50/60",
-  }[tone];
-
-  return (
-    <article className={cn("px-4 py-3", toneClass)}>
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-          {label}
-        </p>
-
-        <p className="text-xl font-semibold tracking-[-0.04em] text-foreground">
-          {value}
-        </p>
-      </div>
-
-      <p className="mt-1 truncate text-xs text-muted">{hint}</p>
-    </article>
-  );
-}
-
-function PriorityBadge({
-  item,
-}: {
-  item: ReceptionHandoffItem;
-}): React.JSX.Element {
+function PriorityBadge({ item }: { item: ReceptionHandoffItem }): JSX.Element {
   const priority = getPriorityLabel(item);
 
   const className = {
@@ -555,135 +400,64 @@ function PriorityBadge({
   );
 }
 
-function FilterPanel({
-  q,
-  visitType,
-  risk,
-}: {
-  q: string;
-  visitType: string;
-  risk: string;
-}): React.JSX.Element {
-  return (
-    <Card variant="console" className="min-w-0">
-      <CardContent className="p-3">
-        <form
-          action={APP_ROUTES.reception.securityHandoffs}
-          method="get"
-          className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px_auto_auto] lg:items-end"
-        >
-          <Input
-            label="Search"
-            id="handoff-search"
-            name="q"
-            defaultValue={q}
-            placeholder="Guest, organization, host, camp, ID, phone..."
-          />
-
-          <Select
-            label="Visit type"
-            id="visitType"
-            name="visitType"
-            defaultValue={visitType || "all"}
-            options={visitTypeOptions}
-          />
-
-          <Select
-            label="Risk"
-            id="risk"
-            name="risk"
-            defaultValue={risk || "all"}
-            options={riskOptions}
-          />
-
-          <button type="submit" className="btn-primary">
-            Apply
-          </button>
-
-          <Link
-            href={APP_ROUTES.reception.securityHandoffs}
-            className="btn-secondary"
-          >
-            Reset
-          </Link>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
 function HandoffActionLinks({
   item,
 }: {
   item: ReceptionHandoffItem;
-}): React.JSX.Element {
+}): JSX.Element {
   const guestId = item.guest?.id ?? item.event.guest_id;
 
   return (
-    <div className="grid gap-3">
-      <div className="grid gap-2 border-b border-border pb-3">
-        <form action={resolveReceptionSecurityHandoffAction}>
-          <input type="hidden" name="securityEventId" value={item.event.id} />
-          <input type="hidden" name="receptionStatus" value="received" />
+    <div className="flex flex-wrap items-center justify-start gap-2 xl:min-w-[26rem] xl:justify-end">
+      <form action={resolveReceptionSecurityHandoffAction}>
+        <input type="hidden" name="securityEventId" value={item.event.id} />
+        <input type="hidden" name="receptionStatus" value="received" />
 
-          <button type="submit" className="btn-primary btn-sm w-full">
-            Received guest
-          </button>
-        </form>
+        <button type="submit" className="btn-primary btn-sm">
+          Received
+        </button>
+      </form>
 
-        <form action={resolveReceptionSecurityHandoffAction}>
-          <input type="hidden" name="securityEventId" value={item.event.id} />
-          <input type="hidden" name="receptionStatus" value="not_received" />
+      <form action={resolveReceptionSecurityHandoffAction}>
+        <input type="hidden" name="securityEventId" value={item.event.id} />
+        <input type="hidden" name="receptionStatus" value="not_received" />
 
-          <button type="submit" className="btn-secondary btn-sm w-full">
-            Not received
-          </button>
-        </form>
-      </div>
+        <button type="submit" className="btn-secondary btn-sm">
+          Not received
+        </button>
+      </form>
 
-      <div className="grid gap-2">
+      <Link href={handoffDetailPath(item.event.id)} className="inline-action">
+        Handoff
+      </Link>
+
+      {guestId ? (
         <Link
-          href={handoffDetailPath(item.event.id)}
-          className="btn-secondary btn-sm"
+          href={APP_ROUTES.guests.detail(guestId)}
+          className="inline-action"
         >
-          View handoff
+          Guest
         </Link>
+      ) : null}
 
-        {guestId ? (
-          <Link
-            href={APP_ROUTES.guests.detail(guestId)}
-            className="btn-secondary btn-sm"
-          >
-            Open guest
-          </Link>
-        ) : null}
+      <Link
+        href={APP_ROUTES.allocations.newFromSecurityHandoff(item.event.id)}
+        className="inline-action"
+      >
+        Allocate
+      </Link>
 
-        <Link
-          href={APP_ROUTES.reservations.newFromSecurityHandoff(item.event.id)}
-          className="btn-secondary btn-sm"
-        >
-          Create reservation
-        </Link>
-
-        <Link
-          href={APP_ROUTES.allocations.newFromSecurityHandoff(item.event.id)}
-          className="btn-secondary btn-sm"
-        >
-          Allocate room
-        </Link>
-
-        <Link
-          href={APP_ROUTES.stays.checkInFromSecurityHandoff(item.event.id)}
-          className="btn-secondary btn-sm"
-        >
-          Start check-in
-        </Link>
-      </div>
+      <Link
+        href={APP_ROUTES.stays.checkInFromSecurityHandoff(item.event.id)}
+        className="inline-action"
+      >
+        Check-in
+      </Link>
     </div>
   );
 }
 
-function HandoffEmptyState(): React.JSX.Element {
+function HandoffEmptyState(): JSX.Element {
   return (
     <UiEmptyState
       operational
@@ -698,227 +472,152 @@ function HandoffQueue({
   handoffs,
 }: {
   handoffs: ReceptionHandoffItem[];
-}): React.JSX.Element {
+}): JSX.Element {
   if (handoffs.length === 0) {
     return (
-      <div className="p-4">
+      <div className="px-3 pb-3 pt-4">
         <HandoffEmptyState />
       </div>
     );
   }
 
   return (
-    <div className="grid gap-3 p-3">
-      {handoffs.map((item) => {
-        const event = item.event;
-        const guest = item.guest;
-        const securityNote = getSecurityNote(event);
+    <div className="px-3 pb-3 pt-4">
+      <div className="divide-y divide-border-subtle overflow-hidden border border-border bg-surface">
+        {handoffs.map((item) => {
+          const event = item.event;
+          const guest = item.guest;
+          const securityNote = getSecurityNote(event);
+          const priority = getPriorityLabel(item);
 
-        return (
-          <Card key={event.id} variant="console" className="min-w-0">
-            <CardContent className="p-0">
-              <div className="grid xl:grid-cols-[minmax(0,1fr)_13rem]">
-                <div className="min-w-0 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PriorityBadge item={item} />
-                    <VisitTypeBadge visitType={event.visit_type} />
-                    <ClearanceStatusBadge status={event.clearance_status} />
-                    <RiskLevelBadge riskLevel={event.risk_level} />
-                  </div>
+          return (
+            <article
+              key={event.id}
+              className="grid gap-3 px-3 py-3 transition hover:bg-surface-2/70 xl:grid-cols-[minmax(0,1fr)_8.5rem_minmax(26rem,auto)] xl:items-center xl:gap-8"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <PriorityBadge item={item} />
+                  <VisitTypeBadge visitType={event.visit_type} />
+                  <ClearanceStatusBadge status={event.clearance_status} />
+                  <RiskLevelBadge riskLevel={event.risk_level} />
+                </div>
 
-                  <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-base font-semibold tracking-[-0.025em] text-foreground">
-                        {getGuestName(item)}
-                      </h2>
+                <div className="mt-2 flex min-w-0 items-start gap-3">
+                  <GuestNameWithPhoto
+                    guestId={guest?.id ?? event.guest_id}
+                    name={getGuestName(item)}
+                  />
 
-                      <p className="mt-1 line-clamp-1 text-sm text-muted">
-                        {getGuestContext(item)}
-                      </p>
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-1 text-sm text-muted">
+                      {getGuestContext(item)}
+                    </p>
 
-                    <div className="text-left md:text-right">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-                        Waiting
-                      </div>
-
-                      <div className="mt-1 text-sm font-semibold text-foreground">
-                        {formatWaitingTime(event.sent_to_reception_at)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <dl className="mt-4 grid gap-x-6 gap-y-2 border-t border-border pt-3 text-sm md:grid-cols-2 xl:grid-cols-4">
-                    <div className="min-w-0">
-                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-                        Camp
-                      </dt>
-                      <dd className="mt-1 truncate text-foreground">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5 text-muted">
+                      <span className="max-w-[14rem] truncate">
                         {item.camp
                           ? `${item.camp.name} (${item.camp.code})`
                           : "Unknown camp"}
-                      </dd>
+                      </span>
+
+                      <span className="max-w-[11rem] truncate">
+                        Sent {formatDateTime(event.sent_to_reception_at)}
+                      </span>
+
+                      <span className="max-w-[10rem] truncate">
+                        Host {event.host_name ?? "not recorded"}
+                      </span>
+
+                      <span className="max-w-[12rem] truncate">
+                        Contact {guest?.phone ?? guest?.email ?? "not recorded"}
+                      </span>
                     </div>
 
-                    <div className="min-w-0">
-                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-                        Sent
-                      </dt>
-                      <dd className="mt-1 text-foreground">
-                        {formatDateTime(event.sent_to_reception_at)}
-                      </dd>
-                    </div>
+                    {event.purpose ? (
+                      <p className="mt-1 line-clamp-1 text-xs text-foreground-soft">
+                        Purpose: {event.purpose}
+                      </p>
+                    ) : null}
 
-                    <div className="min-w-0">
-                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-                        Host
-                      </dt>
-                      <dd className="mt-1 truncate text-foreground">
-                        {event.host_name ?? "Not recorded"}
-                      </dd>
-                    </div>
-
-                    <div className="min-w-0">
-                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-                        Contact
-                      </dt>
-                      <dd className="mt-1 truncate text-foreground">
-                        {guest?.phone ?? guest?.email ?? "Not recorded"}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  {event.purpose ? (
-                    <div className="mt-3 border-t border-border pt-3">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-                        Purpose
-                      </div>
-
-                      <div className="mt-1 line-clamp-2 text-sm leading-6 text-foreground">
-                        {event.purpose}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {securityNote ? (
-                    <div className="mt-3 border-t border-warning-700/25 pt-3">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-warning-700">
-                        Security note
-                      </div>
-
-                      <div className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-warning-700">
-                        {securityNote}
-                      </div>
-                    </div>
-                  ) : null}
+                    {securityNote ? (
+                      <p className="mt-1 line-clamp-1 text-xs font-medium text-warning-700">
+                        Security note: {securityNote}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
-
-                <aside className="border-t border-border bg-surface-2/45 p-3 xl:border-l xl:border-t-0">
-                  <HandoffActionLinks item={item} />
-                </aside>
               </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+
+              <div className="flex items-center justify-between gap-3 xl:block xl:justify-self-end xl:text-right">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                    Waiting
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-0.5 whitespace-nowrap text-sm font-semibold",
+                      priority.tone === "danger"
+                        ? "text-danger-700"
+                        : "text-foreground",
+                    )}
+                  >
+                    {formatWaitingTime(event.sent_to_reception_at)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="xl:justify-self-end">
+                <HandoffActionLinks item={item} />
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-export default async function ReceptionSecurityHandoffsPage({
-  searchParams,
-}: ReceptionSecurityHandoffsPageProps): Promise<React.JSX.Element> {
+export default async function ReceptionSecurityHandoffsPage(): Promise<JSX.Element> {
   noStore();
 
   await requirePermission("reception.handle_security_handoffs");
   await requirePermission("guests.view");
 
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-
-  const q = normalizeFilterValue(getFirstParam(resolvedSearchParams.q));
-  const visitType =
-    normalizeFilterValue(getFirstParam(resolvedSearchParams.visitType)) ||
-    "all";
-  const risk =
-    normalizeFilterValue(getFirstParam(resolvedSearchParams.risk)) || "all";
-
   const handoffs = await getReceptionSecurityHandoffs();
-  const filteredHandoffs = applyFilters({ handoffs, q, visitType, risk });
-
-  const highRiskCount = handoffs.filter(isHighRisk).length;
-  const priorityCount = handoffs.filter(isVipOrDelegate).length;
   const staleCount = handoffs.filter(isStaleHandoff).length;
 
   return (
-    <div className="page-stack">
-      <section className="surface-panel overflow-hidden">
-        <div className="border-b border-border px-4 py-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
-            Reception handoff control
-          </p>
-
-          <h1 className="mt-1 text-xl font-semibold tracking-[-0.04em] text-foreground sm:text-2xl">
-            Security handoffs
-          </h1>
-
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Guests cleared and sent forward by security, waiting for reception
-            handling.
-          </p>
-        </div>
-
-        <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
-          <PressureCell
-            label="Waiting"
-            value={handoffs.length}
-            hint="Unlinked handoffs"
-          />
-
-          <PressureCell
-            label="Filtered"
-            value={filteredHandoffs.length}
-            hint="Current view"
-            tone="info"
-          />
-
-          <PressureCell
-            label="Priority"
-            value={priorityCount}
-            hint="VIP / delegates"
-            tone={priorityCount > 0 ? "warning" : "default"}
-          />
-
-          <PressureCell
-            label="High risk"
-            value={highRiskCount}
-            hint="Needs care"
-            tone={highRiskCount > 0 ? "danger" : "default"}
-          />
-        </div>
-      </section>
-
+    <div className="space-y-3">
       {staleCount > 0 ? (
         <div className="alert alert-danger">
-          {staleCount} handoff{staleCount === 1 ? "" : "s"} have been waiting
-          for more than two hours.
+          {staleCount} handoff{staleCount === 1 ? "" : "s"}{" "}
+          {staleCount === 1 ? "has" : "have"} been waiting for more than two
+          hours.
         </div>
       ) : null}
 
-      <FilterPanel q={q} visitType={visitType} risk={risk} />
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border bg-surface px-3 py-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                Security handoffs
+              </p>
+              <p className="text-sm font-semibold text-foreground">
+                {handoffs.length} {handoffs.length === 1 ? "guest" : "guests"}{" "}
+                awaiting reception
+              </p>
+            </div>
 
-      <Card variant="console" className="min-w-0">
-        <CardHeader className="border-b border-border px-4 py-3">
-          <CardTitle className="text-sm">Reception handling queue</CardTitle>
+            <p className="text-xs text-muted">
+              Cleared gate records ready for reception.
+            </p>
+          </div>
+        </div>
 
-          <CardDescription className="mt-1 text-xs leading-5">
-            Start the correct receptionist workflow from each security handoff.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          <HandoffQueue handoffs={filteredHandoffs} />
-        </CardContent>
-      </Card>
+        <HandoffQueue handoffs={handoffs} />
+      </section>
     </div>
   );
 }

@@ -6,13 +6,16 @@ import type { JSX } from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { LogOut, Settings, UserRound } from "lucide-react";
+import { AccountAvatar } from "@/components/account/account-avatar";
 import { signOutAction } from "@/lib/actions/auth";
+import { APP_ROUTES } from "@/lib/auth/routes";
 import { cn } from "@/lib/utils/cn";
 
 type UserAccountMenuProps = {
   fullName: string;
   email: string | null;
   roleName: string;
+  photoUpdatedAt?: string | null;
   profileHref?: string;
   settingsHref?: string;
   className?: string;
@@ -21,22 +24,6 @@ type UserAccountMenuProps = {
 function normalizeText(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-
-  if (parts.length === 0) {
-    return "U";
-  }
-
-  if (parts.length === 1) {
-    return parts[0]?.slice(0, 1).toUpperCase() ?? "U";
-  }
-
-  return `${parts[0]?.slice(0, 1) ?? ""}${
-    parts[1]?.slice(0, 1) ?? ""
-  }`.toUpperCase();
 }
 
 function SignOutButton(): JSX.Element {
@@ -68,8 +55,9 @@ export function UserAccountMenu({
   fullName,
   email,
   roleName,
-  profileHref = "/profile",
-  settingsHref = "/profile/settings",
+  photoUpdatedAt,
+  profileHref = APP_ROUTES.account.profile,
+  settingsHref = APP_ROUTES.account.settings,
   className,
 }: UserAccountMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
@@ -80,8 +68,6 @@ export function UserAccountMenu({
   const displayName = normalizeText(fullName) ?? "User";
   const displayEmail = normalizeText(email);
   const displayRoleName = normalizeText(roleName) ?? "System user";
-
-  const initials = React.useMemo(() => getInitials(displayName), [displayName]);
 
   const closeMenu = React.useCallback(() => {
     setOpen(false);
@@ -145,9 +131,12 @@ export function UserAccountMenu({
           "rounded-md hover:bg-surface focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
         )}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-brand-700 text-xs font-bold tracking-[-0.02em] text-white shadow-xs">
-          {initials}
-        </span>
+        <AccountAvatar
+          name={displayName}
+          photoUpdatedAt={photoUpdatedAt}
+          size="sm"
+          className="rounded-md"
+        />
 
         <span className="hidden min-w-0 text-left xl:block">
           <span
@@ -174,9 +163,12 @@ export function UserAccountMenu({
         >
           <div className="border-b border-border bg-surface-2 px-4 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-brand-700 text-sm font-bold text-white shadow-xs">
-                {initials}
-              </div>
+              <AccountAvatar
+                name={displayName}
+                photoUpdatedAt={photoUpdatedAt}
+                size="md"
+                className="size-11 rounded-md"
+              />
 
               <div className="min-w-0">
                 <div

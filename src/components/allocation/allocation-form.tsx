@@ -12,12 +12,10 @@ import type {
 } from "@/lib/queries/allocations/allocations";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/Card";
+  GuestAvatar,
+  GuestNameWithPhoto,
+} from "@/components/guests/guest-avatar";
+import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
@@ -29,6 +27,8 @@ import { cn } from "@/lib/utils/cn";
 type AllocationFormProps = {
   guests: AllocationGuest[];
   rooms: AllocationRoom[];
+  canSelectCamp: boolean;
+  assignedCampLabel: string;
 };
 
 const initialState: AllocationActionState = {
@@ -158,21 +158,49 @@ function GuestSelectionRow({
       onClick={onSelect}
       data-selected={selected ? "true" : undefined}
       className={cn(
-        "entity-row w-full text-left outline-none disabled:pointer-events-none disabled:opacity-60",
-        "focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset",
-        selected && "bg-brand-50",
+        "grid w-full grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-border-subtle px-3 py-2.5 text-left outline-none transition last:border-b-0 disabled:pointer-events-none disabled:opacity-60",
+        "hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset",
+        selected && "bg-info-50",
       )}
     >
-      <div className="min-w-0">
-        <div className="entity-title truncate">{guest.full_name}</div>
+      <GuestAvatar
+        guestId={guest.id}
+        name={guest.full_name}
+        photoPath={guest.profile_photo_path}
+        photoUpdatedAt={guest.profile_photo_updated_at}
+      />
 
-        <div className="entity-meta truncate">
-          {guest.organization ?? "No organization"} ·{" "}
-          {formatLabel(guest.guest_category)}
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold leading-5 text-foreground">
+          {guest.full_name}
+        </div>
+
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-5 text-muted">
+          <span
+            className="max-w-[14rem] truncate"
+            title={guest.organization ?? "No organization"}
+          >
+            {guest.organization ?? "No organization"}
+          </span>
+
+          <span aria-hidden="true" className="text-muted-2">
+            ·
+          </span>
+
+          <span
+            className="max-w-[11rem] truncate"
+            title={formatLabel(guest.guest_category)}
+          >
+            {formatLabel(guest.guest_category)}
+          </span>
         </div>
       </div>
 
-      {selected ? <SelectionPlate /> : null}
+      {selected ? (
+        <div className="shrink-0">
+          <SelectionPlate />
+        </div>
+      ) : null}
     </button>
   );
 }
@@ -251,6 +279,8 @@ function RoomTile({
 export function AllocationForm({
   guests,
   rooms,
+  canSelectCamp,
+  assignedCampLabel,
 }: AllocationFormProps): React.JSX.Element {
   const [state, formAction, isPending] = useActionState(
     createAllocationAction,
@@ -372,15 +402,6 @@ export function AllocationForm({
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <main className="min-w-0 space-y-4">
           <Card variant="console">
-            <CardHeader dense>
-              <div className="flex flex-col gap-1">
-                <CardTitle className="text-sm">Select guest</CardTitle>
-                <CardDescription className="text-xs leading-5">
-                  Search and select the guest being allocated.
-                </CardDescription>
-              </div>
-            </CardHeader>
-
             <CardContent dense className="space-y-3">
               <Input
                 label="Search guest"
@@ -391,7 +412,7 @@ export function AllocationForm({
               />
 
               {filteredGuests.length > 0 ? (
-                <div className="entity-list max-h-[17rem] overflow-y-auto">
+                <div className="mt-2 max-h-[14rem] overflow-y-auto border border-border bg-surface">
                   {filteredGuests.map((guest) => (
                     <GuestSelectionRow
                       key={guest.id}
@@ -415,22 +436,9 @@ export function AllocationForm({
           </Card>
 
           <Card variant="console">
-            <CardHeader dense>
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(27rem,0.95fr)] xl:items-end">
-                <div className="min-w-0">
-                  <CardTitle className="text-sm">Select room</CardTitle>
-                  <CardDescription className="text-xs leading-5">
-                    Search by room number, building, bed type, room type, or
-                    camp.
-                  </CardDescription>
-
-                  <div className="mt-2 text-xs font-medium text-muted">
-                    Showing {visibleRoomCount} of {totalMatchingRoomCount}{" "}
-                    matching vacant rooms.
-                  </div>
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
+            <CardContent dense className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                {canSelectCamp ? (
                   <Select
                     aria-label="Filter by camp"
                     value={campId}
@@ -444,19 +452,29 @@ export function AllocationForm({
                       })),
                     ]}
                   />
+                ) : (
+                  <div
+                    className="flex min-h-10 min-w-0 items-center border border-border bg-surface px-3 text-sm font-semibold text-foreground"
+                    aria-label="Assigned camp"
+                  >
+                    <span className="truncate">{assignedCampLabel}</span>
+                  </div>
+                )}
 
-                  <Input
-                    aria-label="Search rooms"
-                    value={roomSearch}
-                    disabled={isPending}
-                    onChange={(event) => setRoomSearch(event.target.value)}
-                    placeholder="Search CR10, airport, single..."
-                  />
-                </div>
+                <Input
+                  aria-label="Search rooms"
+                  value={roomSearch}
+                  disabled={isPending}
+                  onChange={(event) => setRoomSearch(event.target.value)}
+                  placeholder="Search CR10, airport, single..."
+                />
               </div>
-            </CardHeader>
 
-            <CardContent dense>
+              <div className="text-xs font-medium text-muted">
+                Showing {visibleRoomCount} of {totalMatchingRoomCount} matching
+                vacant rooms.
+              </div>
+
               {filteredRooms.length > 0 ? (
                 <div className="room-matrix border-0 shadow-none">
                   <div className="room-matrix-scroll max-h-[calc(100dvh-22rem)]">
@@ -488,13 +506,6 @@ export function AllocationForm({
 
         <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
           <Card variant="inspector">
-            <CardHeader dense>
-              <CardTitle className="text-sm">Stay window</CardTitle>
-              <CardDescription className="text-xs leading-5">
-                Set the expected arrival and departure before allocating.
-              </CardDescription>
-            </CardHeader>
-
             <CardContent dense className="space-y-3">
               <Input
                 label="Expected arrival"
@@ -526,20 +537,18 @@ export function AllocationForm({
           </Card>
 
           <Card variant="inspector">
-            <CardHeader dense>
-              <CardTitle className="text-sm">Allocation summary</CardTitle>
-              <CardDescription className="text-xs leading-5">
-                Confirm the selected guest and room.
-              </CardDescription>
-            </CardHeader>
-
             <CardContent dense className="space-y-4">
               <div className="metadata-item">
                 <div className="metadata-label">Guest</div>
                 <div className="metadata-value">
-                  {selectedGuest
-                    ? selectedGuest.full_name
-                    : "No guest selected"}
+                  {selectedGuest ? (
+                    <GuestNameWithPhoto
+                      guestId={selectedGuest.id}
+                      name={selectedGuest.full_name}
+                    />
+                  ) : (
+                    "No guest selected"
+                  )}
                 </div>
 
                 {selectedGuest ? (

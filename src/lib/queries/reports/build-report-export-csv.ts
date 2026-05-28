@@ -585,7 +585,9 @@ function buildPdfLines(
     lines.push(`Record ${index + 1}`);
 
     for (const column of columns) {
-      lines.push(`${column.label}: ${formatCellValue(column, row)}`);
+      lines.push(
+        ...splitPdfLine(`${column.label}: ${formatCellValue(column, row)}`),
+      );
     }
 
     lines.push("");

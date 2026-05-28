@@ -1522,6 +1522,10 @@ export type Database = {
           phone: string | null
           phone_norm: string | null
           primary_camp_id: string
+          profile_photo_bucket: string | null
+          profile_photo_mime_type: string | null
+          profile_photo_path: string | null
+          profile_photo_updated_at: string | null
           security_clearance_status: string | null
           updated_at: string
           updated_by: string | null
@@ -1553,6 +1557,10 @@ export type Database = {
           phone?: string | null
           phone_norm?: string | null
           primary_camp_id: string
+          profile_photo_bucket?: string | null
+          profile_photo_mime_type?: string | null
+          profile_photo_path?: string | null
+          profile_photo_updated_at?: string | null
           security_clearance_status?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -1584,6 +1592,10 @@ export type Database = {
           phone?: string | null
           phone_norm?: string | null
           primary_camp_id?: string
+          profile_photo_bucket?: string | null
+          profile_photo_mime_type?: string | null
+          profile_photo_path?: string | null
+          profile_photo_updated_at?: string | null
           security_clearance_status?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -2918,6 +2930,10 @@ export type Database = {
           job_title: string | null
           last_login_at: string | null
           phone: string | null
+          profile_photo_bucket: string | null
+          profile_photo_mime_type: string | null
+          profile_photo_path: string | null
+          profile_photo_updated_at: string | null
           suspended_at: string | null
           suspended_by: string | null
           updated_at: string
@@ -2939,6 +2955,10 @@ export type Database = {
           job_title?: string | null
           last_login_at?: string | null
           phone?: string | null
+          profile_photo_bucket?: string | null
+          profile_photo_mime_type?: string | null
+          profile_photo_path?: string | null
+          profile_photo_updated_at?: string | null
           suspended_at?: string | null
           suspended_by?: string | null
           updated_at?: string
@@ -2960,6 +2980,10 @@ export type Database = {
           job_title?: string | null
           last_login_at?: string | null
           phone?: string | null
+          profile_photo_bucket?: string | null
+          profile_photo_mime_type?: string | null
+          profile_photo_path?: string | null
+          profile_photo_updated_at?: string | null
           suspended_at?: string | null
           suspended_by?: string | null
           updated_at?: string

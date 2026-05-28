@@ -8,6 +8,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export type RoomBoardStatus = Enums<"room_status">;
 export type RoomBoardConditionStatus = Enums<"room_condition_status">;
 export type RoomBoardFieldAbsenceStatus = Enums<"field_absence_status">;
+export type RoomOccupancyStatus = Enums<"stay_status">;
+export type RoomOccupancyGuestCategory = Enums<"guest_category">;
 
 export type RoomBoardItem = {
   room_id: string;
@@ -25,6 +27,8 @@ export type RoomBoardItem = {
   current_stay_id: string | null;
   current_guest_id: string | null;
   current_guest_name: string | null;
+  current_guest_profile_photo_path: string | null;
+  current_guest_profile_photo_updated_at: string | null;
   expected_departure_at: string | null;
 
   active_field_absence_id: string | null;
@@ -57,6 +61,23 @@ export type RoomBoardResult = {
   summary: RoomBoardSummary;
 };
 
+export type RoomOccupancyHistoryItem = {
+  stay_id: string;
+  guest_id: string;
+  guest_name: string;
+  guest_organization: string | null;
+  guest_category: RoomOccupancyGuestCategory | null;
+  guest_is_vip: boolean;
+  guest_profile_photo_path: string | null;
+  guest_profile_photo_updated_at: string | null;
+  status: RoomOccupancyStatus;
+  expected_arrival_at: string | null;
+  expected_departure_at: string | null;
+  checked_in_at: string | null;
+  checked_out_at: string | null;
+  updated_at: string;
+};
+
 type RoomBoardViewRow = {
   room_id: string | null;
   room_number: string | null;
@@ -86,6 +107,33 @@ type RoomBoardViewRow = {
   field_absence_days_until_return: number | string | null;
   field_absence_is_overdue: boolean | null;
   is_field_absent: boolean | null;
+};
+
+type RoomOccupancyStayRow = {
+  id: string;
+  guest_id: string;
+  status: RoomOccupancyStatus;
+  expected_arrival_at: string | null;
+  expected_departure_at: string | null;
+  checked_in_at: string | null;
+  checked_out_at: string | null;
+  updated_at: string;
+};
+
+type RoomOccupancyGuestRow = {
+  id: string;
+  full_name: string | null;
+  organization: string | null;
+  guest_category: RoomOccupancyGuestCategory | null;
+  is_vip: boolean | null;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
+};
+
+type RoomBoardGuestPhotoRow = {
+  id: string;
+  profile_photo_path: string | null;
+  profile_photo_updated_at: string | null;
 };
 
 type ValidRoomBoardViewRow = RoomBoardViewRow & {
@@ -150,6 +198,21 @@ function toNumber(value: number | string | null): number {
 
 function hasText(value: string | null): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function fallbackText(
+  value: string | null | undefined,
+  fallback: string,
+): string {
+  const normalized = typeof value === "string" ? value.trim() : "";
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function uniqueStrings(values: ReadonlyArray<string | null>): string[] {
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
 }
 
 function countByStatus(
@@ -233,6 +296,8 @@ function mapRoomBoardRow(row: ValidRoomBoardViewRow): RoomBoardItem {
     current_stay_id: row.current_stay_id,
     current_guest_id: row.current_guest_id,
     current_guest_name: row.current_guest_name,
+    current_guest_profile_photo_path: null,
+    current_guest_profile_photo_updated_at: null,
     expected_departure_at: row.expected_departure_at,
 
     active_field_absence_id: row.active_field_absence_id,
@@ -272,6 +337,44 @@ function logDroppedRows(rows: readonly RoomBoardViewRow[]): void {
   });
 }
 
+async function attachCurrentGuestPhotos(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  rooms: RoomBoardItem[],
+): Promise<RoomBoardItem[]> {
+  const guestIds = uniqueStrings(rooms.map((room) => room.current_guest_id));
+
+  if (guestIds.length === 0) {
+    return rooms;
+  }
+
+  const { data, error } = await supabase
+    .from("guests")
+    .select("id,profile_photo_path,profile_photo_updated_at")
+    .in("id", guestIds)
+    .returns<RoomBoardGuestPhotoRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to load room guest photos: ${error.message}`);
+  }
+
+  const photosByGuestId = new Map(
+    (data ?? []).map((guest) => [guest.id, guest]),
+  );
+
+  return rooms.map((room) => {
+    const photo = room.current_guest_id
+      ? photosByGuestId.get(room.current_guest_id)
+      : undefined;
+
+    return {
+      ...room,
+      current_guest_profile_photo_path: photo?.profile_photo_path ?? null,
+      current_guest_profile_photo_updated_at:
+        photo?.profile_photo_updated_at ?? null,
+    };
+  });
+}
+
 export async function getRoomBoard(): Promise<RoomBoardResult> {
   const supabase = await createServerSupabaseClient();
 
@@ -291,10 +394,119 @@ export async function getRoomBoard(): Promise<RoomBoardResult> {
 
   logDroppedRows(rows);
 
-  const rooms = rows.filter(isValidRoomBoardRow).map(mapRoomBoardRow);
+  const rooms = await attachCurrentGuestPhotos(
+    supabase,
+    rows.filter(isValidRoomBoardRow).map(mapRoomBoardRow),
+  );
 
   return {
     rooms,
     summary: buildSummary(rooms),
   };
+}
+
+export async function getRoomBoardRoom(
+  roomId: string,
+): Promise<RoomBoardItem | null> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("room_board_view")
+    .select(ROOM_BOARD_SELECT)
+    .eq("room_id", roomId)
+    .maybeSingle<RoomBoardViewRow>();
+
+  if (error) {
+    throw new Error(`Failed to load room detail: ${error.message}`);
+  }
+
+  if (!data || !isValidRoomBoardRow(data)) {
+    return null;
+  }
+
+  const [room] = await attachCurrentGuestPhotos(supabase, [
+    mapRoomBoardRow(data),
+  ]);
+
+  return room ?? null;
+}
+
+export async function getRoomOccupancyHistory(
+  roomId: string,
+): Promise<RoomOccupancyHistoryItem[]> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data: stays, error } = await supabase
+    .from("stays")
+    .select(
+      [
+        "id",
+        "guest_id",
+        "status",
+        "expected_arrival_at",
+        "expected_departure_at",
+        "checked_in_at",
+        "checked_out_at",
+        "updated_at",
+      ].join(","),
+    )
+    .eq("room_id", roomId)
+    .order("checked_in_at", { ascending: false, nullsFirst: false })
+    .order("expected_arrival_at", { ascending: false, nullsFirst: false })
+    .order("updated_at", { ascending: false })
+    .returns<RoomOccupancyStayRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to load room stay history: ${error.message}`);
+  }
+
+  const rows = stays ?? [];
+
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const guestIds = uniqueStrings(rows.map((stay) => stay.guest_id));
+  const guestById = new Map<string, RoomOccupancyGuestRow>();
+
+  if (guestIds.length > 0) {
+    const { data: guests, error: guestsError } = await supabase
+      .from("guests")
+      .select(
+        "id,full_name,organization,guest_category,is_vip,profile_photo_path,profile_photo_updated_at",
+      )
+      .in("id", guestIds)
+      .returns<RoomOccupancyGuestRow[]>();
+
+    if (guestsError) {
+      throw new Error(
+        `Failed to load room history guests: ${guestsError.message}`,
+      );
+    }
+
+    for (const guest of guests ?? []) {
+      guestById.set(guest.id, guest);
+    }
+  }
+
+  return rows.map((stay) => {
+    const guest = guestById.get(stay.guest_id);
+
+    return {
+      stay_id: stay.id,
+      guest_id: stay.guest_id,
+      guest_name: fallbackText(guest?.full_name, "Unknown guest"),
+      guest_organization: guest?.organization ?? null,
+      guest_category: guest?.guest_category ?? null,
+      guest_is_vip: Boolean(guest?.is_vip),
+      guest_profile_photo_path: guest?.profile_photo_path ?? null,
+      guest_profile_photo_updated_at: guest?.profile_photo_updated_at ?? null,
+      status: stay.status,
+      expected_arrival_at: stay.expected_arrival_at,
+      expected_departure_at: stay.expected_departure_at,
+      checked_in_at: stay.checked_in_at,
+      checked_out_at: stay.checked_out_at,
+      updated_at: stay.updated_at,
+    };
+  });
 }

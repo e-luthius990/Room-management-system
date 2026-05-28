@@ -1,7 +1,4 @@
-import Link from "next/link";
-
 import { requireAnyPermission } from "@/lib/auth/require-permission";
-import { PageHeader } from "@/components/layout/page-header";
 import { getCampOptions } from "@/lib/queries/setup/options";
 import { CreateImportForm } from "@/components/imports/create-import-form";
 
@@ -54,19 +51,6 @@ export default async function NewImportPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="New data import"
-        description="Upload a CSV file, validate rows, review errors, then apply valid room or guest records into the system."
-        actions={
-          <Link
-            href="/imports"
-            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-sky-200 hover:bg-sky-50"
-          >
-            Back to imports
-          </Link>
-        }
-      />
-
       {errorMessage ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {errorMessage}

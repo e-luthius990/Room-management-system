@@ -20,6 +20,7 @@ export type ReservationListItem = {
   expected_departure_at: string;
   is_vip_hold: boolean;
   created_at: string;
+  updated_at: string;
 };
 
 const RESERVATION_STATUSES = [
@@ -42,6 +43,7 @@ type ReservationRow = {
   expected_departure_at: string;
   is_vip_hold: boolean;
   created_at: string;
+  updated_at: string;
 };
 
 type GuestRow = {
@@ -88,6 +90,7 @@ export async function getReservations(): Promise<ReservationListItem[]> {
         "expected_departure_at",
         "is_vip_hold",
         "created_at",
+        "updated_at",
       ].join(","),
     )
     .in("status", [...RESERVATION_STATUSES])
@@ -215,6 +218,7 @@ export async function getReservations(): Promise<ReservationListItem[]> {
       expected_departure_at: reservation.expected_departure_at,
       is_vip_hold: reservation.is_vip_hold,
       created_at: reservation.created_at,
+      updated_at: reservation.updated_at,
     };
   });
 }

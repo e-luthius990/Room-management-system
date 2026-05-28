@@ -8,6 +8,11 @@ import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { hasCampAccess } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  deleteGuestProfilePhoto,
+  getProfilePhotoErrorCode,
+  uploadRequiredGuestProfilePhoto,
+} from "@/lib/guest-profile-photo";
 import { createGuestSchema } from "@/lib/validation/guests";
 
 const dbGuestCategories = [
@@ -124,6 +129,13 @@ export async function createGuestAction(formData: FormData): Promise<never> {
 
   const supabase = await createServerSupabaseClient();
   const guestId = randomUUID();
+  let photoMetadata: Awaited<ReturnType<typeof uploadRequiredGuestProfilePhoto>>;
+
+  try {
+    photoMetadata = await uploadRequiredGuestProfilePhoto(formData, guestId);
+  } catch (error) {
+    redirect(`/guests/new?error=${getProfilePhotoErrorCode(error)}`);
+  }
 
   const { error: guestError } = await supabase.from("guests").insert({
     id: guestId,
@@ -149,9 +161,13 @@ export async function createGuestAction(formData: FormData): Promise<never> {
 
     notes: parsed.data.notes,
     manager_notes: parsed.data.managerNotes,
+
+    ...photoMetadata,
   });
 
   if (guestError) {
+    await deleteGuestProfilePhoto(photoMetadata);
+
     console.error("createGuestAction failed", {
       code: guestError.code,
       message: guestError.message,

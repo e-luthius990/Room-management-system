@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import Link from "next/link";
 
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { PageHeader } from "@/components/layout/page-header";
 import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
@@ -202,9 +203,10 @@ export default async function ManagerOccupiedRoomsPage(): Promise<JSX.Element> {
 
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="font-semibold text-neutral-950">
-                          {room.current_guest_name ?? "Assigned guest"}
-                        </div>
+                        <GuestNameWithPhoto
+                          guestId={room.current_guest_id ?? ""}
+                          name={room.current_guest_name ?? "Assigned guest"}
+                        />
 
                         {room.is_vip ? (
                           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">

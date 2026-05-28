@@ -178,7 +178,7 @@ export default async function AdminUsersPage({
           canInviteUsers ? (
             <Link
               href="/admin/users/invite"
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-neutral-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
+              className="btn-primary btn-lg"
             >
               Invite user
             </Link>
@@ -189,13 +189,13 @@ export default async function AdminUsersPage({
       {(errorMessage || successMessage) && (
         <section className="grid gap-3">
           {errorMessage && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            <div className="border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-700">
               {errorMessage}
             </div>
           )}
 
           {successMessage && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            <div className="border border-success-600/25 bg-success-50 px-4 py-3 text-sm font-medium text-success-700">
               {successMessage}
             </div>
           )}
@@ -203,73 +203,73 @@ export default async function AdminUsersPage({
       )}
 
       <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-neutral-500">Active users</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
+        <div className="surface-card p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">Active users</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
             {activeCount}
           </p>
-          <p className="mt-2 text-xs leading-5 text-neutral-500">
+          <p className="mt-1 text-xs leading-5 text-muted">
             Profiles currently allowed to access the system.
           </p>
         </div>
 
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-neutral-500">
+        <div className="surface-card p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
             Pending invites
           </p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
             {invitedCount}
           </p>
-          <p className="mt-2 text-xs leading-5 text-neutral-500">
+          <p className="mt-1 text-xs leading-5 text-muted">
             Auth invites waiting for user acceptance.
           </p>
         </div>
 
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-neutral-500">
+        <div className="surface-card p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
             Restricted accounts
           </p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
             {restrictedCount}
           </p>
-          <p className="mt-2 text-xs leading-5 text-neutral-500">
+          <p className="mt-1 text-xs leading-5 text-muted">
             Suspended, disabled, or expired invite records.
           </p>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-2 border-b border-neutral-200 bg-neutral-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="table-shell">
+        <div className="flex flex-col gap-2 border-b border-border bg-surface-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-neutral-950">
+            <h2 className="text-sm font-semibold text-foreground">
               System user registry
             </h2>
-            <p className="mt-1 text-xs text-neutral-500">
+            <p className="mt-1 text-xs text-muted">
               Source of truth: profiles, user_roles, roles, and
               user_camp_access.
             </p>
           </div>
 
-          <div className="text-xs font-medium text-neutral-500">
+          <div className="text-xs font-medium text-muted">
             {users.length} {users.length === 1 ? "record" : "records"}
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-left text-sm">
-            <thead className="border-b border-neutral-200 bg-white text-xs uppercase tracking-wide text-neutral-500">
+        <div className="table-scroll">
+          <table className="data-table min-w-[1120px]">
+            <thead>
               <tr>
-                <th className="px-5 py-3">User</th>
-                <th className="px-5 py-3">Role</th>
-                <th className="px-5 py-3">Department</th>
-                <th className="px-5 py-3">Camp access</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">Created</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+                <th>User</th>
+                <th>Role</th>
+                <th>Department</th>
+                <th>Camp access</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-neutral-100">
+            <tbody>
               {users.map((user) => {
                 const canDeleteInvitedUser =
                   isSuperAdmin &&
@@ -279,25 +279,25 @@ export default async function AdminUsersPage({
                 return (
                   <tr
                     key={user.id}
-                    className="align-top transition hover:bg-neutral-50/70"
+                    className="align-top"
                   >
-                    <td className="px-5 py-4">
+                    <td>
                       <div className="flex items-start gap-3">
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-neutral-950 text-xs font-semibold text-white">
+                        <div className="flex size-9 shrink-0 items-center justify-center bg-foreground text-xs font-semibold text-background">
                           {getInitials(user.full_name)}
                         </div>
 
                         <div className="min-w-0">
-                          <div className="font-semibold text-neutral-950">
+                          <div className="font-semibold text-foreground">
                             {user.full_name}
                           </div>
 
-                          <div className="mt-1 truncate text-xs text-neutral-500">
+                          <div className="mt-1 truncate text-xs text-muted">
                             {user.email ?? "No email"}
                           </div>
 
                           {user.phone && (
-                            <div className="mt-1 text-xs text-neutral-500">
+                            <div className="mt-1 text-xs text-muted">
                               {user.phone}
                             </div>
                           )}
@@ -305,43 +305,43 @@ export default async function AdminUsersPage({
                       </div>
                     </td>
 
-                    <td className="px-5 py-4">
-                      <div className="font-medium text-neutral-900">
+                    <td>
+                      <div className="font-medium text-foreground">
                         {formatRoleLabel(user)}
                       </div>
 
                       {user.role_key && (
-                        <div className="mt-1 font-mono text-xs text-neutral-500">
+                        <div className="mt-1 font-mono text-xs text-muted">
                           {user.role_key}
                         </div>
                       )}
                     </td>
 
-                    <td className="px-5 py-4 text-neutral-700">
+                    <td className="text-foreground">
                       <div>{user.department ?? "—"}</div>
 
                       {user.job_title && (
-                        <div className="mt-1 text-xs text-neutral-500">
+                        <div className="mt-1 text-xs text-muted">
                           {user.job_title}
                         </div>
                       )}
                     </td>
 
-                    <td className="px-5 py-4 text-neutral-700">
+                    <td className="text-foreground">
                       {user.camp_count > 0 ? (
-                        <span className="inline-flex rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                        <span className="inline-flex border border-info-600/25 bg-info-50 px-2.5 py-1 text-xs font-semibold text-info-700">
                           {user.camp_count}{" "}
                           {user.camp_count === 1 ? "camp" : "camps"}
                         </span>
                       ) : (
-                        <span className="text-neutral-400">Global / none</span>
+                        <span className="text-muted">Global / none</span>
                       )}
                     </td>
 
-                    <td className="px-5 py-4">
+                    <td>
                       <span
                         className={[
-                          "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                          "inline-flex border px-2.5 py-1 text-xs font-semibold",
                           accountStatusTone(user.account_status),
                         ].join(" ")}
                       >
@@ -349,11 +349,11 @@ export default async function AdminUsersPage({
                       </span>
                     </td>
 
-                    <td className="px-5 py-4 text-xs text-neutral-500">
+                    <td className="text-xs text-muted">
                       {formatDateTime(user.created_at)}
                     </td>
 
-                    <td className="px-5 py-4 text-right">
+                    <td className="text-right">
                       {canDeleteInvitedUser ? (
                         <DeleteInvitedUserButton
                           userId={user.id}
@@ -372,15 +372,15 @@ export default async function AdminUsersPage({
                 <tr>
                   <td colSpan={7} className="px-5 py-14">
                     <div className="mx-auto max-w-sm text-center">
-                      <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-neutral-100 text-lg font-semibold text-neutral-500">
+                      <div className="mx-auto flex size-10 items-center justify-center border border-border bg-surface-2 text-sm font-semibold text-muted">
                         U
                       </div>
 
-                      <h3 className="mt-4 text-sm font-semibold text-neutral-950">
+                      <h3 className="mt-4 text-sm font-semibold text-foreground">
                         No users found
                       </h3>
 
-                      <p className="mt-2 text-sm leading-6 text-neutral-500">
+                      <p className="mt-2 text-sm leading-6 text-muted">
                         Invite your first system user to create the Auth invite,
                         profile, role, and camp access records.
                       </p>
@@ -388,7 +388,7 @@ export default async function AdminUsersPage({
                       {canInviteUsers && (
                         <Link
                           href="/admin/users/invite"
-                          className="mt-5 inline-flex h-11 items-center justify-center rounded-2xl bg-neutral-950 px-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
+                          className="btn-primary btn-lg mt-5"
                         >
                           Invite user
                         </Link>

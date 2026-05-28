@@ -6,6 +6,7 @@ import { APP_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
 
 export type AppNavIcon =
   | "layout-dashboard"
+  | "bell"
   | "bed"
   | "users"
   | "calendar-days"
@@ -25,6 +26,7 @@ export type AppNavItem = {
   icon: AppNavIcon;
   permissions: readonly string[];
   exact?: boolean;
+  badgeCount?: number;
 };
 
 const DASHBOARD_PERMISSIONS = [
@@ -56,6 +58,23 @@ function createDashboardNavItem(
 }
 
 const DASHBOARD_NAV_ITEM = createDashboardNavItem();
+const ADMIN_DASHBOARD_NAV_ITEM = createDashboardNavItem(APP_ROUTES.admin.home);
+const EXECUTIVE_DASHBOARD_NAV_ITEM = createDashboardNavItem(
+  APP_ROUTES.dashboards.executive,
+);
+const RECEPTION_DASHBOARD_NAV_ITEM = createDashboardNavItem(
+  APP_ROUTES.dashboards.reception,
+);
+const SECURITY_DASHBOARD_NAV_ITEM = createDashboardNavItem(
+  APP_ROUTES.dashboards.security,
+);
+
+const NOTIFICATIONS_NAV_ITEM = {
+  label: "Notifications",
+  href: "/notifications",
+  icon: "bell",
+  permissions: ["notifications.view"],
+} as const satisfies AppNavItem;
 
 const CAMP_MANAGER_NAV_ITEMS = [
   createDashboardNavItem(APP_ROUTES.manager.home),
@@ -119,10 +138,17 @@ const CAMP_MANAGER_NAV_ITEMS = [
       "reports.export_pdf",
     ],
   },
+  NOTIFICATIONS_NAV_ITEM,
 ] as const satisfies readonly AppNavItem[];
 
 const RECEPTIONIST_NAV_ITEMS = [
-  DASHBOARD_NAV_ITEM,
+  RECEPTION_DASHBOARD_NAV_ITEM,
+  {
+  label: "Guests",
+  href: APP_ROUTES.guests.list,
+  icon: "users",
+  permissions: ["guests.view"],
+},
   {
     label: "Security Handoffs",
     href: APP_ROUTES.reception.securityHandoffs,
@@ -171,10 +197,11 @@ const RECEPTIONIST_NAV_ITEMS = [
     icon: "clipboard-check",
     permissions: ["field_absences.view"],
   },
+  NOTIFICATIONS_NAV_ITEM,
 ] as const satisfies readonly AppNavItem[];
 
 const SECURITY_NAV_ITEMS = [
-  DASHBOARD_NAV_ITEM,
+  SECURITY_DASHBOARD_NAV_ITEM,
   {
     label: "Gate Dashboard",
     href: APP_ROUTES.security.gate,
@@ -200,6 +227,7 @@ const SECURITY_NAV_ITEMS = [
     icon: "clipboard-check",
     permissions: ["security.view_clearance"],
   },
+  NOTIFICATIONS_NAV_ITEM,
 ] as const satisfies readonly AppNavItem[];
 
 export const APP_NAV_ITEMS = [
@@ -274,6 +302,7 @@ export const APP_NAV_ITEMS = [
       "reports.view_rooms",
     ],
   },
+  NOTIFICATIONS_NAV_ITEM,
 ] as const satisfies readonly AppNavItem[];
 
 export const ADMIN_NAV_ITEMS = [
@@ -282,12 +311,6 @@ export const ADMIN_NAV_ITEMS = [
     href: APP_ROUTES.admin.users,
     icon: "user-cog",
     permissions: ["users.view"],
-  },
-  {
-    label: "Roles",
-    href: APP_ROUTES.admin.roles,
-    icon: "shield-check",
-    permissions: ["roles.view", "roles.update", "roles.assign_permissions"],
   },
   {
     label: "Camps",
@@ -320,12 +343,6 @@ export const ADMIN_NAV_ITEMS = [
     permissions: ["rooms.manage_amenities"],
   },
   {
-    label: "Guest Documents",
-    href: "/guest-documents/review",
-    icon: "file-up",
-    permissions: ["guest_documents.view"],
-  },
-  {
     label: "Gate Dashboard",
     href: APP_ROUTES.security.gate,
     icon: "shield-check",
@@ -336,12 +353,6 @@ export const ADMIN_NAV_ITEMS = [
     href: APP_ROUTES.security.review,
     icon: "shield-check",
     permissions: ["security.view_clearance"],
-  },
-  {
-    label: "Notifications",
-    href: "/notifications",
-    icon: "clipboard-check",
-    permissions: ["notifications.view"],
   },
   {
     label: "Imports",
@@ -366,18 +377,15 @@ export const ADMIN_NAV_ITEMS = [
     icon: "scroll-text",
     permissions: ["audit_logs.view"],
   },
-  {
-    label: "Settings",
-    href: APP_ROUTES.admin.settings,
-    icon: "settings",
-    permissions: ["settings.view", "system_settings.update"],
-  },
 ] as const satisfies readonly AppNavItem[];
 
 const ROLE_NAV_ITEMS: Partial<Record<RoleKey, readonly AppNavItem[]>> = {
+  super_admin: [ADMIN_DASHBOARD_NAV_ITEM, ...APP_NAV_ITEMS.slice(1)],
+  system_admin: [ADMIN_DASHBOARD_NAV_ITEM, ...APP_NAV_ITEMS.slice(1)],
   camp_manager: CAMP_MANAGER_NAV_ITEMS,
   receptionist: RECEPTIONIST_NAV_ITEMS,
   security: SECURITY_NAV_ITEMS,
+  executive_viewer: [EXECUTIVE_DASHBOARD_NAV_ITEM, ...APP_NAV_ITEMS.slice(1)],
 };
 
 function isSystemUser(currentUser: CurrentUserContext): boolean {

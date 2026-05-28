@@ -4,6 +4,7 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import { getStayDetail } from "@/lib/queries/stays/get-stay-detail";
+import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { CheckInForm } from "@/components/stays/check-in-form";
 import { CheckOutForm } from "@/components/stays/check-out-form";
 import {
@@ -173,9 +174,10 @@ export default async function StayDetailPage({
               </div>
 
               <div className="min-w-0 pb-1">
-                <div className="truncate text-lg font-semibold tracking-[-0.03em] text-foreground">
-                  {stay.guest_name}
-                </div>
+                <GuestNameWithPhoto
+                  guestId={stay.guest_id}
+                  name={stay.guest_name}
+                />
 
                 <p className="mt-1 text-sm leading-6 text-muted">
                   {stay.building_name} · {stay.camp_name}
@@ -252,7 +254,15 @@ export default async function StayDetailPage({
 
             <CardContent dense>
               <dl className="divide-y divide-border">
-                <InfoRow label="Guest" value={stay.guest_name} />
+                <InfoRow
+                  label="Guest"
+                  value={
+                    <GuestNameWithPhoto
+                      guestId={stay.guest_id}
+                      name={stay.guest_name}
+                    />
+                  }
+                />
 
                 <InfoRow
                   label="Guest category"
