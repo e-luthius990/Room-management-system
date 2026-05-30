@@ -2,7 +2,7 @@ import "server-only";
 
 import { notFound } from "next/navigation";
 import type { Enums } from "@/lib/db/types";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type NotificationStatus = Enums<"notification_status">;
 
@@ -56,7 +56,7 @@ type CampNameRow = {
 };
 
 const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isUuid(value: string): boolean {
   return uuidPattern.test(value);
@@ -70,12 +70,19 @@ function toRequiredText(value: string | null, fallback: string): string {
 
 export async function getNotificationDetail(
   notificationId: string,
+  userId: string,
 ): Promise<NotificationDetail> {
   if (!isUuid(notificationId)) {
     notFound();
   }
 
-  const supabase = await createServerSupabaseClient();
+  const normalizedUserId = userId.trim();
+
+  if (normalizedUserId.length === 0) {
+    notFound();
+  }
+
+  const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
     .from("notifications")
@@ -101,6 +108,7 @@ export async function getNotificationDetail(
     )
     .eq("id", notificationId)
     .is("archived_at", null)
+    .or(`recipient_id.eq.${normalizedUserId},user_id.eq.${normalizedUserId}`)
     .returns<NotificationRow[]>()
     .maybeSingle();
 

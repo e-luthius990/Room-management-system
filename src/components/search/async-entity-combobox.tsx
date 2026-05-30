@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { Loader2, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -50,7 +51,6 @@ export function AsyncEntityCombobox<TItem>({
   debounceMs = 180,
   emptyTitle = "No matches found",
   emptyDescription = "Try a different search term.",
-  loadingLabel = "Searching",
   clearLabel = "Clear",
   className,
 }: AsyncEntityComboboxProps<TItem>): React.JSX.Element {
@@ -232,12 +232,14 @@ export function AsyncEntityCombobox<TItem>({
   const showOverlay = open && hasSearchableQuery;
 
   return (
-    <div ref={rootRef} className={cn("relative min-w-0", className)}>
+    <div ref={rootRef} className={cn("ops-search min-w-0", className)}>
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
 
-      <div className="flex min-w-0 items-center gap-2 border border-border bg-background px-3 py-2 transition focus-within:border-foreground">
+      <div className="relative">
+        <Search className="ops-search-icon" aria-hidden="true" />
+
         <input
           ref={inputRef}
           id={id}
@@ -257,34 +259,50 @@ export function AsyncEntityCombobox<TItem>({
           aria-expanded={showOverlay}
           aria-controls={overlayId}
           aria-activedescendant={activeDescendant}
-          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+          className={cn(
+            "ops-search-input pr-12",
+            loading && "border-brand-500/50",
+          )}
         />
 
-        {loading ? (
-          <span className="shrink-0 border border-border bg-surface px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-            {loadingLabel}
-          </span>
-        ) : null}
+        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
+          {loading ? (
+            <span
+              className="inline-flex size-8 shrink-0 items-center justify-center border border-border bg-surface text-muted"
+              aria-label="Searching"
+              title="Searching"
+            >
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            </span>
+          ) : null}
 
-        {query ? (
-          <button
-            type="button"
-            className="shrink-0 border border-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-foreground transition hover:bg-background"
-            onClick={clearSearch}
-          >
-            {clearLabel}
-          </button>
-        ) : null}
+          {query ? (
+            <button
+              type="button"
+              className="inline-flex size-8 shrink-0 items-center justify-center border border-border bg-surface text-muted transition hover:border-border-strong hover:bg-background hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              onClick={clearSearch}
+              aria-label={clearLabel}
+              title={clearLabel}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {showOverlay ? (
-        <div
-          id={overlayId}
-          role="listbox"
-          className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 max-h-[24rem] overflow-y-auto border border-border bg-background shadow-xl"
-        >
+        <div id={overlayId} role="listbox" className="ops-search-results z-50">
+          <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
+            <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-muted">
+              Results
+            </span>
+            <span className="text-xs font-semibold text-muted">
+              Enter to open
+            </span>
+          </div>
+
           {items.length > 0 ? (
-            <div className="grid gap-1 p-1.5">
+            <div className="grid">
               {items.map((item, index) => {
                 const key = getItemKey(item);
                 const active = index === activeIndex;
@@ -297,10 +315,8 @@ export function AsyncEntityCombobox<TItem>({
                     role="option"
                     aria-selected={active}
                     className={cn(
-                      "block w-full border px-3 py-2.5 text-left transition",
-                      active
-                        ? "border-foreground bg-surface"
-                        : "border-transparent hover:border-border hover:bg-surface",
+                      "ops-search-result",
+                      active && "ops-search-result-active",
                     )}
                     onMouseEnter={() => setActiveIndex(index)}
                     onMouseDown={(event) => event.preventDefault()}

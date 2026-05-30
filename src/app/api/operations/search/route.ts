@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requirePermission } from "@/lib/auth/require-permission";
 import type { CurrentUserContext } from "@/lib/auth/types";
+import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import {
   OPERATIONS_SEARCH_MIN_LENGTH,
   normalizeOperationsSearchQuery,
@@ -23,53 +24,8 @@ type ErrorResponse = {
   error: string;
 };
 
-type RateLimitBucket = {
-  count: number;
-  resetAt: number;
-};
-
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_REQUESTS = 120;
-
-const rateLimitBuckets = new Map<string, RateLimitBucket>();
-
-function getClientKey(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  const realIp = request.headers.get("x-real-ip");
-
-  return (
-    forwardedFor?.split(",")[0]?.trim() ||
-    realIp?.trim() ||
-    "unknown-client"
-  );
-}
-
-function isRateLimited(request: Request): boolean {
-  const now = Date.now();
-  const key = getClientKey(request);
-  const existing = rateLimitBuckets.get(key);
-
-  if (!existing || existing.resetAt <= now) {
-    rateLimitBuckets.set(key, {
-      count: 1,
-      resetAt: now + RATE_LIMIT_WINDOW_MS,
-    });
-
-    if (rateLimitBuckets.size > 2000) {
-      for (const [bucketKey, bucket] of rateLimitBuckets.entries()) {
-        if (bucket.resetAt <= now) {
-          rateLimitBuckets.delete(bucketKey);
-        }
-      }
-    }
-
-    return false;
-  }
-
-  existing.count += 1;
-
-  return existing.count > RATE_LIMIT_REQUESTS;
-}
 
 function jsonResponse(
   body: OperationSearchResponse,
@@ -116,8 +72,18 @@ async function authorizeSearchScope(
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
-  if (isRateLimited(request)) {
-    return errorResponse("rate_limited", 429);
+  const rateLimit = checkRateLimit({
+    key: getClientIp(request),
+    limit: RATE_LIMIT_REQUESTS,
+    windowMs: RATE_LIMIT_WINDOW_MS,
+    namespace: "operations-search",
+  });
+
+  if (rateLimit.limited) {
+    const response = errorResponse("rate_limited", 429);
+    response.headers.set("Retry-After", String(rateLimit.retryAfterSeconds));
+
+    return response;
   }
 
   const url = new URL(request.url);

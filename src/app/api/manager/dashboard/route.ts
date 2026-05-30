@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAnyPermission } from "@/lib/auth/require-permission";
+import { logError } from "@/lib/observability/logger";
 import { getManagerDashboardData } from "@/lib/queries/manager/get-manager-dashboard";
 
 export const runtime = "nodejs";
@@ -67,6 +68,9 @@ export async function GET(): Promise<NextResponse> {
     });
   } catch (error) {
     const status = getStatusCode(error);
+    logError("api.manager_dashboard.failed", error, {
+      status,
+    });
 
     return NextResponse.json(
       {

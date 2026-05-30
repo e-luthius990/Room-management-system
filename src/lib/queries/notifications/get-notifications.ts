@@ -66,6 +66,7 @@ function toRequiredText(value: string | null, fallback: string): string {
 
 export async function getNotifications(
   userId: string,
+  limit = 300,
 ): Promise<NotificationListItem[]> {
   const supabase = await createServerSupabaseClient();
   const normalizedUserId = userId.trim();
@@ -98,7 +99,7 @@ export async function getNotifications(
     .is("archived_at", null)
     .or(`recipient_id.eq.${normalizedUserId},user_id.eq.${normalizedUserId}`)
     .order("created_at", { ascending: false })
-    .limit(300)
+    .limit(limit)
     .returns<NotificationRow[]>();
 
   if (error) {

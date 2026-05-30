@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { AppShell } from "@/components/layout/app-shell";
+import { getNotifications } from "@/lib/queries/notifications/get-notifications";
 import { getUnreadNotificationCount } from "@/lib/queries/notifications/get-unread-notification-count";
 
 type AppLayoutProps = {
@@ -14,14 +15,18 @@ export default async function AppLayout({
   const canViewNotifications = currentUser.permissions.includes(
     "notifications.view",
   );
-  const unreadNotificationCount = canViewNotifications
-    ? await getUnreadNotificationCount(currentUser.authUser.id)
-    : 0;
+  const [unreadNotificationCount, notifications] = canViewNotifications
+    ? await Promise.all([
+        getUnreadNotificationCount(currentUser.authUser.id),
+        getNotifications(currentUser.authUser.id, 5),
+      ])
+    : [0, []];
 
   return (
     <AppShell
       currentUser={currentUser}
       unreadNotificationCount={unreadNotificationCount}
+      notifications={notifications}
     >
       {children}
     </AppShell>

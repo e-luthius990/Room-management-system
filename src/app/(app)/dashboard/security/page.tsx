@@ -2,10 +2,12 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requirePermission } from "@/lib/auth/require-permission";
+import { requireAnyPermission } from "@/lib/auth/require-permission";
 import { APP_ROUTES, SYSTEM_ROUTES } from "@/lib/auth/routes";
 import type { CurrentUserContext } from "@/lib/auth/types";
+import type { Database } from "@/lib/db/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { OperationsSearchBox } from "@/components/search/operations-search-box";
 import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import {
@@ -118,6 +120,35 @@ type ReceptionHandoffStatusItem = {
   updated_at: string | null;
 };
 
+type ReceptionHandoffEventRow = {
+  id: string;
+  guest_id: string;
+  camp_id: string;
+  visit_type: string | null;
+  clearance_status: string | null;
+  risk_level: string | null;
+  purpose: string | null;
+  host_name: string | null;
+  host_department: string | null;
+  sent_to_reception_at: string | null;
+  reception_status: string | null;
+  reception_received_at: string | null;
+  reception_notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type ReceptionHandoffGuestRow = {
+  id: string;
+  full_name: string | null;
+};
+
+type ReceptionHandoffCampRow = {
+  id: string;
+  name: string | null;
+  code: string | null;
+};
+
 type SecurityExpectedArrivalRow = {
   expected_arrival_id: string | null;
   guest_id: string | null;
@@ -194,35 +225,8 @@ type SecurityDashboardRpcClient = {
   }>;
 };
 
-type ReceptionHandoffStatusQueryResult = {
-  data: unknown[] | null;
-  error: RpcError | null;
-};
-
-type ReceptionHandoffStatusLimitBuilder = {
-  limit(count: number): Promise<ReceptionHandoffStatusQueryResult>;
-};
-
-type ReceptionHandoffStatusFilterBuilder = {
-  in(column: string, values: string[]): ReceptionHandoffStatusFilterBuilder;
-  order(
-    column: string,
-    options: { ascending: boolean },
-  ): ReceptionHandoffStatusLimitBuilder;
-};
-
-type ReceptionHandoffStatusSelectBuilder = {
-  select(columns: string): ReceptionHandoffStatusFilterBuilder;
-};
-
-type ReceptionHandoffStatusClient = {
-  from(
-    table: "security_reception_handoff_status_view",
-  ): ReceptionHandoffStatusSelectBuilder;
-};
-
-type SecurityDashboardAdminClient = SecurityDashboardRpcClient &
-  ReceptionHandoffStatusClient;
+type SecurityDashboardAdminClient = SupabaseClient<Database> &
+  SecurityDashboardRpcClient;
 
 const SECURITY_ROUTES = {
   gate: "/security/gate",
@@ -565,41 +569,32 @@ function parsePresenceItem(value: unknown): GatePresenceItem | null {
   };
 }
 
-function parseReceptionHandoffStatusItem(
-  value: unknown,
-): ReceptionHandoffStatusItem | null {
-  const item = asRecord(value);
-  const securityEventId = textValue(item.security_event_id);
-  const guestId = textValue(item.guest_id);
+function uniqueTextValues(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
+}
 
-  if (!securityEventId || !guestId) {
-    return null;
+function getReceptionStatusLabel(status: string | null | undefined): string {
+  switch (status) {
+    case "received":
+      return "Received";
+
+    case "not_received":
+      return "Not received";
+
+    case "reservation_created":
+      return "Reservation created";
+
+    case "checked_in":
+      return "Checked in";
+
+    case "cancelled":
+      return "Cancelled";
+
+    default:
+      return "Sent to reception";
   }
-
-  return {
-    security_event_id: securityEventId,
-    guest_id: guestId,
-    guest_full_name: textValue(item.guest_full_name, "Unknown guest"),
-    camp_id: textValue(item.camp_id),
-    camp_name: textValue(item.camp_name, "Unknown camp"),
-    camp_code: nullableTextValue(item.camp_code),
-    visit_type: nullableTextValue(item.visit_type),
-    clearance_status: nullableTextValue(item.clearance_status),
-    risk_level: nullableTextValue(item.risk_level),
-    purpose: nullableTextValue(item.purpose),
-    host_name: nullableTextValue(item.host_name),
-    host_department: nullableTextValue(item.host_department),
-    sent_to_reception_at: nullableTextValue(item.sent_to_reception_at),
-    reception_status: textValue(item.reception_status, "pending"),
-    reception_status_label: textValue(
-      item.reception_status_label,
-      "Sent to reception",
-    ),
-    reception_received_at: nullableTextValue(item.reception_received_at),
-    reception_notes: nullableTextValue(item.reception_notes),
-    created_at: nullableTextValue(item.created_at),
-    updated_at: nullableTextValue(item.updated_at),
-  };
 }
 
 function parseReviewItem(value: unknown): SecurityReviewItem | null {
@@ -779,15 +774,12 @@ async function getRecentReceptionHandoffStatuses(
   }
 
   let query = admin
-    .from("security_reception_handoff_status_view")
+    .from("security_clearance_events")
     .select(
       [
-        "security_event_id",
+        "id",
         "guest_id",
-        "guest_full_name",
         "camp_id",
-        "camp_name",
-        "camp_code",
         "visit_type",
         "clearance_status",
         "risk_level",
@@ -796,21 +788,24 @@ async function getRecentReceptionHandoffStatuses(
         "host_department",
         "sent_to_reception_at",
         "reception_status",
-        "reception_status_label",
         "reception_received_at",
         "reception_notes",
         "created_at",
         "updated_at",
       ].join(","),
-    );
+    )
+    .eq("event_type", "sent_to_reception")
+    .not("sent_to_reception_at", "is", null);
 
   if (campIds !== null) {
     query = query.in("camp_id", campIds);
   }
 
   const { data, error } = await query
+    .order("updated_at", { ascending: false })
     .order("sent_to_reception_at", { ascending: false })
-    .limit(8);
+    .limit(12)
+    .returns<ReceptionHandoffEventRow[]>();
 
   if (error) {
     console.error(
@@ -820,9 +815,75 @@ async function getRecentReceptionHandoffStatuses(
     return [];
   }
 
-  return (data ?? []).flatMap((item) => {
-    const parsed = parseReceptionHandoffStatusItem(item);
-    return parsed ? [parsed] : [];
+  const eventRows = data ?? [];
+  const guestIds = uniqueTextValues(eventRows.map((event) => event.guest_id));
+  const campIdList = uniqueTextValues(eventRows.map((event) => event.camp_id));
+
+  const [guestsResult, campsResult] = await Promise.all([
+    guestIds.length > 0
+      ? admin
+          .from("guests")
+          .select("id,full_name")
+          .in("id", guestIds)
+          .returns<ReceptionHandoffGuestRow[]>()
+      : Promise.resolve({ data: [], error: null }),
+
+    campIdList.length > 0
+      ? admin
+          .from("camps")
+          .select("id,name,code")
+          .in("id", campIdList)
+          .returns<ReceptionHandoffCampRow[]>()
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (guestsResult.error) {
+    console.error(
+      "Failed to load reception handoff status guests:",
+      guestsResult.error.message,
+    );
+  }
+
+  if (campsResult.error) {
+    console.error(
+      "Failed to load reception handoff status camps:",
+      campsResult.error.message,
+    );
+  }
+
+  const guestsById = new Map(
+    (guestsResult.data ?? []).map((guest) => [guest.id, guest]),
+  );
+  const campsById = new Map(
+    (campsResult.data ?? []).map((camp) => [camp.id, camp]),
+  );
+
+  return eventRows.map((event) => {
+    const guest = guestsById.get(event.guest_id);
+    const camp = campsById.get(event.camp_id);
+    const receptionStatus = event.reception_status ?? "pending";
+
+    return {
+      security_event_id: event.id,
+      guest_id: event.guest_id,
+      guest_full_name: guest?.full_name ?? "Unknown guest",
+      camp_id: event.camp_id,
+      camp_name: camp?.name ?? "Unknown camp",
+      camp_code: camp?.code ?? null,
+      visit_type: event.visit_type,
+      clearance_status: event.clearance_status,
+      risk_level: event.risk_level,
+      purpose: event.purpose,
+      host_name: event.host_name,
+      host_department: event.host_department,
+      sent_to_reception_at: event.sent_to_reception_at,
+      reception_status: receptionStatus,
+      reception_status_label: getReceptionStatusLabel(receptionStatus),
+      reception_received_at: event.reception_received_at,
+      reception_notes: event.reception_notes,
+      created_at: event.created_at,
+      updated_at: event.updated_at,
+    };
   });
 }
 
@@ -1122,6 +1183,18 @@ function ReceptionHandoffStatusBadge({
   return <StatusIndicator compact withDot tone={tone} label={label} />;
 }
 
+function getReceptionHandoffStatusMeta(
+  item: ReceptionHandoffStatusItem,
+): string {
+  if (item.reception_received_at) {
+    return `${item.reception_status_label}: ${formatDateTime(
+      item.reception_received_at,
+    )}`;
+  }
+
+  return `Sent: ${formatDateTime(item.sent_to_reception_at)}`;
+}
+
 function ReceptionHandoffStatusPanel({
   items,
 }: {
@@ -1142,7 +1215,7 @@ function ReceptionHandoffStatusPanel({
             guestId={item.guest_id}
             title={item.guest_full_name}
             subtitle={`${item.camp_name} · ${formatLabel(item.visit_type)}`}
-            meta={`Sent: ${formatDateTime(item.sent_to_reception_at)}`}
+            meta={getReceptionHandoffStatusMeta(item)}
           >
             <ReceptionHandoffStatusBadge status={item.reception_status} />
           </SmallGuestLink>
@@ -1365,8 +1438,10 @@ export default async function SecurityDashboardPage({
 
   const mark = createSecurityDashboardTimer("dashboard:security");
 
-  const currentUser = await requirePermission("security.view_clearance");
-  mark("security.view_clearance permission checked");
+  const currentUser = await requireAnyPermission([
+    ...REQUIRED_SECURITY_DASHBOARD_PERMISSIONS,
+  ]);
+  mark("dashboard entry permission checked");
 
   requireDashboardPermissions(currentUser);
   mark("dashboard permissions checked");

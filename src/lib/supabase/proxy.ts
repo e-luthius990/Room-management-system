@@ -7,6 +7,7 @@ const PUBLIC_PATHS = new Set<string>([
   AUTH_ROUTES.acceptInvite,
   AUTH_ROUTES.resetPassword,
   AUTH_ROUTES.signOut,
+  "/api/health",
   SYSTEM_ROUTES.accessPending,
   SYSTEM_ROUTES.accountSuspended,
 ]);

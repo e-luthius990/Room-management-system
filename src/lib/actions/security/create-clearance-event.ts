@@ -354,7 +354,7 @@ export async function recordSecurityGateEntryAction(
 export async function sendGuestToReceptionAction(
   formData: FormData,
 ): Promise<never> {
-  await requirePermission("security.send_to_reception");
+  const currentUser = await requirePermission("security.send_to_reception");
 
   const parsed = sendGuestToReceptionSchema.safeParse({
     securityEventId: getFormString(formData, "securityEventId"),
@@ -396,6 +396,7 @@ export async function sendGuestToReceptionAction(
     actionHref: `${RECEPTION_HANDOFFS_PATH}/${eventId}`,
     entityType: "security_clearance_events",
     entityId: eventId,
+    excludeUserIds: [currentUser.authUser.id],
   });
 
   redirect(`${SECURITY_PATH}/pending-reception?success=sent_to_reception`);
@@ -441,7 +442,9 @@ export async function markSecurityGateExitAction(
 export async function resolveReceptionSecurityHandoffAction(
   formData: FormData,
 ): Promise<never> {
-  await requirePermission("reception.handle_security_handoffs");
+  const currentUser = await requirePermission(
+    "reception.handle_security_handoffs",
+  );
 
   const parsed = resolveReceptionSecurityHandoffSchema.safeParse({
     securityEventId: getFormString(formData, "securityEventId"),
@@ -483,11 +486,15 @@ export async function resolveReceptionSecurityHandoffAction(
 
   revalidatePath(`${RECEPTION_HANDOFFS_PATH}/${parsed.data.securityEventId}`);
   revalidateSecurityPaths(guestId);
+  revalidatePath("/notifications");
 
   await notifyWorkflowPermission({
     permission: "security.view_gate_dashboard",
     campId,
-    title: "Reception handoff resolved",
+    title:
+      parsed.data.receptionStatus === "received"
+        ? "Guest received by reception"
+        : "Guest not received by reception",
     body:
       parsed.data.receptionStatus === "received"
         ? "Reception received the guest from security."
@@ -498,6 +505,7 @@ export async function resolveReceptionSecurityHandoffAction(
     actionHref: guestId ? `${SECURITY_PATH}/guests/${guestId}` : SECURITY_PATH,
     entityType: "security_clearance_events",
     entityId: eventId,
+    excludeUserIds: [currentUser.authUser.id],
   });
 
   redirect(

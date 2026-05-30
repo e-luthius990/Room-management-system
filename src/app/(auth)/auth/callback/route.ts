@@ -7,6 +7,9 @@ import { loginSchema } from "@/lib/validation/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getDefaultRouteForRole } from "@/lib/auth/redirect-by-role";
 import type { RoleKey } from "@/lib/auth/types";
+import { logError, logEvent } from "@/lib/observability/logger";
+import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
+import { isSameOriginRequest } from "@/lib/security/request-origin";
 
 type LoginRouteResponse =
   | {
@@ -37,6 +40,8 @@ const BLOCKED_NEXT_PREFIXES = ["/api/", "/_next/"] as const;
 const AUTH_TIMING_ENABLED =
   process.env.NODE_ENV !== "production" ||
   process.env.AUTH_DEBUG_TIMING === "true";
+const LOGIN_RATE_LIMIT_WINDOW_MS = 60_000;
+const LOGIN_RATE_LIMIT_REQUESTS = 12;
 
 function createAuthTimer(scope: string): (label: string) => void {
   const startedAt = performance.now();
@@ -164,6 +169,22 @@ function copyCookies<TBody>(
   });
 
   return target;
+}
+
+function rateLimitResponse(
+  retryAfterSeconds: number,
+): NextResponse<LoginRouteResponse> {
+  const response = jsonResponse(
+    {
+      ok: false,
+      error: "rate_limited",
+    },
+    429,
+  );
+
+  response.headers.set("Retry-After", String(retryAfterSeconds));
+
+  return response;
 }
 
 function redirectToLoginWithError(
@@ -297,6 +318,37 @@ export async function POST(
   request: NextRequest,
 ): Promise<NextResponse<LoginRouteResponse>> {
   const mark = createAuthTimer("auth/callback:POST");
+  const clientIp = getClientIp(request);
+  const rateLimit = checkRateLimit({
+    key: clientIp,
+    limit: LOGIN_RATE_LIMIT_REQUESTS,
+    windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
+    namespace: "auth-login",
+  });
+
+  if (rateLimit.limited) {
+    logEvent("warn", "auth.login.rate_limited", {
+      client_ip: clientIp,
+      retry_after_seconds: rateLimit.retryAfterSeconds,
+    });
+
+    return rateLimitResponse(rateLimit.retryAfterSeconds);
+  }
+
+  if (!isSameOriginRequest(request)) {
+    logEvent("warn", "auth.login.cross_origin_blocked", {
+      client_ip: clientIp,
+      origin: request.headers.get("origin"),
+    });
+
+    return jsonResponse(
+      {
+        ok: false,
+        error: "invalid_request_origin",
+      },
+      403,
+    );
+  }
 
   let payload: unknown;
 
@@ -345,6 +397,10 @@ export async function POST(
   mark("signInWithPassword completed");
 
   if (error || !data.user || !data.session) {
+    logEvent("warn", "auth.login.invalid_credentials", {
+      client_ip: clientIp,
+    });
+
     return jsonResponse(
       {
         ok: false,
@@ -361,6 +417,11 @@ export async function POST(
   mark("context snapshot resolved");
 
   if (!contextResult.ok) {
+    logEvent("warn", "auth.login.context_rejected", {
+      user_id: data.user.id,
+      error: contextResult.error,
+    });
+
     const failureResponse = jsonResponse(
       {
         ok: false,
@@ -383,6 +444,10 @@ export async function POST(
   );
 
   mark("response prepared");
+  logEvent("info", "auth.login.succeeded", {
+    user_id: data.user.id,
+    redirect_to: finalRedirectTo,
+  });
 
   return copyCookies<LoginRouteResponse>(cookieResponse, finalResponse);
 }
@@ -435,6 +500,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
+    logError("auth.callback.exchange_failed", error);
+
     return redirectToLoginWithError(requestUrl, "auth_callback_failed");
   }
 

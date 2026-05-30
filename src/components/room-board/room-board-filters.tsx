@@ -170,6 +170,7 @@ export function RoomBoardFilters({
             autoComplete="off"
             leftIcon={<Search className="size-4" aria-hidden="true" />}
             wrapperClassName="min-w-0"
+            className="font-semibold"
           />
 
           {canSelectCamp ? (
@@ -178,8 +179,9 @@ export function RoomBoardFilters({
               id="room-board-camp"
               value={selectedCamp}
               disabled={loading}
-              onChange={(event) => handleCampChange(event.target.value)}
-              options={[
+            onChange={(event) => handleCampChange(event.target.value)}
+            className="font-semibold"
+            options={[
                 { value: ALL_VALUE, label: "All camps" },
                 ...campOptions.map((camp) => ({
                   value: camp.id,
@@ -189,7 +191,7 @@ export function RoomBoardFilters({
             />
           ) : (
             <div
-              className="flex min-h-10 min-w-0 items-center border border-border bg-surface px-3 text-sm font-semibold text-foreground"
+            className="flex min-h-10 min-w-0 items-center border border-border bg-surface px-3 text-sm font-semibold text-foreground"
               aria-label="Assigned camp"
             >
               <span className="truncate">{assignedCampLabel}</span>
@@ -202,6 +204,7 @@ export function RoomBoardFilters({
             value={selectedBuilding}
             disabled={loading || buildingOptions.length === 0}
             onChange={(event) => onBuildingChange(event.target.value)}
+            className="font-semibold"
             options={[
               { value: ALL_VALUE, label: "All buildings" },
               ...buildingOptions.map((building) => ({
@@ -217,6 +220,7 @@ export function RoomBoardFilters({
             value={selectedStatus}
             disabled={loading}
             onChange={(event) => onStatusChange(event.target.value)}
+            className="font-semibold"
             options={statusOptions}
           />
         </div>
@@ -225,7 +229,6 @@ export function RoomBoardFilters({
           <div
             className={cn(
               "inline-flex min-h-9 items-center gap-2 border px-3 text-xs font-bold uppercase tracking-[0.12em]",
-              "rounded-md",
               hasActiveFilters
                 ? "border-brand-600/25 bg-brand-50 text-brand-700"
                 : "border-border bg-surface-2 text-muted",

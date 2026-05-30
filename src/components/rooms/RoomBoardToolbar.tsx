@@ -138,6 +138,7 @@ export function RoomBoardToolbar({
             autoComplete="off"
             leftIcon={<Search className="size-4" aria-hidden="true" />}
             wrapperClassName="min-w-0"
+            className="font-semibold"
           />
 
           <Select
@@ -145,6 +146,7 @@ export function RoomBoardToolbar({
             value={statusValue}
             disabled={loading}
             onChange={(event) => onStatusChange(event.currentTarget.value)}
+            className="font-semibold"
             options={visibleStatusOptions}
           />
 
@@ -154,6 +156,7 @@ export function RoomBoardToolbar({
               value={buildingValue ?? "all"}
               disabled={loading || buildingOptions.length === 0}
               onChange={(event) => onBuildingChange(event.currentTarget.value)}
+              className="font-semibold"
               options={buildingOptions}
             />
           ) : (

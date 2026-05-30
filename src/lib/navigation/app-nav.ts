@@ -69,13 +69,6 @@ const SECURITY_DASHBOARD_NAV_ITEM = createDashboardNavItem(
   APP_ROUTES.dashboards.security,
 );
 
-const NOTIFICATIONS_NAV_ITEM = {
-  label: "Notifications",
-  href: "/notifications",
-  icon: "bell",
-  permissions: ["notifications.view"],
-} as const satisfies AppNavItem;
-
 const CAMP_MANAGER_NAV_ITEMS = [
   createDashboardNavItem(APP_ROUTES.manager.home),
   {
@@ -138,7 +131,6 @@ const CAMP_MANAGER_NAV_ITEMS = [
       "reports.export_pdf",
     ],
   },
-  NOTIFICATIONS_NAV_ITEM,
 ] as const satisfies readonly AppNavItem[];
 
 const RECEPTIONIST_NAV_ITEMS = [
@@ -197,7 +189,6 @@ const RECEPTIONIST_NAV_ITEMS = [
     icon: "clipboard-check",
     permissions: ["field_absences.view"],
   },
-  NOTIFICATIONS_NAV_ITEM,
 ] as const satisfies readonly AppNavItem[];
 
 const SECURITY_NAV_ITEMS = [
@@ -227,7 +218,6 @@ const SECURITY_NAV_ITEMS = [
     icon: "clipboard-check",
     permissions: ["security.view_clearance"],
   },
-  NOTIFICATIONS_NAV_ITEM,
 ] as const satisfies readonly AppNavItem[];
 
 export const APP_NAV_ITEMS = [
@@ -302,7 +292,6 @@ export const APP_NAV_ITEMS = [
       "reports.view_rooms",
     ],
   },
-  NOTIFICATIONS_NAV_ITEM,
 ] as const satisfies readonly AppNavItem[];
 
 export const ADMIN_NAV_ITEMS = [

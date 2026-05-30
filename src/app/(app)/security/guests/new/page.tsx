@@ -23,6 +23,24 @@ type CampOption = {
   location: string | null;
 };
 
+type ExistingGuestOption = {
+  id: string;
+  fullName: string;
+  primaryCampId: string;
+  organization: string | null;
+  phone: string | null;
+  idOrPassportNumber: string | null;
+};
+
+type ExistingGuestRow = {
+  id: string;
+  full_name: string | null;
+  primary_camp_id: string | null;
+  organization: string | null;
+  phone: string | null;
+  id_or_passport_number: string | null;
+};
+
 function getFirstParam(
   value: string | string[] | undefined,
 ): string | undefined {
@@ -42,6 +60,7 @@ function getErrorMessage(error?: string): string | null {
     access_denied: "You do not have access to register security guests.",
     possible_duplicate_guest:
       "A similar guest record may already exist. Check the security review before creating another one.",
+    guest_already_inside: "This guest is already recorded inside this camp.",
     guest_create_failed: "Guest intake record could not be created.",
     profile_photo_required: "Take or upload a guest profile photo.",
     unsupported_profile_photo_type: "Use a JPG, PNG, or WebP profile photo.",
@@ -69,6 +88,51 @@ async function getCampOptions(): Promise<CampOption[]> {
   return data ?? [];
 }
 
+async function getExistingGuestOptions(): Promise<ExistingGuestOption[]> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("guests")
+    .select(
+      [
+        "id",
+        "full_name",
+        "primary_camp_id",
+        "organization",
+        "phone",
+        "id_or_passport_number",
+      ].join(","),
+    )
+    .is("archived_at", null)
+    .order("full_name", { ascending: true })
+    .limit(500)
+    .returns<ExistingGuestRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to load existing guest options: ${error.message}`);
+  }
+
+  return (data ?? [])
+    .filter(
+      (guest): guest is ExistingGuestRow & {
+        id: string;
+        full_name: string;
+        primary_camp_id: string;
+      } =>
+        Boolean(guest.id) &&
+        Boolean(guest.full_name) &&
+        Boolean(guest.primary_camp_id),
+    )
+    .map((guest) => ({
+      id: guest.id,
+      fullName: guest.full_name,
+      primaryCampId: guest.primary_camp_id,
+      organization: guest.organization,
+      phone: guest.phone,
+      idOrPassportNumber: guest.id_or_passport_number,
+    }));
+}
+
 export default async function NewSecurityGuestPage({
   searchParams,
 }: SecurityGuestIntakePageProps): Promise<React.JSX.Element> {
@@ -80,7 +144,10 @@ export default async function NewSecurityGuestPage({
     ? await searchParams
     : {};
 
-  const camps = await getCampOptions();
+  const [camps, guests] = await Promise.all([
+    getCampOptions(),
+    getExistingGuestOptions(),
+  ]);
 
   const errorMessage = getErrorMessage(
     getFirstParam(resolvedSearchParams.error),
@@ -102,7 +169,7 @@ export default async function NewSecurityGuestPage({
       ) : (
         <section className="surface-panel overflow-hidden">
           <div className="p-4">
-            <SecurityGuestIntakeForm camps={camps} />
+            <SecurityGuestIntakeForm camps={camps} guests={guests} />
           </div>
         </section>
       )}

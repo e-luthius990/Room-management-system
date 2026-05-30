@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { PageHeader } from "@/components/layout/page-header";
 import { getNotificationDetail } from "@/lib/queries/notifications/get-notification-detail";
-import { NotificationActions } from "@/components/notifications/notification-actions";
 import {
   formatNotificationCategory,
   formatNotificationSeverity,
@@ -23,13 +22,13 @@ type NotificationDetailPageProps = {
 
 function formatDateTime(value: string | null): string {
   if (!value) {
-    return "—";
+    return "-";
   }
 
   const date = new Date(value);
 
   if (!Number.isFinite(date.getTime())) {
-    return "—";
+    return "-";
   }
 
   return new Intl.DateTimeFormat("en", {
@@ -44,7 +43,7 @@ function formatLinkedEntity(
   entityId: string | null,
 ): string {
   if (!entityType) {
-    return "—";
+    return "-";
   }
 
   const label = entityType
@@ -52,7 +51,7 @@ function formatLinkedEntity(
     .replaceAll("-", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
-  return entityId ? `${label} · ${entityId}` : label;
+  return entityId ? `${label} / ${entityId}` : label;
 }
 
 function getErrorMessage(error?: string): string | null {
@@ -84,168 +83,144 @@ function getSuccessMessage(success?: string): string | null {
   return messages[success] ?? null;
 }
 
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="grid gap-2 py-3 sm:grid-cols-[11rem_minmax(0,1fr)]">
+      <dt className="text-[10px] font-bold uppercase tracking-[0.13em] text-muted">
+        {label}
+      </dt>
+
+      <dd className="min-w-0 text-sm font-semibold leading-6 text-foreground">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 export default async function NotificationDetailPage({
   params,
   searchParams,
 }: NotificationDetailPageProps): Promise<React.JSX.Element> {
-  await requirePermission("notifications.view");
+  const currentUser = await requirePermission("notifications.view");
 
   const [{ notificationId }, query] = await Promise.all([params, searchParams]);
 
-  const notification = await getNotificationDetail(notificationId);
+  const notification = await getNotificationDetail(
+    notificationId,
+    currentUser.authUser.id,
+  );
 
   const errorMessage = getErrorMessage(query?.error);
   const successMessage = getSuccessMessage(query?.success);
+  const hasLinkedEntity =
+    Boolean(notification.entity_type) || Boolean(notification.entity_id);
 
   return (
-    <div>
+    <div className="page-stack">
       <PageHeader
         title={notification.title}
-        description="Notification detail, linked workflow context, read status, and archive controls."
+        description="Notification message and delivery context."
         actions={
-          <Link
-            href="/notifications"
-            className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
-          >
+          <Link href="/notifications" className="btn-secondary">
             Back to notifications
           </Link>
         }
       />
 
       {errorMessage ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {errorMessage}
-        </div>
+        <div className="alert alert-danger">{errorMessage}</div>
       ) : null}
 
       {successMessage ? (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {successMessage}
-        </div>
+        <div className="alert alert-success">{successMessage}</div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
-        <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+      <section className="border border-border bg-surface">
+        <div className="border-b border-border px-4 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-neutral-950">
-                Alert details
+              <h2 className="text-sm font-semibold text-foreground">
+                Details
               </h2>
 
-              <p className="mt-1 text-sm leading-6 text-neutral-500">
-                Message target, severity, linked record, and delivery context.
+              <p className="mt-1 text-xs leading-5 text-muted">
+                {formatNotificationCategory(notification.category)}
               </p>
             </div>
 
             <span
               className={[
-                "rounded-full border px-3 py-1 text-xs font-medium",
+                "border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em]",
                 notificationSeverityTone(notification.severity),
               ].join(" ")}
             >
               {formatNotificationSeverity(notification.severity)}
             </span>
           </div>
+        </div>
 
-          <dl className="mt-6 grid gap-5 md:grid-cols-2">
-            <div>
-              <dt className="text-sm text-neutral-500">Recipient</dt>
-              <dd className="mt-1 font-medium text-neutral-950">
-                {notification.recipient_name ?? "Camp broadcast"}
-              </dd>
-            </div>
+        <dl className="divide-y divide-border px-4">
+          <InfoRow
+            label="Recipient"
+            value={notification.recipient_name ?? "Camp broadcast"}
+          />
 
-            <div>
-              <dt className="text-sm text-neutral-500">Camp</dt>
-              <dd className="mt-1 font-medium text-neutral-950">
-                {notification.camp_name ?? "—"}
-              </dd>
-            </div>
+          <InfoRow label="Camp" value={notification.camp_name ?? "-"} />
 
-            <div>
-              <dt className="text-sm text-neutral-500">Category</dt>
-              <dd className="mt-1 font-medium text-neutral-950">
-                {formatNotificationCategory(notification.category)}
-              </dd>
-            </div>
+          <InfoRow
+            label="Category"
+            value={formatNotificationCategory(notification.category)}
+          />
 
-            <div>
-              <dt className="text-sm text-neutral-500">Severity</dt>
-              <dd className="mt-1">
-                <span
-                  className={[
-                    "rounded-full border px-3 py-1 text-xs font-medium",
-                    notificationSeverityTone(notification.severity),
-                  ].join(" ")}
-                >
-                  {formatNotificationSeverity(notification.severity)}
+          <InfoRow
+            label="Created"
+            value={formatDateTime(notification.created_at)}
+          />
+
+          <InfoRow
+            label="Read"
+            value={
+              notification.read_at
+                ? formatDateTime(notification.read_at)
+                : "Unread"
+            }
+          />
+
+          <InfoRow
+            label="Created by"
+            value={notification.created_by_name ?? "System"}
+          />
+
+          {hasLinkedEntity ? (
+            <InfoRow
+              label="Workflow"
+              value={
+                <span className="break-all">
+                  {formatLinkedEntity(
+                    notification.entity_type,
+                    notification.entity_id,
+                  )}
                 </span>
-              </dd>
-            </div>
+              }
+            />
+          ) : null}
 
-            <div>
-              <dt className="text-sm text-neutral-500">Created</dt>
-              <dd className="mt-1 font-medium text-neutral-950">
-                {formatDateTime(notification.created_at)}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-sm text-neutral-500">Read</dt>
-              <dd className="mt-1 font-medium text-neutral-950">
-                {notification.read_at
-                  ? formatDateTime(notification.read_at)
-                  : "Unread"}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-sm text-neutral-500">Created by</dt>
-              <dd className="mt-1 font-medium text-neutral-950">
-                {notification.created_by_name ?? "System"}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="text-sm text-neutral-500">Linked entity</dt>
-              <dd className="mt-1 break-all font-medium text-neutral-950">
-                {formatLinkedEntity(
-                  notification.entity_type,
-                  notification.entity_id,
-                )}
-              </dd>
-            </div>
-
-            <div className="md:col-span-2">
-              <dt className="text-sm text-neutral-500">Message</dt>
-              <dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-neutral-800">
+          <InfoRow
+            label="Message"
+            value={
+              <span className="whitespace-pre-wrap text-foreground-soft">
                 {notification.body}
-              </dd>
-            </div>
-          </dl>
-        </section>
-
-        <aside className="space-y-6">
-          <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-neutral-950">
-              Notification actions
-            </h2>
-
-            <p className="mt-1 text-sm leading-6 text-neutral-500">
-              Mark this notification as read, open the linked record, or archive
-              it.
-            </p>
-
-            <div className="mt-5">
-              <NotificationActions
-                notificationId={notification.id}
-                readAt={notification.read_at}
-                actionHref={notification.action_href}
-              />
-            </div>
-          </section>
-        </aside>
-      </div>
+              </span>
+            }
+          />
+        </dl>
+      </section>
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import type { JSX, ReactNode } from "react";
 import type { CurrentUserContext } from "@/lib/auth/types";
+import type { TopbarNotificationItem } from "@/components/layout/topbar-notification-menu";
 import {
   getVisibleAdminNavItems,
   getVisibleNavItems,
-  type AppNavItem,
 } from "@/lib/navigation/app-nav";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppTopbar } from "@/components/layout/app-topbar";
@@ -15,6 +15,7 @@ type AppShellProps = {
   currentUser: CurrentUserContext;
   children: ReactNode;
   unreadNotificationCount?: number;
+  notifications?: TopbarNotificationItem[];
   container?: AppShellContainer;
   className?: string;
   mainClassName?: string;
@@ -62,43 +63,26 @@ function getRoleKey(currentUser: CurrentUserContext): string {
   return getTrimmedValue(currentUser.role.key) ?? "unknown";
 }
 
-function withNotificationBadges(
-  items: AppNavItem[],
-  unreadNotificationCount: number,
-): AppNavItem[] {
-  if (unreadNotificationCount <= 0) {
-    return items;
-  }
-
-  return items.map((item) =>
-    item.href === "/notifications"
-      ? { ...item, badgeCount: unreadNotificationCount }
-      : item,
-  );
-}
-
 export function AppShell({
   currentUser,
   children,
   unreadNotificationCount = 0,
+  notifications = [],
   container = "default",
   className,
   mainClassName,
   contentClassName,
 }: AppShellProps): JSX.Element {
-  const primaryItems = withNotificationBadges(
-    getVisibleNavItems(currentUser),
-    unreadNotificationCount,
-  );
-  const adminItems = withNotificationBadges(
-    getVisibleAdminNavItems(currentUser),
-    unreadNotificationCount,
-  );
+  const primaryItems = getVisibleNavItems(currentUser);
+  const adminItems = getVisibleAdminNavItems(currentUser);
 
   const fullName = getUserDisplayName(currentUser);
   const email = getUserEmail(currentUser);
   const roleName = getRoleName(currentUser);
   const roleKey = getRoleKey(currentUser);
+  const canViewNotifications = currentUser.permissions.includes(
+    "notifications.view",
+  );
 
   return (
     <div
@@ -137,6 +121,9 @@ export function AppShell({
             photoUpdatedAt={currentUser.profile.profile_photo_updated_at}
             campAccess={currentUser.campAccess}
             isSystemActor={currentUser.isSystemActor}
+            canViewNotifications={canViewNotifications}
+            unreadNotificationCount={unreadNotificationCount}
+            notifications={notifications}
           />
 
           <main

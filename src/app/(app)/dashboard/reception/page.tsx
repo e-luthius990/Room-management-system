@@ -5,7 +5,9 @@ import { unstable_noStore as noStore } from "next/cache";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { APP_ROUTES } from "@/lib/auth/routes";
 import type { CurrentUserContext } from "@/lib/auth/types";
+import type { Database } from "@/lib/db/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { GuestNameWithPhoto } from "@/components/guests/guest-avatar";
 import { OperationsSearchBox } from "@/components/search/operations-search-box";
 import {
@@ -57,70 +59,13 @@ type ReceptionistDashboardData = {
   fieldAbsenceItems: QueueItem[];
 };
 
-type PendingReceptionHandoffRow = {
-  security_event_id: string | null;
-  guest_id: string | null;
-  guest_full_name: string | null;
-  guest_phone: string | null;
-  guest_document_number: string | null;
-  guest_nationality: string | null;
-  camp_id: string | null;
-  camp_name: string | null;
-  clearance_status: string | null;
-  risk_level: string | null;
-  visit_type: string | null;
-  purpose: string | null;
-  host_name: string | null;
-  host_department: string | null;
-  sent_to_reception_at: string | null;
-  reception_status: string | null;
-};
-
-type ExpectedArrivalDashboardRow = {
-  expected_arrival_id: string | null;
-  guest_id?: string | null;
-  guest_name: string | null;
-  guest_phone: string | null;
-  guest_organization: string | null;
-  camp_id: string | null;
-  camp_name: string | null;
-  expected_arrival_at: string | null;
-  expected_departure_at: string | null;
-  purpose: string | null;
-  host_name: string | null;
-  host_department: string | null;
-  status: string | null;
-  is_overdue: boolean | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  allocated_at?: string | null;
-};
-
-type FieldAbsenceDashboardRow = {
-  field_absence_id: string | null;
-  stay_id: string | null;
-  guest_id?: string | null;
-  guest_name: string | null;
-  guest_phone: string | null;
-  guest_organization: string | null;
-  camp_id: string | null;
-  camp_name: string | null;
-  room_number: string | null;
-  departure_at: string | null;
-  expected_return_at: string | null;
-  destination: string | null;
-  reason: string | null;
-  status: string | null;
-  days_away: number | null;
-  days_until_return: number | null;
-  is_overdue: boolean | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  actual_return_at?: string | null;
-};
-
 type RpcError = {
   message: string;
+};
+
+type GuestIdLookupRow = {
+  id: string;
+  guest_id: string | null;
 };
 
 type ReceptionDashboardRpcClient = {
@@ -137,6 +82,9 @@ type ReceptionDashboardRpcClient = {
     error: RpcError | null;
   }>;
 };
+
+type ReceptionDashboardAdminClient = SupabaseClient<Database> &
+  ReceptionDashboardRpcClient;
 
 function createReceptionDashboardTimer(scope: string): (label: string) => void {
   const startedAt = performance.now();
@@ -230,6 +178,22 @@ function textValue(value: unknown, fallback = "—"): string {
   const trimmed = value.trim();
 
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function textField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fallback = "â€”",
+): string {
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return fallback;
 }
 
 function numberValue(value: unknown): number {
@@ -360,48 +324,66 @@ function mapStayDeparture(item: unknown): QueueItem {
 }
 
 function mapPendingReceptionItem(value: unknown): QueueItem {
-  const item = asRecord(value) as PendingReceptionHandoffRow;
-  const securityEventId = textValue(item.security_event_id, "");
-  const visitType = textValue(item.visit_type, "visitor");
-  const hostParts = [item.host_name, item.host_department]
-    .map((hostValue) => textValue(hostValue, ""))
-    .filter((hostValue) => hostValue.length > 0);
+  const item = asRecord(value);
+  const securityEventId = textField(
+    item,
+    ["security_event_id", "securityEventId"],
+    "",
+  );
+  const visitType = textField(item, ["visit_type", "visitType"], "visitor");
+  const hostParts = [
+    textField(item, ["host_name", "hostName"], ""),
+    textField(item, ["host_department", "hostDepartment"], ""),
+  ].filter((hostValue) => hostValue.length > 0);
 
   const host = hostParts.length > 0 ? hostParts.join(" · ") : "Host not set";
-  const camp = textValue(item.camp_name, "Unknown camp");
+  const camp = textField(item, ["camp_name", "campName"], "Unknown camp");
 
   return {
     id: securityEventId,
-    guestId: textValue(item.guest_id, ""),
-    title: textValue(item.guest_full_name, "Unnamed guest"),
+    guestId: textField(item, ["guest_id", "guestId"], ""),
+    title: textField(
+      item,
+      ["guest_full_name", "guestFullName", "guest_name", "guestName"],
+      "Unnamed guest",
+    ),
     subtitle: `${camp} · ${host}`,
-    meta: `${formatTime(item.sent_to_reception_at)} · ${formatLabel(visitType)}`,
+    meta: `${formatTime(
+      item.sent_to_reception_at ?? item.sentToReceptionAt,
+    )} · ${formatLabel(visitType)}`,
     href: securityEventId ? handoffDetailPath(securityEventId) : undefined,
-    badge: formatLabel(textValue(item.clearance_status, "pending")),
+    badge: formatLabel(
+      textField(item, ["clearance_status", "clearanceStatus"], "pending"),
+    ),
     tone: "warning",
   };
 }
 
 function mapExpectedArrivalItem(value: unknown): QueueItem {
-  const item = asRecord(value) as ExpectedArrivalDashboardRow;
-  const expectedArrivalId = textValue(item.expected_arrival_id, "");
-  const hostParts = [item.host_name, item.host_department]
-    .map((hostValue) => textValue(hostValue, ""))
-    .filter((hostValue) => hostValue.length > 0);
+  const item = asRecord(value);
+  const expectedArrivalId = textField(
+    item,
+    ["expected_arrival_id", "expectedArrivalId"],
+    "",
+  );
+  const hostParts = [
+    textField(item, ["host_name", "hostName"], ""),
+    textField(item, ["host_department", "hostDepartment"], ""),
+  ].filter((hostValue) => hostValue.length > 0);
 
-  const isOverdue = booleanValue(item.is_overdue);
+  const isOverdue = booleanValue(item.is_overdue ?? item.isOverdue);
 
   return {
     id: expectedArrivalId,
-    guestId: textValue(item.guest_id, ""),
-    title: textValue(item.guest_name, "Unnamed guest"),
+    guestId: textField(item, ["guest_id", "guestId"], ""),
+    title: textField(item, ["guest_name", "guestName"], "Unnamed guest"),
     subtitle:
       hostParts.length > 0
         ? hostParts.join(" · ")
-        : textValue(item.purpose, "Purpose not set"),
-    meta: `${formatTime(item.expected_arrival_at)} · ${formatLabel(
-      textValue(item.status, "expected"),
-    )}`,
+        : textField(item, ["purpose"], "Purpose not set"),
+    meta: `${formatTime(
+      item.expected_arrival_at ?? item.expectedArrivalAt,
+    )} · ${formatLabel(textField(item, ["status"], "expected"))}`,
     href: expectedArrivalId
       ? APP_ROUTES.reception.expectedArrivalDetail(expectedArrivalId)
       : undefined,
@@ -411,25 +393,33 @@ function mapExpectedArrivalItem(value: unknown): QueueItem {
 }
 
 function mapFieldAbsenceItem(value: unknown): QueueItem {
-  const item = asRecord(value) as FieldAbsenceDashboardRow;
-  const fieldAbsenceId = textValue(item.field_absence_id, "");
-  const room = textValue(item.room_number, "No room");
-  const destination = textValue(item.destination, "Destination not set");
-  const isOverdue = booleanValue(item.is_overdue);
-  const daysAway = numberValue(item.days_away);
+  const item = asRecord(value);
+  const fieldAbsenceId = textField(
+    item,
+    ["field_absence_id", "fieldAbsenceId"],
+    "",
+  );
+  const room = textField(item, ["room_number", "roomNumber"], "No room");
+  const destination = textField(item, ["destination"], "Destination not set");
+  const isOverdue = booleanValue(item.is_overdue ?? item.isOverdue);
+  const daysAway = numberValue(item.days_away ?? item.daysAway);
 
   return {
     id: fieldAbsenceId,
-    guestId: textValue(item.guest_id, ""),
-    title: textValue(item.guest_name, "Unnamed guest"),
+    guestId: textField(item, ["guest_id", "guestId"], ""),
+    title: textField(item, ["guest_name", "guestName"], "Unnamed guest"),
     subtitle: `Room ${room} · ${destination}`,
     meta: isOverdue
       ? `Return overdue · Away ${daysAway} days`
-      : `${formatDate(item.expected_return_at)} return · Away ${daysAway} days`,
+      : `${formatDate(
+          item.expected_return_at ?? item.expectedReturnAt,
+        )} return · Away ${daysAway} days`,
     href: fieldAbsenceId
       ? APP_ROUTES.fieldAbsences.detail(fieldAbsenceId)
       : undefined,
-    badge: isOverdue ? "Overdue" : formatLabel(textValue(item.status, "away")),
+    badge: isOverdue
+      ? "Overdue"
+      : formatLabel(textField(item, ["status"], "away")),
     tone: isOverdue ? "danger" : "warning",
   };
 }
@@ -462,6 +452,82 @@ function mapSnapshotToDashboardData(
   };
 }
 
+function needsGuestId(item: QueueItem): boolean {
+  return item.id.length > 0 && !item.guestId;
+}
+
+async function fillGuestIdsFromTable({
+  admin,
+  table,
+  items,
+}: {
+  admin: ReceptionDashboardAdminClient;
+  table: "expected_arrivals" | "field_absences" | "security_clearance_events";
+  items: QueueItem[];
+}): Promise<QueueItem[]> {
+  const ids = [...new Set(items.filter(needsGuestId).map((item) => item.id))];
+
+  if (ids.length === 0) {
+    return items;
+  }
+
+  const { data, error } = await admin
+    .from(table)
+    .select("id,guest_id")
+    .in("id", ids)
+    .returns<GuestIdLookupRow[]>();
+
+  if (error) {
+    console.error(`Failed to load ${table} guest ids:`, error.message);
+    return items;
+  }
+
+  const guestIdsByItemId = new Map(
+    (data ?? [])
+      .filter((row) => row.guest_id)
+      .map((row) => [row.id, row.guest_id as string]),
+  );
+
+  return items.map((item) => ({
+    ...item,
+    guestId: item.guestId ?? guestIdsByItemId.get(item.id),
+  }));
+}
+
+async function enrichDashboardQueueGuestIds({
+  admin,
+  data,
+}: {
+  admin: ReceptionDashboardAdminClient;
+  data: ReceptionistDashboardData;
+}): Promise<ReceptionistDashboardData> {
+  const [pendingReceptionItems, expectedArrivalItems, fieldAbsenceItems] =
+    await Promise.all([
+      fillGuestIdsFromTable({
+        admin,
+        table: "security_clearance_events",
+        items: data.pendingReceptionItems,
+      }),
+      fillGuestIdsFromTable({
+        admin,
+        table: "expected_arrivals",
+        items: data.expectedArrivalItems,
+      }),
+      fillGuestIdsFromTable({
+        admin,
+        table: "field_absences",
+        items: data.fieldAbsenceItems,
+      }),
+    ]);
+
+  return {
+    ...data,
+    pendingReceptionItems,
+    expectedArrivalItems,
+    fieldAbsenceItems,
+  };
+}
+
 async function getReceptionistDashboardData(
   currentUser: CurrentUserContext,
   mark: (label: string) => void,
@@ -475,7 +541,7 @@ async function getReceptionistDashboardData(
   }
 
   const admin =
-    createSupabaseAdminClient() as unknown as ReceptionDashboardRpcClient;
+    createSupabaseAdminClient() as unknown as ReceptionDashboardAdminClient;
   mark("admin client created");
 
   const { data, error } = await admin.rpc("get_reception_dashboard_snapshot", {
@@ -494,7 +560,12 @@ async function getReceptionistDashboardData(
     return getEmptyDashboardData();
   }
 
-  return mapSnapshotToDashboardData(data);
+  const dashboardData = mapSnapshotToDashboardData(data);
+
+  return enrichDashboardQueueGuestIds({
+    admin,
+    data: dashboardData,
+  });
 }
 
 function CompactMetric({

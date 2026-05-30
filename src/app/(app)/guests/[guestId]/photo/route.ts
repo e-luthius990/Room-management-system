@@ -11,10 +11,47 @@ type GuestPhotoRouteProps = {
 };
 
 type GuestPhotoRow = {
-  primary_camp_id: string;
+  primary_camp_id: string | null;
   profile_photo_bucket: string | null;
   profile_photo_path: string | null;
 };
+
+type SecurityEventCampRow = {
+  camp_id: string | null;
+};
+
+async function canViewGuestPhotoFromSecurityEvent({
+  guestId,
+  currentUser,
+}: {
+  guestId: string;
+  currentUser: Awaited<ReturnType<typeof requireAnyPermission>>;
+}): Promise<boolean> {
+  if (currentUser.isSystemActor) {
+    return true;
+  }
+
+  const supabase = createSupabaseAdminClient();
+
+  const { data, error } = await supabase
+    .from("security_clearance_events")
+    .select("camp_id")
+    .eq("guest_id", guestId)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false })
+    .limit(20)
+    .returns<SecurityEventCampRow[]>();
+
+  if (error) {
+    return false;
+  }
+
+  return (data ?? []).some((event) => {
+    return event.camp_id
+      ? hasCampAccess(currentUser, event.camp_id, "viewer")
+      : false;
+  });
+}
 
 export async function GET(
   _request: NextRequest,
@@ -43,7 +80,18 @@ export async function GET(
     return new NextResponse(null, { status: 404 });
   }
 
-  if (!hasCampAccess(currentUser, guest.primary_camp_id, "viewer")) {
+  const canViewPrimaryCampPhoto = guest.primary_camp_id
+    ? hasCampAccess(currentUser, guest.primary_camp_id, "viewer")
+    : false;
+
+  const canViewSecurityEventPhoto =
+    !canViewPrimaryCampPhoto &&
+    (await canViewGuestPhotoFromSecurityEvent({
+      guestId,
+      currentUser,
+    }));
+
+  if (!canViewPrimaryCampPhoto && !canViewSecurityEventPhoto) {
     return new NextResponse(null, { status: 404 });
   }
 

@@ -1870,10 +1870,33 @@
   }
 
   .ops-command {
-    @apply border bg-surface p-3;
-    border-radius: var(--radius-lg);
+    @apply relative overflow-visible border bg-surface p-3;
+    border-radius: var(--radius-md);
     border-color: var(--border);
     box-shadow: var(--shadow-command);
+  }
+
+  .ops-command[data-active-filters="true"] {
+    border-color: color-mix(in oklch, var(--brand-500) 32%, var(--border));
+    box-shadow:
+      var(--shadow-command),
+      0 0 0 1px color-mix(in oklch, var(--brand-500) 10%, transparent);
+  }
+
+  .ops-command[data-active-filters="true"]::before {
+    content: "";
+    @apply absolute inset-x-3 top-0 h-0.5;
+    background: var(--brand-500);
+  }
+
+  .ops-command .input,
+  .ops-command .select {
+    @apply min-h-11 bg-surface-raised font-semibold;
+    border-radius: var(--radius-sm);
+  }
+
+  .ops-command .input::placeholder {
+    @apply font-medium;
   }
 
   .ops-command-inner {
@@ -1890,7 +1913,7 @@
 
   .ops-search-input {
     @apply h-11 w-full border bg-surface-raised px-10 text-sm font-medium text-foreground outline-none;
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     border-color: var(--border);
     box-shadow:
       0 1px 0 oklch(1 0 0 / 0.58) inset,
@@ -1928,7 +1951,7 @@
 
   .ops-search-results {
     @apply absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-[24rem] overflow-y-auto border bg-surface shadow-floating;
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     border-color: var(--border);
     scrollbar-width: thin;
     scrollbar-color: var(--border-strong) transparent;

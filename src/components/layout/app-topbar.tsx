@@ -4,6 +4,11 @@ import type { JSX } from "react";
 import type { CurrentCampAccess } from "@/lib/auth/types";
 import type { AppNavItem } from "@/lib/navigation/app-nav";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
+import {
+  TopbarNotificationMenu,
+  type TopbarNotificationItem,
+} from "@/components/layout/topbar-notification-menu";
+import { TopbarClock } from "@/components/layout/topbar-clock";
 import { UserAccountMenu } from "@/components/layout/user-account-menu";
 import { cn } from "@/lib/utils/cn";
 
@@ -16,6 +21,9 @@ type AppTopbarProps = {
   photoUpdatedAt?: string | null;
   campAccess: CurrentCampAccess[];
   isSystemActor: boolean;
+  canViewNotifications: boolean;
+  unreadNotificationCount: number;
+  notifications: TopbarNotificationItem[];
   className?: string;
 };
 
@@ -77,6 +85,9 @@ export function AppTopbar({
   photoUpdatedAt,
   campAccess,
   isSystemActor,
+  canViewNotifications,
+  unreadNotificationCount,
+  notifications,
   className,
 }: AppTopbarProps): JSX.Element {
   const displayName = normalizeDisplayValue(fullName) ?? "User";
@@ -94,7 +105,7 @@ export function AppTopbar({
       data-topbar="true"
       data-system-actor={isSystemActor ? "true" : undefined}
     >
-      <div className="topbar-inner">
+      <div className="topbar-inner relative">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <MobileSidebar primaryItems={primaryItems} adminItems={adminItems} />
 
@@ -105,7 +116,18 @@ export function AppTopbar({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center">
+        <div className="absolute left-1/2 top-1/2 hidden w-[min(20rem,38vw)] -translate-x-1/2 -translate-y-1/2 justify-center lg:flex">
+          <TopbarClock initialIso={new Date().toISOString()} />
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {canViewNotifications ? (
+            <TopbarNotificationMenu
+              unreadNotificationCount={unreadNotificationCount}
+              notifications={notifications}
+            />
+          ) : null}
+
           <UserAccountMenu
             fullName={displayName}
             email={displayEmail}
