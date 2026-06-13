@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, X } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 
-import { getAuthMessage, getSuccessMessage } from "@/lib/auth/auth-errors";
+import { getAuthMessage } from "@/lib/auth/auth-errors";
 
 type AuthMessageProps = {
   error?: string;
@@ -13,7 +13,6 @@ type AuthMessageProps = {
 
 type AuthMessageBannerProps = {
   message: string;
-  isError: boolean;
   duration: number;
 };
 
@@ -39,7 +38,6 @@ function clearAuthMessageFromUrl(): void {
 
 function AuthMessageBanner({
   message,
-  isError,
   duration,
 }: AuthMessageBannerProps): React.JSX.Element | null {
   const [mounted, setMounted] = useState(true);
@@ -89,26 +87,10 @@ function AuthMessageBanner({
     return null;
   }
 
-  const toneClass = isError
-    ? {
-        shell: "border-danger-200 bg-danger-50 text-danger-800",
-        icon: "bg-danger-100 text-danger-700",
-        accent: "bg-danger-500",
-        button:
-          "text-danger-700/70 hover:bg-danger-100 hover:text-danger-900 focus-visible:ring-danger-300",
-      }
-    : {
-        shell: "border-success-200 bg-success-50 text-success-800",
-        icon: "bg-success-100 text-success-700",
-        accent: "bg-success-500",
-        button:
-          "text-success-700/70 hover:bg-success-100 hover:text-success-900 focus-visible:ring-success-300",
-      };
-
   return (
     <div
-      role={isError ? "alert" : "status"}
-      aria-live={isError ? "assertive" : "polite"}
+      role="alert"
+      aria-live="assertive"
       className={[
         "fixed left-1/2 top-5 z-[100] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 transition-[opacity,transform] duration-200 ease-out",
         closing
@@ -119,13 +101,13 @@ function AuthMessageBanner({
       <div
         className={[
           "relative flex items-start gap-3 border px-4 py-3 text-sm shadow-xs",
-          toneClass.shell,
+          "border-danger-200 bg-danger-50 text-danger-800",
         ].join(" ")}
       >
         <span
           className={[
             "absolute inset-y-2.5 left-0 w-1",
-            toneClass.accent,
+            "bg-danger-500",
           ].join(" ")}
           aria-hidden="true"
         />
@@ -133,15 +115,11 @@ function AuthMessageBanner({
         <span
           className={[
             "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center",
-            toneClass.icon,
+            "bg-danger-100 text-danger-700",
           ].join(" ")}
           aria-hidden="true"
         >
-          {isError ? (
-            <AlertCircle className="h-4 w-4" />
-          ) : (
-            <CheckCircle2 className="h-4 w-4" />
-          )}
+          <AlertCircle className="h-4 w-4" />
         </span>
 
         <p className="min-w-0 flex-1 pt-0.5 font-medium leading-6">{message}</p>
@@ -153,7 +131,7 @@ function AuthMessageBanner({
           className={[
             "flex h-8 w-8 shrink-0 items-center justify-center transition",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-            toneClass.button,
+            "text-danger-700/70 hover:bg-danger-100 hover:text-danger-900 focus-visible:ring-danger-300",
           ].join(" ")}
         >
           <X className="h-4 w-4" aria-hidden="true" />
@@ -165,22 +143,18 @@ function AuthMessageBanner({
 
 export function AuthMessage({
   error,
-  success,
   duration = DEFAULT_DURATION_MS,
 }: AuthMessageProps): React.JSX.Element | null {
   const errorMessage = getAuthMessage(error);
-  const successMessage = getSuccessMessage(success);
-  const message = errorMessage ?? successMessage;
 
-  if (!message) {
+  if (!errorMessage) {
     return null;
   }
 
   return (
     <AuthMessageBanner
-      key={`${errorMessage ? "error" : "success"}:${message}`}
-      message={message}
-      isError={Boolean(errorMessage)}
+      key={`error:${errorMessage}`}
+      message={errorMessage}
       duration={duration}
     />
   );

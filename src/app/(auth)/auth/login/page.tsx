@@ -4,7 +4,6 @@ import { LoginForm } from "./login-form";
 
 type LoginSearchParams = {
   error?: string | string[];
-  success?: string | string[];
   next?: string | string[];
 };
 
@@ -26,7 +25,6 @@ export default async function LoginPage({
   return (
     <LoginForm
       initialError={getFirstSearchParam(resolvedSearchParams.error)}
-      initialSuccess={getFirstSearchParam(resolvedSearchParams.success)}
       initialNext={getFirstSearchParam(resolvedSearchParams.next)}
     />
   );

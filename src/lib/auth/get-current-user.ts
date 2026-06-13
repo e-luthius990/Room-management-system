@@ -231,23 +231,6 @@ async function loadCurrentUserContextSnapshot(
   return parseCurrentUserContextSnapshot(data);
 }
 
-async function loadProfile(admin: AdminClient, userId: string): Promise<ProfileRow> {
-  const { data, error } = await admin
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .returns<ProfileRow[]>()
-    .maybeSingle();
-
-  if (error || !data) {
-    throw new Error(
-      `Failed to load current user profile: ${error?.message ?? "not found"}`,
-    );
-  }
-
-  return data;
-}
-
 export const getCurrentUser = cache(
   async (): Promise<CurrentUserContext | null> => {
     const mark = createAuthContextTimer("auth:getCurrentUser");
@@ -275,12 +258,9 @@ export const getCurrentUser = cache(
       return null;
     }
 
-    const profile = await loadProfile(admin, user.id);
-    mark("current user profile loaded");
-
     const currentUser: CurrentUserContext = {
       authUser: user,
-      profile,
+      profile: snapshot.profile,
       role: snapshot.role,
       permissions: snapshot.permissions,
       campAccess: snapshot.campAccess,

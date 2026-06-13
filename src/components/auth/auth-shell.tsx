@@ -13,23 +13,21 @@ export function AuthShell({
   children,
 }: AuthShellProps): React.JSX.Element {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+    <main className="auth-theme relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
+      <div className="auth-theme-wash" aria-hidden="true" />
+      <div className="auth-theme-lines" aria-hidden="true" />
+      <div className="auth-theme-grid" aria-hidden="true" />
+
       <section
         aria-labelledby="auth-title"
         aria-describedby="auth-description"
-        className="w-full max-w-md"
+        className="relative z-10 w-full max-w-md"
       >
         <Card
           variant="card"
-          className="overflow-hidden border-border"
+          className="auth-card overflow-hidden"
         >
-          <div className="h-1 w-full bg-primary" aria-hidden="true" />
-
-          <CardHeader className="space-y-5 px-6 py-6">
-            <div className="inline-flex w-fit items-center border border-border bg-surface-2 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-              CampRoomOps
-            </div>
-
+          <CardHeader className="px-6 py-6">
             <div>
               <h1
                 id="auth-title"

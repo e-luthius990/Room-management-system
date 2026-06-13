@@ -2252,6 +2252,292 @@
   .inline-edit-actions {
     @apply flex items-center gap-2;
   }
+
+  .auth-theme {
+    background:
+      linear-gradient(135deg, oklch(0.968 0.018 198), transparent 34%),
+      linear-gradient(225deg, oklch(0.955 0.018 145), transparent 32%),
+      linear-gradient(180deg, var(--background), var(--canvas));
+  }
+
+  .dark .auth-theme {
+    background:
+      linear-gradient(135deg, oklch(0.18 0.04 214), transparent 34%),
+      linear-gradient(225deg, oklch(0.18 0.035 154), transparent 32%),
+      linear-gradient(180deg, var(--background), var(--canvas));
+  }
+
+  .auth-theme::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, transparent, oklch(1 0 0 / 0.48), transparent),
+      linear-gradient(180deg, transparent, oklch(0.55 0.135 205 / 0.08), transparent);
+    opacity: 0.6;
+    transform: translateX(-42%);
+    animation: auth-light-sweep 9s var(--ease-ops) infinite;
+    pointer-events: none;
+  }
+
+  .dark .auth-theme::before {
+    background:
+      linear-gradient(90deg, transparent, oklch(1 0 0 / 0.08), transparent),
+      linear-gradient(180deg, transparent, oklch(0.66 0.135 205 / 0.1), transparent);
+  }
+
+  .auth-theme-grid {
+    position: absolute;
+    inset: -2rem;
+    background-image:
+      linear-gradient(var(--border-subtle) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+    background-size: 4.75rem 4.75rem;
+    mask-image: linear-gradient(180deg, transparent, black 18%, black 76%, transparent);
+    opacity: 0.62;
+    animation: auth-grid-drift 18s linear infinite;
+    pointer-events: none;
+  }
+
+  .dark .auth-theme-grid {
+    opacity: 0.2;
+  }
+
+  .auth-theme-scan {
+    position: absolute;
+    left: -12vw;
+    right: -12vw;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--brand-500),
+      var(--success-600),
+      transparent
+    );
+    box-shadow: 0 0 28px color-mix(in oklch, var(--brand-500) 22%, transparent);
+    opacity: 0.58;
+    pointer-events: none;
+  }
+
+  .auth-theme-scan-primary {
+    top: 28%;
+    animation: auth-scan-primary 7.5s var(--ease-ops) infinite;
+  }
+
+  .auth-theme-scan-secondary {
+    top: 72%;
+    animation: auth-scan-secondary 10s var(--ease-ops) infinite;
+  }
+
+  .auth-theme-rail {
+    position: absolute;
+    top: 12%;
+    bottom: 12%;
+    display: grid;
+    width: 0.5rem;
+    grid-template-rows: 1fr 0.7fr 1.2fr;
+    gap: 0.65rem;
+    opacity: 0.8;
+    pointer-events: none;
+  }
+
+  .auth-theme-rail-left {
+    left: max(1.25rem, 6vw);
+  }
+
+  .auth-theme-rail-right {
+    right: max(1.25rem, 6vw);
+  }
+
+  .auth-theme-rail span {
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--brand-500), var(--success-600));
+    opacity: 0.42;
+    animation: auth-rail-pulse 3.8s var(--ease-ops) infinite;
+  }
+
+  .auth-theme-rail span:nth-child(2) {
+    animation-delay: 480ms;
+  }
+
+  .auth-theme-rail span:nth-child(3) {
+    animation-delay: 960ms;
+  }
+
+  .auth-theme-status {
+    position: absolute;
+    width: min(34rem, 82vw);
+    height: min(14rem, 28vh);
+    border: 1px solid color-mix(in oklch, var(--brand-500) 18%, transparent);
+    opacity: 0.42;
+    pointer-events: none;
+  }
+
+  .auth-theme-status::before,
+  .auth-theme-status::after {
+    content: "";
+    position: absolute;
+    inset: 0.75rem;
+    border: 1px solid color-mix(in oklch, var(--success-600) 16%, transparent);
+  }
+
+  .auth-theme-status::after {
+    inset: auto 1rem 1rem auto;
+    width: 34%;
+    height: 1.75rem;
+    background: repeating-linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--brand-500) 20%, transparent) 0 0.65rem,
+      transparent 0.65rem 1rem
+    );
+    border: 0;
+    opacity: 0.55;
+    animation: auth-meter 4.6s steps(6, end) infinite;
+  }
+
+  .auth-theme-status-a {
+    left: max(1rem, 8vw);
+    top: 11%;
+    transform: skewY(-6deg);
+  }
+
+  .auth-theme-status-b {
+    right: max(1rem, 8vw);
+    bottom: 10%;
+    transform: skewY(5deg);
+  }
+
+  .auth-card {
+    border-color: color-mix(in oklch, var(--brand-500) 22%, var(--border));
+    background:
+      linear-gradient(180deg, color-mix(in oklch, var(--surface) 90%, transparent), var(--surface)),
+      var(--surface);
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 0.68) inset,
+      0 24px 80px rgb(15 23 42 / 0.14);
+    backdrop-filter: blur(18px);
+  }
+
+  .dark .auth-card {
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 0.08) inset,
+      0 28px 90px rgb(0 0 0 / 0.45);
+  }
+
+  .auth-card-accent {
+    height: 0.25rem;
+    width: 100%;
+    background: linear-gradient(
+      90deg,
+      var(--brand-500),
+      var(--success-600),
+      var(--warning-600),
+      var(--brand-500)
+    );
+    background-size: 220% 100%;
+    animation: auth-accent-flow 5.2s linear infinite;
+  }
+
+  .auth-theme {
+    background:
+      linear-gradient(140deg, oklch(0.962 0.024 197), transparent 38%),
+      linear-gradient(225deg, oklch(0.972 0.034 88), transparent 36%),
+      linear-gradient(315deg, oklch(0.952 0.025 155), transparent 42%),
+      linear-gradient(180deg, oklch(0.99 0.006 220), oklch(0.948 0.015 210));
+  }
+
+  .dark .auth-theme {
+    background:
+      linear-gradient(140deg, oklch(0.22 0.05 210), transparent 38%),
+      linear-gradient(225deg, oklch(0.24 0.035 86), transparent 36%),
+      linear-gradient(315deg, oklch(0.2 0.04 152), transparent 42%),
+      linear-gradient(180deg, var(--background), var(--canvas));
+  }
+
+  .auth-theme::before {
+    background:
+      linear-gradient(110deg, transparent 8%, oklch(1 0 0 / 0.58) 34%, transparent 58%),
+      linear-gradient(180deg, oklch(1 0 0 / 0.7), transparent 42%, oklch(0.55 0.135 205 / 0.08));
+    opacity: 0.68;
+    transform: translateX(-20%);
+    animation-duration: 13s;
+  }
+
+  .dark .auth-theme::before {
+    background:
+      linear-gradient(110deg, transparent 8%, oklch(1 0 0 / 0.1) 34%, transparent 58%),
+      linear-gradient(180deg, transparent, oklch(0.66 0.135 205 / 0.1), transparent);
+  }
+
+  .auth-theme-wash {
+    position: absolute;
+    inset: -18%;
+    background:
+      linear-gradient(120deg, oklch(0.78 0.11 205 / 0.22), transparent 34%),
+      linear-gradient(240deg, oklch(0.78 0.12 150 / 0.2), transparent 38%),
+      linear-gradient(25deg, transparent 48%, oklch(0.85 0.12 82 / 0.18));
+    filter: blur(22px);
+    opacity: 0.9;
+    transform: rotate(-4deg);
+    animation: auth-wash-shift 16s var(--ease-ops) infinite alternate;
+    pointer-events: none;
+  }
+
+  .auth-theme-grid {
+    inset: -3rem;
+    background-size: 5.5rem 5.5rem;
+    mask-image: linear-gradient(180deg, transparent, black 26%, black 68%, transparent);
+    opacity: 0.28;
+    animation-duration: 26s;
+  }
+
+  .dark .auth-theme-grid {
+    opacity: 0.16;
+  }
+
+  .auth-theme-lines {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(102deg, transparent 0 24%, oklch(0.5 0.12 205 / 0.12) 24.15%, transparent 24.8%),
+      linear-gradient(102deg, transparent 0 58%, oklch(0.46 0.11 150 / 0.1) 58.12%, transparent 58.7%),
+      linear-gradient(102deg, transparent 0 74%, oklch(0.7 0.12 82 / 0.1) 74.12%, transparent 74.7%);
+    opacity: 0.72;
+    transform: translateX(-3rem);
+    animation: auth-lines-glide 18s var(--ease-ops) infinite alternate;
+    pointer-events: none;
+  }
+
+  .auth-card {
+    border-color: color-mix(in oklch, var(--brand-500) 24%, oklch(1 0 0 / 0.65));
+    background:
+      linear-gradient(180deg, oklch(1 0 0 / 0.9), oklch(0.99 0.004 220 / 0.82)),
+      color-mix(in oklch, var(--surface) 88%, transparent);
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 0.85) inset,
+      0 18px 48px rgb(15 23 42 / 0.1),
+      0 42px 120px rgb(14 116 144 / 0.12);
+    backdrop-filter: blur(24px) saturate(1.08);
+  }
+
+  .dark .auth-card {
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 0.08) inset,
+      0 28px 90px rgb(0 0 0 / 0.45);
+  }
+
+  .auth-card-accent {
+    height: 0.2rem;
+    background: linear-gradient(
+      90deg,
+      oklch(0.48 0.14 205),
+      var(--success-600),
+      var(--warning-600),
+      oklch(0.48 0.14 205)
+    );
+    animation-duration: 7s;
+  }
 }
 
 @keyframes loading-spin {
@@ -2294,5 +2580,118 @@
 @keyframes skeleton-shimmer {
   to {
     transform: translateX(100%);
+  }
+}
+
+@keyframes auth-light-sweep {
+  0%,
+  18% {
+    transform: translateX(-48%);
+  }
+
+  72%,
+  100% {
+    transform: translateX(48%);
+  }
+}
+
+@keyframes auth-grid-drift {
+  to {
+    transform: translate3d(4.75rem, 4.75rem, 0);
+  }
+}
+
+@keyframes auth-wash-shift {
+  0% {
+    transform: rotate(-4deg) translate3d(-1.5rem, -0.75rem, 0);
+  }
+
+  100% {
+    transform: rotate(-2deg) translate3d(1.25rem, 0.75rem, 0);
+  }
+}
+
+@keyframes auth-lines-glide {
+  0% {
+    transform: translateX(-3rem);
+    opacity: 0.54;
+  }
+
+  100% {
+    transform: translateX(2rem);
+    opacity: 0.74;
+  }
+}
+
+@keyframes auth-scan-primary {
+  0%,
+  100% {
+    transform: translateY(-1.75rem);
+    opacity: 0.18;
+  }
+
+  45% {
+    transform: translateY(2.5rem);
+    opacity: 0.72;
+  }
+}
+
+@keyframes auth-scan-secondary {
+  0%,
+  100% {
+    transform: translateY(1.5rem);
+    opacity: 0.14;
+  }
+
+  55% {
+    transform: translateY(-2.25rem);
+    opacity: 0.54;
+  }
+}
+
+@keyframes auth-rail-pulse {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: scaleY(0.86);
+  }
+
+  50% {
+    opacity: 0.72;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes auth-meter {
+  0%,
+  100% {
+    width: 22%;
+  }
+
+  45% {
+    width: 42%;
+  }
+
+  74% {
+    width: 30%;
+  }
+}
+
+@keyframes auth-accent-flow {
+  to {
+    background-position: 220% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-theme::before,
+  .auth-theme-wash,
+  .auth-theme-lines,
+  .auth-theme-grid,
+  .auth-theme-scan,
+  .auth-theme-rail span,
+  .auth-theme-status::after,
+  .auth-card-accent {
+    animation: none !important;
   }
 }

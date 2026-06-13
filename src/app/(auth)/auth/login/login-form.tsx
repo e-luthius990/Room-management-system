@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/Input";
 
 type LoginFormProps = {
   initialError?: string;
-  initialSuccess?: string;
   initialNext?: string;
 };
 
@@ -76,7 +75,6 @@ function shouldClearErrorOnEdit(error: string | undefined): boolean {
 
 export function LoginForm({
   initialError,
-  initialSuccess,
   initialNext,
 }: LoginFormProps): React.JSX.Element {
   const router = useRouter();
@@ -86,7 +84,6 @@ export function LoginForm({
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState<string | undefined>(initialError);
-  const [success] = useState<string | undefined>(initialSuccess);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -173,7 +170,7 @@ export function LoginForm({
       description="Access your assigned camp operations workspace."
     >
       <div className="space-y-5">
-        <AuthMessage error={visibleError} success={success} />
+        <AuthMessage error={visibleError} />
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <Input
